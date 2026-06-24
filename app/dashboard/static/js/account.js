@@ -23,10 +23,10 @@
     }
     // Drop the Firebase token in a same-origin cookie so the Python dashboard reads it.
     function setTokenCookie(token) {
-      document.cookie = "mtoken=" + token + "; path=/; SameSite=Strict; Secure";
+      document.cookie = "mtoken=" + token + "; path=/; SameSite=Lax; Secure";
     }
     function clearTokenCookie() {
-      document.cookie = "mtoken=; path=/; max-age=0; SameSite=Strict; Secure";
+      document.cookie = "mtoken=; path=/; max-age=0; SameSite=Lax; Secure";
     }
 
     async function doLogin() {
@@ -53,7 +53,7 @@
         isDemo = true;
         g_demoUid = owner;
         clearTokenCookie();
-        document.cookie = "mdemo=" + owner + "; path=/; SameSite=Strict; Secure";   // tells the dashboard to show the demo read-only
+        document.cookie = "mdemo=" + owner + "; path=/; SameSite=Lax; Secure";   // tells the dashboard to show the demo read-only
         document.getElementById("who").textContent = "Demo";
         document.getElementById("avatar").textContent = "D";
         document.getElementById("demoTag").classList.remove("hidden");
@@ -111,7 +111,7 @@
 
     function doLogout() {
       clearTokenCookie();
-      document.cookie = "mdemo=; path=/; max-age=0; SameSite=Strict; Secure";
+      document.cookie = "mdemo=; path=/; max-age=0; SameSite=Lax; Secure";
       if (isDemo) { isDemo = false; g_demoUid = null; detachData(); showView("login"); return; }
       firebase.auth().signOut();
     }
@@ -466,7 +466,7 @@
     firebase.auth().onAuthStateChanged(async (user) => {
       if (user) {
         isDemo = false;
-        document.cookie = "mdemo=; path=/; max-age=0; SameSite=Strict; Secure";
+        document.cookie = "mdemo=; path=/; max-age=0; SameSite=Lax; Secure";
         setTokenCookie(await user.getIdToken());
         const em = user.email || "Anonymous";
         document.getElementById("who").textContent = em;

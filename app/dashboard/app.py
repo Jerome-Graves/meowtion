@@ -37,6 +37,7 @@ elif demo_uid:
 else:
     st.warning("You're not signed in.")
     st.markdown("[← Sign in](app/static/account.html)")
+    st.caption(f"debug · cookies received: {sorted(st.context.cookies.keys())}")   # TEMP: diagnose cookie handoff
     st.stop()
 
 try:
