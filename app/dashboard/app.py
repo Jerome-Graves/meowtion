@@ -30,7 +30,13 @@ def jwt_payload(t):
 # CookieManager reads document.cookie in the browser and reports it back to Python; on the very
 # first run it may be empty, then the component triggers a rerun where the value is present.
 cookie_manager = stx.CookieManager()
-cookies = cookie_manager.get_all() or {}
+cookies = cookie_manager.get_all()
+if cookies is None:
+    # First render: the component hasn't reported the browser's cookies yet. Show a loading state
+    # rather than flashing "not signed in"; the component triggers a rerun once mounted, and this
+    # run then has the real cookies (an empty dict {} means mounted-but-genuinely-signed-out).
+    st.info("Loading…")
+    st.stop()
 token = cookies.get("mtoken")
 demo_uid = cookies.get("mdemo")
 
