@@ -53,8 +53,11 @@ elif demo_uid:
     uid, token = demo_uid, None   # public read, no auth - read-only demo
     st.caption("👀 Demo · read-only  ·  [exit](app/static/account.html)")
 else:
-    st.warning("You're not signed in.")
-    st.markdown("[← Sign in](app/static/account.html)")
+    # Not signed in: send the visitor to the login page instead of showing the dashboard shell.
+    login_url = "/app/static/account.html"
+    st.markdown(f'<meta http-equiv="refresh" content="0; url={login_url}">', unsafe_allow_html=True)
+    st.info("Redirecting to sign in…")
+    st.markdown(f"[Continue to sign in]({login_url})")   # fallback if the redirect is blocked
     st.stop()
 
 try:
