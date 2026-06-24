@@ -53,11 +53,10 @@ elif demo_uid:
     uid, token = demo_uid, None   # public read, no auth - read-only demo
     st.caption("👀 Demo · read-only  ·  [exit](app/static/account.html)")
 else:
-    # Not signed in: send the visitor to the login page instead of showing the dashboard shell.
-    login_url = "/app/static/account.html"
-    st.markdown(f'<meta http-equiv="refresh" content="0; url={login_url}">', unsafe_allow_html=True)
-    st.info("Redirecting to sign in…")
-    st.markdown(f"[Continue to sign in]({login_url})")   # fallback if the redirect is blocked
+    # Not signed in: gate to the login page. (A meta-refresh auto-redirect works locally but loops /
+    # hangs on Streamlit Community Cloud, so we show a reliable sign-in link instead of redirecting.)
+    st.warning("Please sign in to view your dashboard.")
+    st.link_button("Sign in", "app/static/account.html")
     st.stop()
 
 try:
