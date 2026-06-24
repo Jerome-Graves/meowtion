@@ -13,6 +13,7 @@ import time
 
 import requests
 import streamlit as st
+import extra_streamlit_components as stx
 
 st.set_page_config(page_title="Meowtion", page_icon="🐾")
 st.title("🐾 Meowtion")
@@ -24,20 +25,25 @@ def jwt_payload(t):
     return json.loads(base64.urlsafe_b64decode(body))
 
 
-token = st.context.cookies.get("mtoken")
-demo_uid = st.context.cookies.get("mdemo")
+# Streamlit Community Cloud does not expose browser cookies to the server (st.context.cookies is
+# empty there), so we read the login cookie account.html set with a CLIENT-SIDE component instead.
+# CookieManager reads document.cookie in the browser and reports it back to Python; on the very
+# first run it may be empty, then the component triggers a rerun where the value is present.
+cookie_manager = stx.CookieManager()
+cookies = cookie_manager.get_all() or {}
+token = cookies.get("mtoken")
+demo_uid = cookies.get("mdemo")
 
 if token:
     claims = jwt_payload(token)
     uid = claims.get("user_id") or claims.get("sub")
     st.caption(f"Signed in as {claims.get('email', uid)}  ·  [manage devices](app/static/account.html)")
 elif demo_uid:
-    uid, token = demo_uid, None   # public read, no auth , read-only demo
+    uid, token = demo_uid, None   # public read, no auth - read-only demo
     st.caption("👀 Demo · read-only  ·  [exit](app/static/account.html)")
 else:
     st.warning("You're not signed in.")
     st.markdown("[← Sign in](app/static/account.html)")
-    st.caption(f"debug · cookies received: {sorted(st.context.cookies.keys())}")   # TEMP: diagnose cookie handoff
     st.stop()
 
 try:
