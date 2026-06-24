@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Storage holds two things:
+//   training/<uid>/<collar>/<ts>.{wav,imu} - training clips, owned by one account
+//   models/<uid>/<name>_model.tflite       - trained models written by the Cloud Function
+//
+// No client writes anywhere. The station has only a device token (not a Firebase login), so it
+// cannot satisfy these rules; instead it uploads through the authenticated `upload_clip` Cloud
+// Function, which verifies the token and writes as admin (admin bypasses rules). Trained models are
+// written the same way (the `train` function, as admin). Clients therefore never write to Storage.
+//
+// Reads: training clips are readable only by their owning account (path is owner-scoped). Models are
+// public-read so the token-auth station can fetch one to push to the collar over BLE (a model file
+// is not sensitive; the home audio in /training is, hence the stricter rule there).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /training/{uid}/{path=**} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;   // uploads go through the upload_clip Cloud Function
+    }
+    match /models/{uid}/{path=**} {
+      allow read: if true;     // public-read for OTA model delivery to the collar
+      allow write: if false;   // written only by the train Cloud Function (admin)
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,4 @@
+# Lets Streamlit serve the static JS front door (static/account.html) from the
+# SAME origin as this Python dashboard, so a login cookie is shared between them.
+[server]
+enableStaticServing = true

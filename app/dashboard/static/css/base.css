@@ -1,0 +1,114 @@
+/*
+ * base.css - Meowtion shared design system.
+ *
+ * Design tokens, reset, base typography, buttons and layout utilities used by
+ * every page. Page-specific styles live alongside this file (account.css, dev.css).
+ * Each page loads base.css first, then its own sheet, so page rules can extend or
+ * override these defaults.
+ */
+
+/* ---- design tokens ---- */
+:root {
+  --accent: #6557f5;
+  --accent-d: #5346d6;
+  --ink: #1b1b2b;
+  --muted: #6b7280;
+  --line: #e6e7ec;
+  --bg: #f4f4f8;
+  --card: #fff;
+  --ok: #16a34a;
+  --bad: #dc2626;
+  --amber: #d97706;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(16, 18, 40, .04), 0 10px 30px rgba(16, 18, 40, .07);
+}
+
+/* ---- reset + page canvas ---- */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  background-image: radial-gradient(1100px 480px at 50% -220px, #e9e7fc, transparent);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { max-width: 600px; margin: 0 auto; padding: 2.25rem 1rem 3rem; }
+
+/* ---- brand header ---- */
+.brand { display: flex; align-items: center; gap: .8rem; margin-bottom: 1.4rem; }
+
+.logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--accent), #9d8bff);
+  box-shadow: var(--shadow);
+}
+
+.wordmark { font-weight: 800; font-size: 1.3rem; letter-spacing: -.02em; }
+.tag { font-size: .8rem; color: var(--muted); margin-top: -2px; }
+
+/* ---- surfaces + typography ---- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.6rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1rem;
+}
+
+h2 { margin: .1rem 0 1.1rem; font-size: 1.4rem; letter-spacing: -.02em; }
+h3 { margin: 1.4rem 0 .5rem; font-size: 1.05rem; letter-spacing: -.01em; }
+.muted { color: var(--muted); }
+.hint { font-size: .78rem; color: var(--muted); margin-top: .5rem; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- forms ---- */
+label {
+  display: block;
+  font-size: .78rem;
+  font-weight: 600;
+  color: #3a3a4a;
+  margin-top: .9rem;
+}
+
+/* ---- buttons ---- */
+button {
+  font-family: inherit;
+  font-size: .92rem;
+  font-weight: 600;
+  padding: .68rem 1rem;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: .15s;
+}
+
+button:hover { background: #fafafe; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { background: var(--accent-d); }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: .5rem .7rem; }
+button.ghost:hover { background: #f2f2f7; }
+
+/* ---- layout utilities ---- */
+.row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.hidden { display: none; }
+
+/* ---- status messages ---- */
+.msg { margin-top: .6rem; font-size: .88rem; min-height: 1px; }
+.msg.err { color: var(--bad); }
+.msg.ok { color: var(--ok); }

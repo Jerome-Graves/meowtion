@@ -1,0 +1,150 @@
+/*
+ * account.css - styles specific to the account page (account.html).
+ * Loaded after base.css. Covers the auth forms, the signed-in account view,
+ * the devices table, and the "connect a device" form.
+ */
+
+/* ---- headings + inputs ---- */
+h4 { margin: 1.3rem 0 .3rem; font-size: .95rem; }
+
+input[type=email], input[type=password], input[type=text], select {
+  width: 100%;
+  margin-top: .35rem;
+  padding: .72rem .85rem;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: .95rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(101, 87, 245, .16);
+}
+
+/* ---- button variants used only on this page ---- */
+button.block { width: 100%; }
+button.google { display: flex; align-items: center; justify-content: center; gap: .55rem; width: 100%; }
+button.link { border: none; background: none; color: var(--accent); padding: .15rem; font-weight: 600; }
+button.danger { color: var(--bad); border-color: #f0c9c9; }
+button.danger:hover { background: #fef2f2; }
+button.sm { padding: .4rem .7rem; font-size: .82rem; }
+.gico { width: 17px; height: 17px; }
+
+/* ---- form layout helpers ---- */
+.stack { display: flex; flex-direction: column; gap: .6rem; }
+.divider { display: flex; align-items: center; gap: .8rem; color: var(--muted); font-size: .78rem; margin: 1.2rem 0; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.consent { display: flex; gap: .6rem; align-items: flex-start; margin-top: 1rem; font-size: .85rem; color: #3a3a4a; }
+.consent input { margin-top: .2rem; width: auto; }
+
+/* ---- signed-in account header ---- */
+.acct-top { display: flex; align-items: center; gap: .75rem; }
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), #9d8bff);
+  text-transform: uppercase;
+  flex: none;
+}
+.acct-id { flex: 1; min-width: 0; }
+.acct-id .em { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-id .sub { font-size: .78rem; color: var(--muted); }
+.banner {
+  margin-top: .9rem;
+  padding: .65rem .85rem;
+  border-radius: 11px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: .85rem;
+}
+
+/* ---- devices table ---- */
+table.devices { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+table.devices th {
+  text-align: left;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  font-weight: 700;
+  padding: .2rem .5rem .5rem;
+}
+table.devices td { padding: .75rem .5rem; border-top: 1px solid var(--line); font-size: .9rem; vertical-align: middle; }
+table.devices td.name { font-weight: 600; }
+.devid { font-size: .72rem; color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-weight: 500; margin-top: .15rem; }
+table.devices td.actions { text-align: right; width: 1%; white-space: nowrap; }
+
+/* ---- pills ---- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .58rem;
+  border-radius: 999px;
+  font-size: .76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pill-collar { background: #eef0ff; color: #4f46e5; }
+.pill-station { background: #e7f7f1; color: #0f766e; }
+.pill-muted { background: #f1f1f4; color: var(--muted); }
+
+/* ---- battery bar ---- */
+.bat { display: flex; align-items: center; gap: .5rem; }
+.bat-track { width: 44px; height: 7px; border-radius: 99px; background: #ececef; overflow: hidden; flex: none; }
+.bat-fill { height: 100%; border-radius: 99px; }
+.bat-ok { background: var(--ok); }
+.bat-mid { background: var(--amber); }
+.bat-low { background: var(--bad); }
+.bat-label { font-size: .8rem; color: var(--muted); }
+
+/* ---- connection indicator ---- */
+.conn { display: inline-flex; align-items: center; gap: .45rem; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot-on { background: var(--ok); box-shadow: 0 0 0 3px rgba(22, 163, 74, .16); }
+.dot-off { background: #c4c4cc; }
+.dot-idle { background: var(--accent); box-shadow: 0 0 0 3px rgba(101, 87, 245, .16); }
+
+/* ---- empty state + connect form ---- */
+.empty {
+  margin-top: .6rem;
+  padding: 1.6rem;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 13px;
+  color: var(--muted);
+  font-size: .9rem;
+}
+details.connect { margin-top: 1rem; border: 1px solid var(--line); border-radius: 13px; background: #fbfbfe; overflow: hidden; }
+details.connect > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .85rem 1.1rem;
+  font-weight: 600;
+  font-size: .95rem;
+}
+details.connect > summary::-webkit-details-marker { display: none; }
+.chev { color: var(--muted); transition: transform .2s ease; flex: none; }
+details.connect[open] > summary .chev { transform: rotate(180deg); }
+.connect-body { padding: 0 1.1rem 1.15rem; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.foot { margin-top: 1.5rem; text-align: center; font-size: .78rem; color: var(--muted); line-height: 1.6; }
+
+@media (max-width: 480px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .card { padding: 1.25rem; }
+}

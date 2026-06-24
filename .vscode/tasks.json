@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}/firmware/station",
+    "shell": {
+      "executable": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+    }
+  },
+  "tasks": [
+    {
+      "label": "Build+Flash Station",
+      "type": "shell",
+      "command": ". $env:USERPROFILE\\esp\\esp-idf\\export.ps1 *> $null; idf.py -p COM3 flash",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Build+Flash Collar",
+      "type": "shell",
+      "command": "& '${workspaceFolder}/firmware/collar/build.ps1'",
+      "options": { "cwd": "${workspaceFolder}/firmware/collar" },
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "Run dashboard",
+      "type": "shell",
+      "command": "Start-Job -ScriptBlock { Start-Sleep -Seconds 4; Start-Process 'http://localhost:8501/app/static/account.html' } | Out-Null; python -m streamlit run app.py --server.port 8501 --server.headless true",
+      "options": { "cwd": "${workspaceFolder}/app/dashboard" },
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
+}

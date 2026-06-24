@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "nordic-semiconductor.nrf-connect-extension-pack",
+    "espressif.esp-idf-extension",
+    "ms-vscode.cpptools",
+    "marus25.cortex-debug"
+  ]
+}

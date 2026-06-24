@@ -1,0 +1,153 @@
+/*
+ * dev.css - styles specific to the developer console (dev.html).
+ * Loaded after base.css. Covers station status cards, the stat grid, the mode and
+ * capture toggle switches, and the recorded-clip waveform / trim interface.
+ *
+ * A few class names here (.pill, .dot, .empty, .chev, .sm) intentionally differ from
+ * their account-page counterparts; keeping them in this sheet avoids any cross-page bleed.
+ */
+
+a { font-weight: 600; }
+
+/* ---- numeric / range inputs ---- */
+input[type=number] {
+  width: 100%;
+  margin-top: .35rem;
+  padding: .6rem .8rem;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: .95rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+input[type=range] { width: 100%; margin-top: .5rem; accent-color: var(--accent); }
+
+/* ---- header row ---- */
+.top { display: flex; align-items: center; gap: .8rem; margin-bottom: .4rem; }
+.top .who { font-weight: 700; flex: 1; }
+
+/* ---- station card + stats ---- */
+.dev-card { border: 1px solid var(--line); border-radius: 13px; padding: 1rem 1.1rem; margin-top: .7rem; }
+.dev-card .nm { font-weight: 700; }
+.devid { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-top: .8rem; }
+.stat { background: #f7f7fb; border-radius: 10px; padding: .6rem .7rem; }
+.stat .k { font-size: .72rem; color: var(--muted); }
+.stat .v { font-size: 1.05rem; font-weight: 700; margin-top: .1rem; }
+
+/* ---- status pills ---- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .74rem;
+  font-weight: 600;
+  padding: .18rem .5rem;
+  border-radius: 999px;
+}
+.p-rec { background: #fde8e8; color: var(--bad); }
+.p-near { background: #fef3e2; color: var(--amber); }
+.p-idle { background: #eef0f4; color: var(--muted); }
+.p-on { background: #e7f6ec; color: var(--ok); }
+
+/* ---- online dot + recording blink ---- */
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot-on { background: var(--ok); box-shadow: 0 0 0 3px rgba(22, 163, 74, .16); }
+.dot-off { background: #c4c4cc; }
+.blink { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { opacity: .35; } }
+
+/* ---- recorded-clip rows ---- */
+.empty { color: var(--muted); font-size: .88rem; padding: .8rem 0; }
+.clip { display: block; padding: .8rem .2rem; border-top: 1px solid var(--line); }
+.chead {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: .15rem 0;
+  border-radius: 8px;
+}
+.chead:hover { background: #fafafe; }
+.chead .lhs { display: flex; align-items: center; gap: .45rem; }
+.chev { display: inline-block; width: 1.1em; text-align: center; color: var(--accent); font-size: 1.15rem; font-weight: 700; line-height: 1; }
+.cdetail { padding-top: .2rem; }
+.imu-badge {
+  font-size: .66rem;
+  font-weight: 700;
+  padding: .12rem .42rem;
+  border-radius: 999px;
+  background: #e7f6ec;
+  color: var(--ok);
+  white-space: nowrap;
+}
+.imu-badge.no { background: #eef0f4; color: var(--muted); }
+.sm { font-size: .8rem; padding: .42rem .7rem; border-radius: 9px; }
+
+/* ---- waveform + trim markers ---- */
+.wave-wrap {
+  position: relative;
+  height: 66px;
+  margin: .55rem 0;
+  border-radius: 9px;
+  background: #f3f3fa;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.wave-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
+.wave-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  margin-left: -7px;
+  cursor: ew-resize;
+  display: flex;
+  justify-content: center;
+  touch-action: none;
+  z-index: 2;
+}
+.wave-marker::before { content: ""; width: 2px; height: 100%; background: var(--accent); }
+.wave-marker::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
+.wave-marker.end::before, .wave-marker.end::after { background: var(--bad); }
+.wave-play { position: absolute; top: 0; bottom: 0; width: 1px; background: #111; opacity: .6; display: none; pointer-events: none; z-index: 1; }
+
+/* ---- clip action bar ---- */
+.cbar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.cbar .tnum { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-right: auto; }
+.cbar select {
+  font-family: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: .42rem .5rem;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* ---- toggle switch (mode / capture) ---- */
+.switch { display: inline-flex; align-items: center; gap: .6rem; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track { position: relative; width: 46px; height: 26px; border-radius: 999px; background: #cdd0d8; transition: .2s; flex: none; }
+.switch .thumb { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: .2s; }
+.switch input:checked + .track { background: var(--accent); }
+.switch input:checked + .track .thumb { transform: translateX(20px); }
+.switch input:focus-visible + .track { box-shadow: 0 0 0 3px rgba(101, 87, 245, .35); }
+.switch-label { font-weight: 600; font-size: .95rem; }

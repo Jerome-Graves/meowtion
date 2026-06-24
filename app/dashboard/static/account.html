@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meowtion , account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/account.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="brand">
+      <div class="logo">🐾</div>
+      <div>
+        <div class="wordmark">Meowtion</div>
+        <div class="tag">Activity tracker for cats</div>
+      </div>
+    </div>
+
+    <!-- LOG IN -->
+    <div id="view-login" class="card hidden">
+      <h2>Welcome back</h2>
+      <label for="login-email">Email</label>
+      <input id="login-email" type="email" autocomplete="username" placeholder="you@example.com" />
+      <label for="login-password">Password</label>
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" />
+      <button class="primary block" style="margin-top:1.1rem;" onclick="doLogin()">Log in</button>
+      <div style="text-align:center;margin-top:.6rem;"><button class="link" onclick="showView('reset')">Forgot password?</button></div>
+      <div class="divider">or</div>
+      <div class="stack">
+        <button class="google" onclick="doGoogle()">
+          <svg class="gico" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+          Continue with Google
+        </button>
+        <button class="block" onclick="doDemo()">View the demo (read-only)</button>
+      </div>
+      <p class="msg muted" style="text-align:center;">No account? <button class="link" onclick="showView('signup')">Create one</button></p>
+      <p id="login-msg" class="msg"></p>
+    </div>
+
+    <!-- SIGN UP -->
+    <div id="view-signup" class="card hidden">
+      <h2>Create your account</h2>
+      <label for="su-email">Email</label>
+      <input id="su-email" type="email" autocomplete="username" placeholder="you@example.com" />
+      <label for="su-password">Password</label>
+      <input id="su-password" type="password" autocomplete="new-password" placeholder="At least 8 characters" />
+      <p class="hint">8+ characters, with a letter and a number.</p>
+      <label for="su-confirm">Confirm password</label>
+      <input id="su-confirm" type="password" autocomplete="new-password" placeholder="••••••••" />
+      <div class="consent">
+        <input id="su-consent" type="checkbox" />
+        <label for="su-consent" style="margin:0;font-weight:400;">I agree to the
+          <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>
+          and to Meowtion storing my cat's activity data.</label>
+      </div>
+      <button class="primary block" style="margin-top:1.1rem;" onclick="doSignup()">Create account</button>
+      <div style="text-align:center;margin-top:.6rem;"><button class="link" onclick="showView('login')">Back to log in</button></div>
+      <p id="su-msg" class="msg"></p>
+    </div>
+
+    <!-- RESET PASSWORD -->
+    <div id="view-reset" class="card hidden">
+      <h2>Reset password</h2>
+      <p class="muted" style="margin-top:-.5rem;">We'll email you a link to set a new password.</p>
+      <label for="reset-email">Email</label>
+      <input id="reset-email" type="email" autocomplete="username" placeholder="you@example.com" />
+      <button class="primary block" style="margin-top:1.1rem;" onclick="doReset()">Send reset link</button>
+      <div style="text-align:center;margin-top:.6rem;"><button class="link" onclick="showView('login')">Back to log in</button></div>
+      <p id="reset-msg" class="msg"></p>
+    </div>
+
+    <!-- SIGNED IN -->
+    <div id="view-account" class="card hidden">
+      <div class="acct-top">
+        <div class="avatar" id="avatar">?</div>
+        <div class="acct-id">
+          <div class="em" id="who"></div>
+          <div class="sub"><span id="demoTag" class="hidden">Demo account · read-only</span><span id="acctSub">Signed in</span></div>
+        </div>
+        <button class="ghost" onclick="doLogout()">Log out</button>
+      </div>
+
+      <div id="verify-banner" class="banner hidden">
+        Your email isn't verified yet. <button class="link" onclick="resendVerify()">Resend email</button>
+      </div>
+
+      <div style="margin:1.1rem 0;">
+        <a href="/"><button class="primary block">Open dashboard →</button></a>
+      </div>
+
+      <div id="devToolsWrap" class="hidden" style="margin:-.5rem 0 1.1rem;">
+        <a href="dev.html"><button class="block">🛠 Dev tools , capture &amp; training</button></a>
+      </div>
+
+      <h3>Devices</h3>
+      <table class="devices hidden" id="devicesTable">
+        <thead><tr><th>Name</th><th>Type</th><th>Power</th><th>Connection</th><th></th></tr></thead>
+        <tbody id="devicesBody"></tbody>
+      </table>
+      <div id="noDevices" class="empty">No devices yet. Connect your first station below, then register the collar it hears.</div>
+
+      <div id="seenWrap" class="hidden" style="margin:.6rem 0 .2rem;">
+        <h4 style="margin:.2rem 0 .35rem;">Collars detected nearby</h4>
+        <p class="muted" style="font-size:.85rem;margin:0 0 .5rem;">Your station can hear these collars over Bluetooth but they aren't registered yet. Register one to start seeing its activity.</p>
+        <div id="seenList"></div>
+      </div>
+
+      <details id="connectForm" class="connect">
+        <summary>
+          <span>＋ Connect a device</span>
+          <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </summary>
+        <div class="connect-body">
+          <p class="muted" style="font-size:.85rem;margin:.1rem 0 .6rem;">Plug the <b>station</b> in over USB, name it, and give it your WiFi. The <b>collar</b> needs no setup here , once your station is online it detects the collar over Bluetooth and it appears under <b>Collars detected nearby</b> to register with one tap. You need <b>both</b> registered before any cat data appears.</p>
+          <label for="connName">Station name</label>
+          <input id="connName" type="text" placeholder="Kitchen station" />
+          <div class="grid2" style="margin-top:.2rem;">
+            <div><label for="connSsid">WiFi name</label><input id="connSsid" type="text" placeholder="Your network" /></div>
+            <div><label for="connPass">WiFi password</label><input id="connPass" type="password" placeholder="••••••••" /></div>
+          </div>
+          <button class="primary block" style="margin-top:.9rem;" onclick="connectDevice()">Connect station</button>
+          <p id="dev-msg" class="msg"></p>
+          <p class="hint">🔒 WiFi is sent to the station over USB only, never stored. Flash it, plug it in, then connect. Needs Chrome or Edge (Web Serial).</p>
+          <p class="hint" id="locNote">📍 We'll detect your approximate town from the station's connection to show local weather next to your cat's activity. Only the town is stored, never your precise location.</p>
+        </div>
+      </details>
+
+      <div id="yourData">
+        <h4>Your data</h4>
+        <div class="row">
+          <button class="sm" onclick="downloadData()">Download my data</button>
+          <button class="sm danger" onclick="deleteAccount()">Delete account &amp; data</button>
+        </div>
+        <p class="hint">Download exports everything stored about your cats (GDPR access). Delete permanently removes your account, devices, and data.</p>
+      </div>
+      <p id="acct-msg" class="msg"></p>
+    </div>
+
+    <div class="foot">
+      <a href="privacy.html">Privacy Policy</a><br />
+      Your cat's activity data is stored to show you the dashboard. We never sell it.
+    </div>
+  </div>
+  <!-- Firebase SDK + project config -->
+  <script src="js/firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="js/firebase-init.js"></script>
+  <script src="js/account.js"></script>
+</body>
+</html>

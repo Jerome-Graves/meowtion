@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Streamlit serves this file with an ETag but no Cache-Control, so browsers heuristically
+       cache it and keep running an old copy after we ship fixes. Force revalidation. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Meowtion , dev</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/dev.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="brand">
+      <div class="logo">🐾</div>
+      <div><div class="wordmark">Meowtion</div><div class="tag">Dev tools , capture &amp; training</div></div>
+    </div>
+
+    <!-- shown when not a dev account / not logged in -->
+    <div id="gate" class="card hidden">
+      <h2>Dev tools</h2>
+      <p class="muted" id="gateMsg">This page is for dev accounts only.</p>
+      <div style="margin-top:1rem;"><a href="account.html">← Back to account</a></div>
+    </div>
+
+    <!-- the dev view -->
+    <div id="devview" class="hidden">
+      <div class="card">
+        <div class="top">
+          <div class="who" id="who"></div>
+          <a href="account.html">Account</a>
+          <button class="ghost" onclick="firebase.auth().signOut()">Log out</button>
+        </div>
+
+        <h3>Collar capture</h3>
+        <p class="hint">Live status reported by each station. Fields like signal, recording and collar battery
+          populate once the station's capture firmware is running; battery/power show now.</p>
+        <div id="stations"><div class="empty">No stations registered yet.</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Mode</h3>
+        <p class="hint"><b>Training</b> (default): the station records and uploads labelled clips , use the
+          toggles below to collect data. <b>Production</b>: the station stops recording and uploading
+          entirely and just relays the collar's on-device eat/drink/purr classification. Switch to
+          Production once your models are trained and flashed.</p>
+        <div class="row">
+          <label class="switch">
+            <input type="checkbox" id="modeToggle" onchange="toggleMode()" />
+            <span class="track"><span class="thumb"></span></span>
+            <span class="switch-label" id="modeState">Training</span>
+          </label>
+          <span id="mode-msg" class="msg"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Actions to recognise</h3>
+        <p class="hint">The behaviours your collar learns , eat, drink, purr, scratch, litter-tray use… anything
+          you can capture and tell apart. These fill the label dropdown on each clip, and the trainer learns
+          whatever set you define here.</p>
+        <div id="actionList" class="row" style="flex-wrap:wrap;gap:.4rem;"></div>
+        <div class="row" style="margin-top:.5rem;">
+          <input id="newAction" type="text" placeholder="new action, e.g. scratch" class="sm" />
+          <button class="sm" onclick="addAction()">Add</button>
+          <span id="action-msg" class="msg"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Train models (cloud)</h3>
+        <p class="hint">Trains the eat/drink/purr models from your labelled clips on the server (no local
+          setup) and stores them on Firebase. Run it after you've collected and labelled a batch.</p>
+        <div class="row">
+          <button id="trainBtn" class="sm primary" onclick="retrainModels()">Retrain models</button>
+          <span id="train-msg" class="msg"></span>
+        </div>
+        <div id="modelStatus" class="hint" style="margin-top:.6rem;">No models trained yet.</div>
+      </div>
+
+      <div class="card">
+        <h3>Data capture</h3>
+        <p class="hint">When ON, the station records audio clips back-to-back whenever a registered collar
+          is in range. Turn it OFF when you're done collecting so it stops recording.
+          <em>(Training mode only , ignored in Production.)</em></p>
+        <div class="row">
+          <label class="switch">
+            <input type="checkbox" id="capToggle" onchange="toggleCapture()" />
+            <span class="track"><span class="thumb"></span></span>
+            <span class="switch-label" id="capState">Off</span>
+          </label>
+          <span id="cap-msg" class="msg"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Manual capture (ignore range)</h3>
+        <p class="hint">Records whenever a registered collar is heard at <em>any</em> distance, ignoring the range
+          gate. Use this to capture purring, which happens while the cat is resting or being petted, not at the
+          bowl. Works on its own, independent of the toggle above. Turn it OFF when you're done.</p>
+        <div class="row">
+          <label class="switch">
+            <input type="checkbox" id="forceToggle" onchange="toggleForce()" />
+            <span class="track"><span class="thumb"></span></span>
+            <span class="switch-label" id="forceState">Off</span>
+          </label>
+          <span id="force-msg" class="msg"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Capture range</h3>
+        <p class="hint">How close the cat must be (signal strength) before the station connects and records.
+          Stronger / less-negative = must be closer. Applies to all your stations. Measure the real value with
+          the cat at the bowl, then set the threshold a few dB below it.</p>
+        <label>Signal threshold: <span id="thrVal">-60</span> dBm</label>
+        <input type="range" id="thr" min="-90" max="-40" step="1" value="-60"
+               oninput="document.getElementById('thrVal').textContent=this.value" />
+        <label for="dwell">Dwell before connecting (ms)</label>
+        <input type="number" id="dwell" min="0" max="10000" step="250" value="2000" />
+        <div class="row" style="margin-top:1rem;">
+          <button class="primary" onclick="saveConfig()">Save range</button>
+          <span id="cfg-msg" class="msg"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+          <h3 style="margin:0;">Recorded clips</h3>
+          <button id="delAll" class="sm" title="Delete every clip and its files">Delete all</button>
+        </div>
+        <p class="hint">Audio clips the station captured at the bowl. Each row shows its label, length and whether
+          it has paired IMU data. Set the action (eat / drink / purr) from the dropdown, or click a row to expand it
+          and load the waveform: drag the start / end markers to cut dead space, Play to preview, then Save trim. The
+          trim is a non-destructive window, applied to the audio and the time-aligned IMU together. Delete the clips
+          that aren't good for training. Only expanded clips load their audio, so a long list stays fast.</p>
+        <div id="clips"><div class="empty">No clips yet.</div></div>
+      </div>
+    </div>
+  </div>
+  <!-- Firebase SDK + project config -->
+  <script src="js/firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+  <script src="js/firebase-init.js"></script>
+  <script src="js/dev.js"></script>
+</body>
+</html>

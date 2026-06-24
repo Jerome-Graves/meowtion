@@ -1,0 +1,39 @@
+# Meowtion .gitignore
+#
+# This excludes secrets and tooling noise only. Everything needed to understand and build the
+# project IS tracked: source, Storage/Database rules, the Cloud Function, the dashboard, READMEs,
+# and app/dashboard/static/js/firebase-config.js (the apiKey there is a PUBLIC client identifier,
+# safe to commit; security is enforced by Auth + the rules, not by hiding it).
+
+# ---- Secrets & credentials (NEVER commit) ----
+.env
+.env.local
+secrets.h                      # firmware WiFi / device credentials (kept out of the repo)
+*.pem
+*.key
+*.p12
+serviceAccount*.json           # Firebase/GCP service-account keys (this project uses none)
+*-service-account*.json
+.streamlit/secrets.toml         # Streamlit deploy secrets (note: .streamlit/config.toml IS tracked)
+# NOTE: .env.example files are intentionally NOT ignored - they document required config.
+
+# ---- Firebase tooling / logs ----
+.firebase/
+.runtimeconfig.json
+*-debug.log
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+
+# ---- Python (Cloud Function) ----
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# ---- Node / web tooling ----
+node_modules/
+
+# ---- OS noise ----
+.DS_Store
+Thumbs.db

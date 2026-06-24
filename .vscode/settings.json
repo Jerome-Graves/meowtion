@@ -1,0 +1,7 @@
+{
+  // nRF Connect / ESP-IDF manage CMake for the firmware builds;
+  // keep Microsoft CMake Tools passive so it doesn't conflict.
+  "cmake.configureOnOpen": false,
+  "cmake.configureOnEdit": false,
+  "cmake.automaticReconfigure": false
+}

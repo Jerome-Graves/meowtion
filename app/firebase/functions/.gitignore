@@ -1,0 +1,5 @@
+# Local Python virtualenv (also required by the Firebase CLI for function discovery) and caches.
+venv/
+.venv/
+__pycache__/
+*.pyc
