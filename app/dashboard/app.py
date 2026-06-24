@@ -30,17 +30,18 @@ def jwt_payload(t):
 # CookieManager reads document.cookie in the browser and reports it back to Python; on the very
 # first run it may be empty, then the component triggers a rerun where the value is present.
 cookie_manager = stx.CookieManager()
-cookies = cookie_manager.get_all()
-# CookieManager reports the browser's cookies asynchronously; on the first render it returns an
-# empty dict before the browser has answered, which is indistinguishable from "signed out". Do one
-# short timed rerun so the component can report first - this shows a loading state instead of
-# flashing the sign-in screen, and after the rerun `cookies` holds the real values.
-if not st.session_state.get("_cookies_ready"):
-    st.session_state["_cookies_ready"] = True
+cookies = cookie_manager.get_all() or {}
+# CookieManager answers asynchronously and returns {} until it has reported the browser's cookies,
+# which is indistinguishable from "signed out". Poll: keep showing a loading state and rerunning
+# until it reports something - a signed-in user resolves the instant the cookie arrives, with no
+# flash - or until a short timeout, after which persistent emptiness is treated as signed out.
+if cookies:
+    st.session_state["_cookie_tries"] = 0
+elif st.session_state.get("_cookie_tries", 0) < 15:   # up to ~3s waiting for the component to answer
+    st.session_state["_cookie_tries"] = st.session_state.get("_cookie_tries", 0) + 1
     st.info("Loading…")
-    time.sleep(0.6)
+    time.sleep(0.2)
     st.rerun()
-cookies = cookies or {}
 token = cookies.get("mtoken")
 demo_uid = cookies.get("mdemo")
 
