@@ -30,6 +30,15 @@ def jwt_payload(t):
 # CookieManager reads document.cookie in the browser and reports it back to Python; on the very
 # first run it may be empty, then the component triggers a rerun where the value is present.
 cookie_manager = stx.CookieManager()
+
+# After an in-app logout, CookieManager's cached read can briefly still report the old cookie, so we
+# gate on a session flag for an immediate, reliable signed-out view. The flag lives only in this
+# Streamlit session; signing in again starts a fresh session (full page nav), which clears it.
+if st.session_state.get("logged_out"):
+    st.warning("You have been logged out.")
+    st.link_button("Sign in", "app/static/account.html")
+    st.stop()
+
 cookies = cookie_manager.get_all() or {}
 # CookieManager answers asynchronously and returns {} until it has reported the browser's cookies,
 # which is indistinguishable from "signed out". Poll: keep showing a loading state and rerunning
@@ -48,7 +57,18 @@ demo_uid = cookies.get("mdemo")
 if token:
     claims = jwt_payload(token)
     uid = claims.get("user_id") or claims.get("sub")
-    st.caption(f"Signed in as {claims.get('email', uid)}  ·  [manage devices](app/static/account.html)")
+    # Show the email as plain text. Streamlit's markdown auto-linkifies a bare "name@domain" into a
+    # mailto: link; a zero-width space after the "@" breaks that pattern (invisible, verified) while
+    # the email still displays normally.
+    email = str(claims.get("email", uid)).replace("@", "@​")
+    c_info, c_manage, c_logout = st.columns([2, 1, 1], vertical_alignment="center")
+    c_info.caption(f"Signed in as {email}")
+    c_manage.link_button("Manage devices", "app/static/account.html", use_container_width=True)
+    if c_logout.button("Log out", use_container_width=True):
+        cookie_manager.delete("mtoken", key="logout")    # clear the cookie (for reloads / other tabs)
+        st.session_state["logged_out"] = True            # immediate signed-out view this session
+        time.sleep(0.3)                                  # let the deletion reach the browser first
+        st.rerun()
 elif demo_uid:
     uid, token = demo_uid, None   # public read, no auth - read-only demo
     st.caption("👀 Demo · read-only  ·  [exit](app/static/account.html)")
