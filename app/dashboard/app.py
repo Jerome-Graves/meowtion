@@ -171,8 +171,15 @@ def show():
             if events:
                 st.write("**Recent activity**")
                 for e in events[:8]:
-                    ic = EVENT_ICON.get(e.get("type"), "•")
-                    st.write(f"{ic} {e.get('type', '?')}  ·  {fmt_time(e.get('start', 0))}  ·  {fmt_dur(e.get('durationSec', 0))}")
+                    # Production episodes (ver==2) carry a class index; label them with the model's
+                    # action name. Older/simulated episodes fall back to the state-name "type".
+                    ecls = e.get("cls")
+                    if e.get("ver") == 2 and isinstance(ecls, int) and 0 <= ecls < len(model_labels):
+                        name = model_labels[ecls]
+                    else:
+                        name = e.get("type", "?")
+                    ic = EVENT_ICON.get(name, "•")
+                    st.write(f"{ic} {name}  ·  {fmt_time(e.get('start', 0))}  ·  {fmt_dur(e.get('durationSec', 0))}")
 
             if weather:
                 rain = " · raining" if weather.get("raining") else ""

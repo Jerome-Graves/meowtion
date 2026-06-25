@@ -367,8 +367,12 @@ void ble_relay(void)
             xSemaphoreGive(g_collar_mtx);
         } else if (snap.state != snap.cur_state) {        /* state changed: close the episode */
             int dur = (int)((now - snap.state_start) / 1000);
-            snprintf(body, sizeof body, "{\"type\":\"%s\",\"start\":%lld,\"durationSec\":%d}",
-                     STATES[snap.cur_state % 6], (long long)snap.state_start, dur);
+            /* Carry ver+cls so the dashboard can label a production episode with the model's class
+             * name (via cls) instead of the simulated state name; `type` is kept for the v1 path. */
+            snprintf(body, sizeof body,
+                     "{\"type\":\"%s\",\"start\":%lld,\"durationSec\":%d,\"ver\":%u,\"cls\":%u}",
+                     STATES[snap.cur_state % 6], (long long)snap.state_start, dur,
+                     (unsigned)snap.ver, (unsigned)snap.cur_state);
             snprintf(suffix, sizeof suffix, "%s/events", base);
             dev_write(HTTP_METHOD_POST, suffix, body);
             xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
