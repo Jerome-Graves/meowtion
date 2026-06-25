@@ -13,6 +13,7 @@ import time
 
 import requests
 import streamlit as st
+import pandas as pd
 import extra_streamlit_components as stx
 
 st.set_page_config(page_title="Meowtion", page_icon="🐾")
@@ -106,6 +107,43 @@ def fmt_dur(s):
     return f"{s // 60}m {s % 60:02d}s" if s >= 60 else f"{s}s"
 
 
+def activity_dataframe(data, model_labels):
+    """Flatten every cat's logged episodes into one pandas DataFrame for charts.
+
+    Columns deliberately match the beginner Streamlit tutorial so tutorial-style chart code
+    works on the real data unchanged:
+        activity | event_date | event_weekday_name | start_time | event_duration (minutes)
+    `activity` is the trained model's label for real (ver==2) episodes, else the stored state name.
+    """
+    devices = (data or {}).get("devices", {})
+    rows = []
+    for station in devices.values():
+        if not isinstance(station, dict):
+            continue
+        for cat_id, cat in (station.get("cats") or {}).items():
+            cat_name = (devices.get(cat_id) or {}).get("name") or cat.get("name") or cat_id
+            for ev in (cat.get("events") or {}).values():
+                start = ev.get("start")
+                if not isinstance(start, (int, float)):
+                    continue
+                dt = datetime.datetime.fromtimestamp(start / 1000)
+                ecls = ev.get("cls")
+                if ev.get("ver") == 2 and isinstance(ecls, int) and 0 <= ecls < len(model_labels):
+                    activity = model_labels[ecls]          # real on-device class -> action name
+                else:
+                    activity = ev.get("type", "unknown")   # older / simulated episode
+                rows.append({
+                    "cat": cat_name,
+                    "activity": str(activity).capitalize(),
+                    "event_date": dt.strftime("%Y-%m-%d"),
+                    "event_weekday_name": dt.strftime("%A"),
+                    "start_time": dt.strftime("%H:%M"),
+                    "event_duration": round((ev.get("durationSec") or 0) / 60.0, 2),  # minutes
+                })
+    return pd.DataFrame(rows, columns=["cat", "activity", "event_date",
+                                       "event_weekday_name", "start_time", "event_duration"])
+
+
 @st.cache_data(ttl=10)   # one DB read per 10 s, shared across all viewers (incl. all demo users)
 def fetch(uid, token):
     params = {"auth": token} if token else {}
@@ -191,3 +229,50 @@ def show():
 
 
 show()
+
+
+# ============================================================================
+# ACTIVITY HISTORY & CHARTS  ·  teammate-friendly playground (edit below!)
+# ----------------------------------------------------------------------------
+# `df` here is the cat's REAL logged activity as a pandas DataFrame, with the SAME
+# column names as the beginner tutorial:
+#     activity | event_date | event_weekday_name | start_time | event_duration (mins)
+# So tutorial chart code works here unchanged - just use `df`. Add your own
+# st.bar_chart / st.metric / altair charts in the marked area at the bottom.
+# ============================================================================
+_status, _data = fetch(uid, token)                 # cached - same call the live view above uses
+_labels = (_data or {}).get("models", {}).get("labels") or []
+df = activity_dataframe(_data, _labels)
+
+st.divider()
+st.subheader("📊 Activity history")
+if df.empty:
+    st.caption("Charts appear here once the collar has logged some episodes.")
+    st.stop()
+
+# --- from here `df` has data; everything below is plain tutorial-style code on `df` ---
+
+with st.expander("See the raw data table"):
+    st.dataframe(df, use_container_width=True)
+
+c1, c2, c3 = st.columns(3)
+c1.metric("Episodes", len(df))
+c2.metric("Minutes tracked", round(df["event_duration"].sum()))
+c3.metric("Most common", df["activity"].value_counts().index[0])
+
+# Total minutes spent on each activity (st.bar_chart, like the tutorial)
+by_activity = df.groupby("activity")["event_duration"].sum().reset_index()
+st.write("**Total minutes per activity**")
+st.bar_chart(by_activity, x="activity", y="event_duration", color="activity")
+
+# How many times each activity happened
+counts = df["activity"].value_counts().reset_index()
+counts.columns = ["activity", "count"]
+st.write("**How often each activity happened**")
+st.bar_chart(counts, x="activity", y="count", color="activity")
+
+# ============================================================================
+# 👇 TEAMMATE: add your own charts here, using `df`. Same columns as your tutorial.
+#    Example (copy + tweak):
+#       st.bar_chart(df, x="event_weekday_name", y="event_duration", color="activity")
+# ============================================================================

@@ -1,3 +1,5 @@
 streamlit>=1.37
 requests
+pandas                       # activity history DataFrame for the charts
+altair                       # charts (tutorial-style analytics)
 extra-streamlit-components   # client-side CookieManager (server-side cookies are empty on Streamlit Community Cloud)
