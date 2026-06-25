@@ -123,6 +123,10 @@ int main(void)
     LOG_INF("collar advertising (connectable), id=%s", ble_id());
 
     while (1) {
+        /* Finish loading any OTA-delivered model here, on the main thread's big stack (clf_set is too
+         * stack-heavy for the BLE-RX callback). No-op when nothing is pending. */
+        ota_service_loads();
+
         /* Two clear branches. PRODUCTION (a trained IMU model is linked AND we're not in a capture
          * stream): run real on-device classification on a rolling IMU window and emit the version=2
          * packet. Otherwise fall back to the SIMULATED state machine (version=1). The cascade also

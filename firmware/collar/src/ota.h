@@ -14,3 +14,7 @@
 /* Scan both flash model slots; load any valid (header + CRC checked) model into the classifier.
  * Pure flash + classifier , no Bluetooth involved. Safe to call before bt_enable(). */
 void ota_load_stored_models(void);
+
+/* Finish loading any model the OTA path received but deferred (clf_set is too stack-heavy for the
+ * BLE-RX callback). Call every iteration of the main loop - a no-op when nothing is pending. */
+void ota_service_loads(void);

@@ -78,9 +78,10 @@ alignas(16) uint8_t g_audio_arena[kAudioArenaBytes];
 /*
  * The op resolver set. These cover a typical quantized temporal/spectral conv classifier. The set
  * MAY NEED ADJUSTING once the real model is exported , if Invoke()/AllocateTensors reports a missing
- * op, add it here (and bump the template count). 11 ops registered below.
+ * op, add it here (and bump the template count). 16 ops registered below , the EXPAND_DIMS/SQUEEZE
+ * (+ shape ops) are what Keras Conv1D lowers to, confirmed needed on real hardware.
  */
-using MeowOpResolver = tflite::MicroMutableOpResolver<11>;
+using MeowOpResolver = tflite::MicroMutableOpResolver<16>;
 
 bool BuildResolver(MeowOpResolver &r)
 {
@@ -95,6 +96,13 @@ bool BuildResolver(MeowOpResolver &r)
 	if (r.AddMean()            != kTfLiteOk) return false;
 	if (r.AddQuantize()        != kTfLiteOk) return false;
 	if (r.AddDequantize()      != kTfLiteOk) return false;
+	/* Keras Conv1D lowers to CONV_2D wrapped in EXPAND_DIMS / SQUEEZE (the converter can also emit
+	 * shape ops); real hardware reported "Didn't find op for builtin opcode 'EXPAND_DIMS'". */
+	if (r.AddExpandDims()      != kTfLiteOk) return false;
+	if (r.AddSqueeze()         != kTfLiteOk) return false;
+	if (r.AddStridedSlice()    != kTfLiteOk) return false;
+	if (r.AddPack()            != kTfLiteOk) return false;
+	if (r.AddShape()           != kTfLiteOk) return false;
 	return true;
 }
 

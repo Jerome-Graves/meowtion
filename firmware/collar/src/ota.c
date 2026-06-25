@@ -102,6 +102,11 @@ static struct {
 	uint32_t received;      /* model bytes streamed so far */
 } xfer;
 
+/* Slots whose bytes are committed in flash but not yet handed to the classifier. clf_set/
+ * AllocateTensors is heavy + stack-hungry, so the BLE-RX END handler only commits + flags the slot
+ * here; ota_service_loads() (main thread, big stack) does the actual load. */
+static volatile struct { bool pending; uint32_t len; } g_pending[MEOW_OTA_SLOT_COUNT];
+
 static const struct bt_gatt_attr *ctrl_attr;   /* CONTROL char value attr, for status notifies */
 
 static void ota_notify_status(uint8_t status)
@@ -202,15 +207,10 @@ static uint8_t ota_end(void)
 		return MEOW_OTA_ST_ERR_CRC;
 	}
 
-	/* Verified. Hot-load BEFORE committing the header: if the engine rejects it (arena too small),
-	 * report ERR_LOAD and leave the slot invalid rather than persist a model we cannot run. */
-	if (!slot_load_model(xfer.slot, model, xfer.total_len)) {
-		LOG_ERR("classifier rejected slot %u model (arena too small?)", xfer.slot);
-		xfer_reset();
-		return MEOW_OTA_ST_ERR_LOAD;
-	}
-
-	/* Commit the header LAST , this is what makes the slot valid for load-on-boot. */
+	/* CRC verified (model/crc above proved the bytes are intact). Commit the header - this makes the
+	 * slot valid for load-on-boot - then DEFER the classifier load. clf_set/AllocateTensors needs a
+	 * big stack, but this runs in the BLE-RX callback on a small stack, where it overflowed and
+	 * faulted the collar. ota_service_loads() does the load on the main thread instead. */
 	const struct flash_area *fa;
 	rc = flash_area_open(FIXED_PARTITION_ID(models_storage), &fa);
 	if (rc) {
@@ -231,7 +231,9 @@ static uint8_t ota_end(void)
 		return MEOW_OTA_ST_ERR_FLASH;
 	}
 
-	LOG_INF("OTA ok: slot %u (%u bytes) committed + loaded", xfer.slot, xfer.total_len);
+	g_pending[xfer.slot].len = xfer.total_len;
+	g_pending[xfer.slot].pending = true;   /* main thread will clf_set this slot, off the BLE stack */
+	LOG_INF("OTA ok: slot %u (%u bytes) committed; load deferred to main thread", xfer.slot, xfer.total_len);
 	xfer_reset();
 	return MEOW_OTA_ST_OK;
 }
@@ -399,6 +401,26 @@ void ota_load_stored_models(void)
 			LOG_INF("slot %u loaded: %u bytes from flash", i, hdr->len);
 		} else {
 			LOG_ERR("slot %u model present but classifier rejected it", i);
+		}
+	}
+}
+
+/* Load any slot the OTA path committed but deferred. Called from the MAIN loop (main.c) so the heavy
+ * clf_set/AllocateTensors runs on the main thread's large stack, never the small BLE-RX stack.
+ * A no-op when nothing is pending. */
+void ota_service_loads(void)
+{
+	for (uint8_t i = 0; i < MEOW_OTA_SLOT_COUNT; i++) {
+		if (!g_pending[i].pending) {
+			continue;
+		}
+		uint32_t len = g_pending[i].len;
+		g_pending[i].pending = false;
+		const uint8_t *model = slot_model_xip(&slots[i]);
+		if (slot_load_model(i, model, len)) {
+			LOG_INF("slot %u loaded: %u bytes (deferred, main thread)", i, len);
+		} else {
+			LOG_ERR("slot %u committed but classifier rejected it", i);
 		}
 	}
 }
