@@ -5,6 +5,9 @@ token in a same-origin cookie (mtoken), or a demo flag (mdemo) for the read-only
 demo. This page reads whichever applies and shows the owner's cats. Trust comes from the
 database rules: a real token reads only its owner; the demo account is world-readable but
 write-locked, so the demo is genuinely read-only.
+
+NOTE: the editable activity-charts area is at the very BOTTOM of this file (below the big
+"EVERYTHING BELOW THIS LINE IS YOURS" banner) - that's where to add or change charts.
 """
 import base64
 import datetime
@@ -231,15 +234,10 @@ def show():
 show()
 
 
-# ============================================================================
-# ACTIVITY HISTORY & CHARTS  ·  teammate-friendly playground (edit below!)
 # ----------------------------------------------------------------------------
-# `df` here is the cat's REAL logged activity as a pandas DataFrame, with the SAME
-# column names as the beginner tutorial:
-#     activity | event_date | event_weekday_name | start_time | event_duration (mins)
-# So tutorial chart code works here unchanged - just use `df`. Add your own
-# st.bar_chart / st.metric / altair charts in the marked area at the bottom.
-# ============================================================================
+# App plumbing: loads the cat's real activity into `df` for the charts below.
+# (This is part of the working app - you don't need to change anything here.)
+# ----------------------------------------------------------------------------
 _status, _data = fetch(uid, token)                 # cached - same call the live view above uses
 _labels = (_data or {}).get("models", {}).get("labels") or []
 df = activity_dataframe(_data, _labels)
@@ -250,7 +248,24 @@ if df.empty:
     st.caption("Charts appear here once the collar has logged some episodes.")
     st.stop()
 
-# --- from here `df` has data; everything below is plain tutorial-style code on `df` ---
+
+# ════════════════════════════════════════════════════════════════════════════════
+#
+#    ⬆⬆⬆   EVERYTHING ABOVE THIS LINE IS THE WORKING APP — please DON'T change it.
+#
+#    ⬇⬇⬇   EVERYTHING BELOW THIS LINE IS YOURS — add, change, or delete freely!
+#
+#    `df` is ready to use: the cat's REAL activity, with the SAME columns as your
+#    tutorial DataFrame:
+#        activity | event_date | event_weekday_name | start_time | event_duration (mins)
+#
+#    So your tutorial chart code works here unchanged. Just write plain Streamlit
+#    (st.bar_chart / st.metric / altair) using `df`, exactly like the tutorial.
+#
+# ════════════════════════════════════════════════════════════════════════════════
+
+
+# --- a few starter charts (keep, change, or delete them) ---
 
 with st.expander("See the raw data table"):
     st.dataframe(df, use_container_width=True)
@@ -260,7 +275,7 @@ c1.metric("Episodes", len(df))
 c2.metric("Minutes tracked", round(df["event_duration"].sum()))
 c3.metric("Most common", df["activity"].value_counts().index[0])
 
-# Total minutes spent on each activity (st.bar_chart, like the tutorial)
+# Total minutes spent on each activity
 by_activity = df.groupby("activity")["event_duration"].sum().reset_index()
 st.write("**Total minutes per activity**")
 st.bar_chart(by_activity, x="activity", y="event_duration", color="activity")
@@ -271,8 +286,8 @@ counts.columns = ["activity", "count"]
 st.write("**How often each activity happened**")
 st.bar_chart(counts, x="activity", y="count", color="activity")
 
-# ============================================================================
-# 👇 TEAMMATE: add your own charts here, using `df`. Same columns as your tutorial.
-#    Example (copy + tweak):
-#       st.bar_chart(df, x="event_weekday_name", y="event_duration", color="activity")
-# ============================================================================
+
+# --- 👇 ADD YOUR OWN CHARTS BELOW (using `df`) ---
+# Example - copy this and tweak it:
+#     st.write("**Minutes per weekday**")
+#     st.bar_chart(df, x="event_weekday_name", y="event_duration", color="activity")
