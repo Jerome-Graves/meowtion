@@ -121,6 +121,9 @@ def show():
         return
 
     devices = (data or {}).get("devices", {})
+    # The trained model's class names (set by the train function). The collar reports a class INDEX
+    # in its telemetry (v2); we map it to the action name here, so the collar stays label-agnostic.
+    model_labels = (data or {}).get("models", {}).get("labels") or []
     now_ms = time.time() * 1000
     found = False
 
@@ -136,11 +139,29 @@ def show():
             # prefer the friendly name the owner set when registering (the collar's registry
             # entry), not the id the station relays under
             cat_name = (devices.get(cat_id) or {}).get("name") or cat.get("name") or cat_id
+            # Telemetry v2 (cur["ver"] == 2) = REAL on-device classification: cur["cls"] is the class
+            # index into the trained model's labels, cur["conf"] is the confidence. v1 (or no model yet)
+            # is the collar's simulated state machine, shown as a plain state label.
+            real = cur.get("ver") == 2
+            detected = None
+            if real:
+                cls = cur.get("cls")
+                if isinstance(cls, int) and 0 <= cls < len(model_labels):
+                    detected = model_labels[cls]
+
             st.subheader(f"🐈 {cat_name}")
-            st.caption(("🟢 online" if fresh else "⚪ offline") + f"  ·  via {sname}")
+            st.caption(("🟢 online" if fresh else "⚪ offline")
+                       + ("  ·  🧠 detecting on-device" if real else "")
+                       + f"  ·  via {sname}")
 
             c1, c2, c3 = st.columns(3)
-            c1.metric("State", cur.get("state", "—"))
+            if real:
+                conf = cur.get("conf")
+                ic = EVENT_ICON.get(detected, "🧠")
+                c1.metric("Detected", f"{ic} {detected}" if detected else "🧠 …",
+                          delta=(f"{conf}%" if isinstance(conf, int) else None), delta_color="off")
+            else:
+                c1.metric("State", cur.get("state", "—"))
             c2.metric("Steps", cur.get("steps", "—"))
             batt = cur.get("battery")
             c3.metric("Battery", f"{batt}%" if batt is not None else "—")

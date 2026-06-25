@@ -238,6 +238,17 @@ def train(req: https_fn.Request) -> https_fn.Response:
         version = int(ref(f"users/{uid}/models/version").get() or 0) + 1
         ref(f"users/{uid}/models").update({"version": version, "status": "ready",
                                            "labels": LABELS, "results": results})
+
+        # Mirror the version into each of this owner's station device configs. The station has only a
+        # device token (no Firebase login), so the DB rules let it read ONLY its own
+        # users/<uid>/devices/<token>/ subtree, not users/<uid>/models above it. Putting modelVer in
+        # the device config is how the station learns a new model is ready: it compares this to its
+        # stored copy and, when it increases, downloads models/<uid>/<name>_model.tflite and pushes
+        # them to the collar over BLE OTA.
+        for tok, dev in (ref(f"users/{uid}/devices").get() or {}).items():
+            if isinstance(dev, dict) and dev.get("type") == "station":
+                ref(f"users/{uid}/devices/{tok}/config/modelVer").set(version)
+
         return https_fn.Response(json.dumps({"version": version, "labels": LABELS, "results": results}), status=200)
     except Exception as ex:
         ref(f"users/{uid}/models").update({"status": "error", "error": str(ex)})
