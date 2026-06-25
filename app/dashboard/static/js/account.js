@@ -61,7 +61,11 @@
         document.getElementById("verify-banner").classList.add("hidden");
         document.getElementById("connectForm").classList.add("hidden");
         document.getElementById("yourData").classList.add("hidden");
-        document.getElementById("devToolsWrap").classList.add("hidden");   // never show dev tools in demo
+        // The dev/training console has its own read-only demo, so show the link in demo too,
+        // pointed at the demo view (dev.html?demo=1).
+        const demoDevLink = document.querySelector("#devToolsWrap a");
+        if (demoDevLink) demoDevLink.setAttribute("href", "dev.html?demo=1");
+        document.getElementById("devToolsWrap").classList.remove("hidden");
         attachData(g_demoUid);
         showView("account");
       } catch (e) { msg("login-msg", friendly(e), "err"); }
@@ -479,6 +483,8 @@
         // reveal the Dev tools button only for designated dev accounts (config/devAccounts/{uid})
         try {
           const isDev = (await firebase.database().ref("config/devAccounts/" + user.uid).once("value")).val() === true;
+          const devLink = document.querySelector("#devToolsWrap a");
+          if (devLink) devLink.setAttribute("href", "dev.html");   // a real dev account gets the live page, not the demo
           document.getElementById("devToolsWrap").classList.toggle("hidden", !isDev);
         } catch (e) {}
         attachData(user.uid);
