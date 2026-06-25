@@ -301,6 +301,15 @@ static void start_scan(void)
     if (rc) ESP_LOGE(TAG, "ble_gap_disc rc=%d", rc);
 }
 
+/* Resume the observer scan if it isn't already running. The capture path restarts scanning itself
+ * after each connection; the OTA push (ota.c) cancels scanning to connect but uses its own GAP
+ * callback, so it calls this when done. Without it the station stays deaf after a push - no telemetry
+ * relay and "no collar in range" on every later push. Idempotent: only starts if not discovering. */
+void ble_resume_scan(void)
+{
+    if (!ble_gap_disc_active()) start_scan();
+}
+
 static void ble_on_sync(void)
 {
     if (ble_hs_id_infer_auto(0, &g_own_addr_type) != 0) { ESP_LOGE(TAG, "no BLE addr"); return; }

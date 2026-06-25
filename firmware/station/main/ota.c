@@ -389,7 +389,11 @@ bool ota_run_push(uint16_t conn_handle)
     (void)conn_handle;
 
     ble_addr_t addr;
-    if (!ble_near_collar_addr(&addr)) { ESP_LOGW(TAG, "push: no collar in range"); return false; }
+    if (!ble_near_collar_addr(&addr)) {
+        ble_resume_scan();   /* revive the scanner if a prior push left it off, so relay + the next push recover */
+        ESP_LOGW(TAG, "push: no collar in range");
+        return false;
+    }
 
     uint32_t cloud_ver = rtdb_model_ver();
     if (cloud_ver == 0) return false;
@@ -471,6 +475,7 @@ disconnect:
 done:
     g_push_task = NULL;
     free(model);
+    ble_resume_scan();   /* we cancelled scanning to connect; resume the observer so telemetry relay continues */
 
     /* Only advance the NVS version when every model that EXISTS in Storage was delivered OK , so a
      * partial failure retries next cycle. (If no slot had a model at all, there's nothing to push;
