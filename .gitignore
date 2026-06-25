@@ -4,18 +4,23 @@
 # project IS tracked: source, Storage/Database rules, the Cloud Function, the dashboard, READMEs,
 # and app/dashboard/static/js/firebase-config.js (the apiKey there is a PUBLIC client identifier,
 # safe to commit; security is enforced by Auth + the rules, not by hiding it).
+#
+# NOTE: gitignore has no inline comments - a "#" only starts a comment at the start of a line.
 
 # ---- Secrets & credentials (NEVER commit) ----
 .env
 .env.local
-secrets.h                      # firmware WiFi / device credentials (kept out of the repo)
+# firmware WiFi / device credentials
+secrets.h
 *.pem
 *.key
 *.p12
-serviceAccount*.json           # Firebase/GCP service-account keys (this project uses none)
+# Firebase / GCP service-account keys (this project uses none)
+serviceAccount*.json
 *-service-account*.json
-.streamlit/secrets.toml         # Streamlit deploy secrets (note: .streamlit/config.toml IS tracked)
-# NOTE: .env.example files are intentionally NOT ignored - they document required config.
+# Streamlit deploy secrets (.streamlit/config.toml IS tracked)
+.streamlit/secrets.toml
+# .env.example files are intentionally NOT ignored - they document required config.
 
 # ---- Firebase tooling / logs ----
 .firebase/
@@ -33,6 +38,12 @@ venv/
 
 # ---- Node / web tooling ----
 node_modules/
+
+# ---- Firmware build artifacts ----
+# ESP-IDF + Zephyr build output, and generated sdkconfig (sdkconfig.defaults IS tracked)
+build/
+sdkconfig
+sdkconfig.old
 
 # ---- OS noise ----
 .DS_Store

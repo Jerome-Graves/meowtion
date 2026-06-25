@@ -1,0 +1,27 @@
+# Target (so `sdkconfig` regenerates correctly from these defaults).
+CONFIG_IDF_TARGET="esp32s3"
+
+# HTTPS to Firebase needs the certificate bundle; TLS needs more main-task stack.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# BLE: NimBLE host. We scan (observer) for the collar's broadcast AND connect (central) to it to
+# pull audio. Default roles include central + GATT client. (Trimming roles trips an
+# unguarded-symbol build bug in NimBLE's ble_gap.c on this IDF version, so leave them on.)
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# Octal PSRAM on the XIAO ESP32-S3 (8 MB) , room to buffer an audio clip before uploading.
+# IGNORE_NOTFOUND so the station still boots if PSRAM ever fails to init.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+
+# WiFi + BLE share one radio; enable software coexistence.
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
+
+# The binary is bigger with WiFi + TLS + NimBLE: use the larger single-app partition on the
+# XIAO ESP32-S3's 8 MB flash.
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
