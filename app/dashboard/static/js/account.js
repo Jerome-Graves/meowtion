@@ -485,7 +485,15 @@
         detectLocation();
         showView("account");
       } else if (!isDemo) {
+        clearTokenCookie();
         detachData();
         showView("login");
       }
     });
+
+    // Arrived from the dashboard's Log out (account.html?logout=1): sign out, then the auth-state
+    // listener above clears the cookie and shows the login form (same tab, no redirect loop).
+    if (new URLSearchParams(location.search).has("logout")) {
+      doLogout();
+      history.replaceState(null, "", location.pathname);
+    }

@@ -25,20 +25,24 @@ def jwt_payload(t):
     return json.loads(base64.urlsafe_b64decode(body))
 
 
+def account_link(label, container=st, url="app/static/account.html"):
+    # st.link_button and markdown links force target=_blank (a NEW tab); a raw anchor with
+    # target=_self navigates in the SAME tab. Styled as an outline button (theme-adaptive colours).
+    html = (
+        f'<a href="{url}" target="_self" '
+        'style="display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;'
+        'padding:0.45rem 0.85rem;border:1px solid rgba(128,128,128,0.4);border-radius:0.5rem;'
+        'background:transparent;color:inherit;text-decoration:none;font-weight:400;">'
+        f"{label}</a>"
+    )
+    container.markdown(html, unsafe_allow_html=True)
+
+
 # Streamlit Community Cloud does not expose browser cookies to the server (st.context.cookies is
 # empty there), so we read the login cookie account.html set with a CLIENT-SIDE component instead.
 # CookieManager reads document.cookie in the browser and reports it back to Python; on the very
 # first run it may be empty, then the component triggers a rerun where the value is present.
 cookie_manager = stx.CookieManager()
-
-# After an in-app logout, CookieManager's cached read can briefly still report the old cookie, so we
-# gate on a session flag for an immediate, reliable signed-out view. The flag lives only in this
-# Streamlit session; signing in again starts a fresh session (full page nav), which clears it.
-if st.session_state.get("logged_out"):
-    st.warning("You have been logged out.")
-    st.link_button("Sign in", "app/static/account.html")
-    st.stop()
-
 cookies = cookie_manager.get_all() or {}
 # CookieManager answers asynchronously and returns {} until it has reported the browser's cookies,
 # which is indistinguishable from "signed out". Poll: keep showing a loading state and rerunning
@@ -61,14 +65,20 @@ if token:
     # mailto: link; a zero-width space after the "@" breaks that pattern (invisible, verified) while
     # the email still displays normally.
     email = str(claims.get("email", uid)).replace("@", "@​")
-    c_info, c_manage, c_logout = st.columns([2, 1, 1], vertical_alignment="center")
-    c_info.caption(f"Signed in as {email}")
-    c_manage.link_button("Manage devices", "app/static/account.html", use_container_width=True)
-    if c_logout.button("Log out", use_container_width=True):
-        cookie_manager.delete("mtoken", key="logout")    # clear the cookie (for reloads / other tabs)
-        st.session_state["logged_out"] = True            # immediate signed-out view this session
-        time.sleep(0.3)                                  # let the deletion reach the browser first
-        st.rerun()
+    # One flexbox row keeps the caption and both buttons aligned (st.columns + markdown anchors don't
+    # line up cleanly). Both buttons are raw <a target="_self"> so they open in the SAME tab; Log out
+    # goes to the login page with ?logout, which signs out of Firebase and shows the login form.
+    btn = ("display:inline-flex;align-items:center;justify-content:center;padding:0.4rem 0.85rem;"
+           "border:1px solid rgba(128,128,128,0.4);border-radius:0.5rem;background:transparent;"
+           "color:inherit;text-decoration:none;font-weight:400;white-space:nowrap;")
+    st.markdown(
+        '<div style="display:flex;align-items:center;gap:0.6rem;margin:0 0 0.6rem;">'
+        f'<span style="flex:1;color:rgba(133,133,143,0.95);font-size:0.85rem;">Signed in as {email}</span>'
+        f'<a href="app/static/account.html" target="_self" style="{btn}">Manage devices</a>'
+        f'<a href="app/static/account.html?logout=1" target="_self" style="{btn}">Log out</a>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 elif demo_uid:
     uid, token = demo_uid, None   # public read, no auth - read-only demo
     st.caption("👀 Demo · read-only  ·  [exit](app/static/account.html)")
@@ -76,7 +86,7 @@ else:
     # Not signed in: gate to the login page. (A meta-refresh auto-redirect works locally but loops /
     # hangs on Streamlit Community Cloud, so we show a reliable sign-in link instead of redirecting.)
     st.warning("Please sign in to view your dashboard.")
-    st.link_button("Sign in", "app/static/account.html")
+    account_link("Sign in")
     st.stop()
 
 try:
