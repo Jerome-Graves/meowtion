@@ -1,0 +1,58 @@
+/*
+ * Real battery sensing for the XIAO nRF52840.
+ * The battery sits behind a divider on P0.31 (AIN7); P0.14 must be driven LOW to connect it.
+ * We model that as an ADC channel plus an enable GPIO under /zephyr,user.
+ */
+#include <zephyr/dt-bindings/adc/adc.h>
+#include <zephyr/dt-bindings/adc/nrf-saadc.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	zephyr,user {
+		io-channels = <&adc 7>;                          /* AIN7 = P0.31 = battery / divider */
+		vbat-en-gpios = <&gpio0 14 GPIO_ACTIVE_LOW>;     /* P0.14 LOW connects the divider */
+	};
+
+	/* power the onboard PDM microphone at boot (XIAO Sense) so we can capture audio */
+	msm261d3526hicpm-c-en {
+		regulator-boot-on;
+	};
+};
+
+/* the onboard PDM mic (MSM261D3526H1CPM) , enable it and give it a label for DEVICE_DT_GET */
+dmic_dev: &pdm0 {
+	status = "okay";
+};
+
+/*
+ * IMU power rail timing fix.
+ * The LSM6DS3TR-C needs ~15 ms after power-on before it answers on I2C (datasheet boot time).
+ * The board's enable regulator defaults to a 3 ms startup delay, so the sensor driver's first
+ * I2C read at boot lands while the chip is still booting and init fails ("Failed to initialize
+ * chip" -> "LSM6DS3TR-C not ready"). Extend the rail's settle time so power is stable before the
+ * driver probes, and keep it always-on so it is never treated as an unused regulator and dropped.
+ */
+&{/lsm6ds3tr-c-en} {
+	startup-delay-us = <20000>;
+	regulator-always-on;
+};
+
+/* Defer the IMU driver's init out of the boot sequence so imu_init() can run it from main, after
+ * the rail is powered and settled (see src/imu.c). Auto-init at boot was racing the power rail. */
+&lsm6ds3tr_c {
+	zephyr,deferred-init;
+};
+
+&adc {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@7 {
+		reg = <7>;
+		zephyr,gain = "ADC_GAIN_1_6";                    /* full-scale 3.6 V at the pin */
+		zephyr,reference = "ADC_REF_INTERNAL";           /* 0.6 V internal ref */
+		zephyr,acquisition-time = <ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20)>;
+		zephyr,input-positive = <NRF_SAADC_AIN7>;
+		zephyr,resolution = <12>;
+	};
+};
