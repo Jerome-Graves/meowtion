@@ -225,14 +225,23 @@
       const audioUrl = c.path ? firebase.storage().ref(c.path).getDownloadURL() : Promise.resolve(c.url || null);
       audioUrl.then(u => {
         if (!u) { tnum.textContent = "no audio"; return; }
-        return fetch(u).then(r => r.arrayBuffer()).then(ab => actx().decodeAudioData(ab))
+        return fetch(u).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+          .then(ab => actx().decodeAudioData(ab))
           .then(b => {
             buf = b; durMs = b.duration * 1000;
             if (bMs == null) bMs = durMs;
             aMs = Math.max(0, Math.min(aMs, durMs)); bMs = Math.max(aMs, Math.min(bMs, durMs));
             drawWave(canvas, b); layout();
           });
-      }).catch(() => { tnum.textContent = "could not load audio"; });
+      }).catch(e => {
+        // Surface the REAL reason so a load failure is self-diagnosing (the full error + path also go
+        // to the browser console). Usual culprits: "TypeError: Failed to fetch" = the Storage bucket
+        // has no CORS policy for this origin; "storage/unauthorized" or "HTTP 403" = the rules deny
+        // this user (uid mismatch); "storage/object-not-found" / "HTTP 404" = the audio isn't in
+        // Storage; an EncodingError = the bytes aren't a decodable WAV.
+        console.error("clip audio load failed:", c.path || c.url, e);
+        tnum.textContent = "audio: " + ((e && (e.code || e.message)) || e);
+      });
 
       function dragMarker(which) {
         return down => {
