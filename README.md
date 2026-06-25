@@ -87,5 +87,8 @@ API key is a public client identifier (safe to ship); no service-account key is 
 
 ## License
 
-To be chosen (suggestion: MIT for the software, an open-hardware license such as CERN-OHL or
-CC-BY-SA for the hardware designs).
+- **Code** (firmware, app, scripts): [MIT](LICENSE).
+- **Hardware** (the designs and 3D-print files in [`hardware/`](hardware/)):
+  [CERN-OHL-S v2](hardware/LICENSE), the strongly-reciprocal open-hardware licence.
+
+Copyright (c) 2026 Jerome Graves.
