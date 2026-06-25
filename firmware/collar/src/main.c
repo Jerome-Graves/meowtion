@@ -14,15 +14,21 @@
  *   imu.c        LSM6DS3TR-C continuous sampler   (unchanged)
  *   classifier.c the confidence-gated action cascade (weak stubs until a model lands; unchanged)
  *
- * Telemetry packet (manufacturer-specific AD data, 8 bytes):
- *   [0..1] company id (0xFFFF, test)   [2] version   [3] state (0..5)
- *   [4] activity (0..100)   [5..6] steps (uint16 LE)   [7] battery (0..100)
+ * Telemetry packet (manufacturer-specific AD data, 8 bytes). The version byte [2] tells the station
+ * which of two contracts is in force:
+ *
+ *   version = 1  SIMULATED (pre-training fallback, update_telemetry_sim() below):
+ *     [2]=1  [3] state(0..5)  [4] activity(0..100)  [5..6] steps LE  [7] battery
+ *
+ *   version = 2  REAL ON-DEVICE CLASSIFICATION (production.c, runs once a model is present):
+ *     [2]=2  [3] class INDEX (0..N-1) into the model's label table, or 0xFF = UNKNOWN/low-confidence
+ *     [4] confidence 0..100 (round(confidence*100))  [5..6] steps LE  [7] battery
+ *
  * The collar's BLE address identifies which collar it is (no id needed in the payload).
  *
- * PHASE-1 SCAFFOLD: update_telemetry() below fills the packet with SIMULATED state/activity/steps
- * (real battery is already wired). This is a placeholder for the trained classifier: once a model
- * is dropped into classifier.c (today weak stubs), real IMU + audio classification replaces the
- * simulated state machine and feeds eat/drink/purr into the telemetry.
+ * PRODUCTION vs SIMULATED is chosen each cycle by production_active() (a trained IMU model is linked
+ * AND we are not in a training-capture stream). With no model the simulated state machine runs and
+ * version stays 1; once a model lands, real IMU classification drives the telemetry and version is 2.
  */
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
@@ -36,6 +42,8 @@
 #include "battery.h"
 #include "imu.h"
 #include "classifier.h"
+#include "production.h"
+#include "ota.h"
 
 LOG_MODULE_REGISTER(collar, LOG_LEVEL_INF);
 
@@ -52,12 +60,11 @@ static const uint16_t DUR_MIN[6] = {  60, 40, 20, 20, 20, 20 };
 static const uint16_t DUR_MAX[6] = { 180, 120, 60, 40, 50, 40 };
 static const uint8_t  ACT[6]     = {   2, 12, 55, 45, 80, 30 };
 
-/* PHASE-1 SCAFFOLD: simulated behaviour. Real IMU-based classification + step counting (LSM6DS3,
- * via classifier.c) replaces this once a model is trained , the cascade already runs at capture
- * time in streaming.c on the IMU window paired with each audio clip. */
-static void update_telemetry(void)
+/* SIMULATED telemetry (version = 1) , the pre-training fallback. Runs only while no trained model is
+ * present; once a model lands, production_update_telemetry() (version = 2) replaces it. Real
+ * IMU-based classification lives in production.c / classifier.c. Left intact and unchanged. */
+static void update_telemetry_sim(void)
 {
-    /* TODO: replace with real IMU-based classification + step counting (LSM6DS3). */
     int64_t now = k_uptime_get();
 
     /* hold each behaviour for a realistic dwell, then transition to a new one */
@@ -76,6 +83,7 @@ static void update_telemetry(void)
     if (act < 0) act = 0; else if (act > 100) act = 100;
 
     uint8_t *mfg = ble_mfg_data();
+    mfg[2] = 1;                          /* version 1 = simulated (pre-training fallback) */
     mfg[3] = g_state;
     mfg[4] = (uint8_t)act;
     mfg[5] = g_steps & 0xFF;
@@ -100,6 +108,7 @@ int main(void)
     battery_init();
     audio_mic_init();
     clf_init();                  /* action-classifier cascade (runs model-free until models land) */
+    ota_load_stored_models();    /* re-load any previously-OTA'd model from flash so it's live now */
     if (!imu_init())             /* LSM6DS3TR-C; sampled alongside each clip + fed to the cascade */
         LOG_ERR("IMU init FAILED , clips will upload audio-only (no paired motion data)");
 
@@ -114,10 +123,16 @@ int main(void)
     LOG_INF("collar advertising (connectable), id=%s", ble_id());
 
     while (1) {
-        update_telemetry();
-        /* (The classifier cascade now runs at capture time in streaming.c, on the IMU window that
-         * pairs with each audio clip. A future always-on path would also run it here on a rolling
-         * IMU window, gated by wake-on-motion, with eat/drink/purr mapped into the telemetry.) */
+        /* Two clear branches. PRODUCTION (a trained IMU model is linked AND we're not in a capture
+         * stream): run real on-device classification on a rolling IMU window and emit the version=2
+         * packet. Otherwise fall back to the SIMULATED state machine (version=1). The cascade also
+         * still runs at capture time in streaming.c on the IMU window paired with each audio clip. */
+        if (production_active()) {
+            production_update_telemetry();
+        } else {
+            production_yield();          /* release our IMU ownership so capture/re-entry is clean */
+            update_telemetry_sim();
+        }
 
         /* Ensure we're advertising whenever not connected. This self-heals the re-advertise after
          * a capture disconnects (restarting adv from the disconnect callback is unreliable), so the

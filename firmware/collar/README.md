@@ -15,7 +15,9 @@ touches WiFi/internet, which keeps it tiny and low-power, and it always runs on 
 | `streaming.c` | the decoupled reader/sender threads that assemble + send frames |
 | `battery.c` | 1S LiPo charge via the onboard divider |
 | `imu.c` | LSM6DS3TR-C continuous sampler |
-| `classifier.c` | the confidence-gated action cascade (weak stubs until a model lands) |
+| `classifier.c` | the confidence-gated action cascade (IMU first, audio confirms when unsure) |
+| `tflm_classifier.cpp` | TensorFlow Lite Micro backend for the cascade (runtime-loaded models) |
+| `model_loader.h` | runtime model-install API (`clf_set_imu_model` / `clf_set_audio_model`) |
 | `audio_codec.h` | µ-law + the model-input audio representation |
 
 ## Telemetry packet (manufacturer AD data, 8 bytes)
@@ -31,13 +33,22 @@ touches WiFi/internet, which keeps it tiny and low-power, and it always runs on 
 
 The collar's BLE address identifies which collar it is, so no id goes in the payload.
 
-## On-device AI , Phase-1 scaffold
+## On-device AI
 
-The telemetry state/activity/steps are currently **simulated** (a dwell-based behaviour state
-machine; real battery is wired). This is a placeholder for the trained classifier: once a model is
-dropped into `classifier.c` (today weak stubs), real IMU + audio classification replaces the
-simulation. The cascade already runs at capture time in `streaming.c` on the IMU window paired with
-each clip. See the root [README](../../README.md) for the model + OTA plan.
+The inference engine is **TensorFlow Lite Micro** (`tflm_classifier.cpp`). It runs a
+confidence-gated cascade: the IMU model classifies first, and the audio model confirms only when the
+IMU is unsure. No model is compiled into the firmware , each stage loads its `.tflite` at **runtime**
+(`clf_set_imu_model` / `clf_set_audio_model`, the future OTA path). Until a model lands the engine
+runs **model-free**: `clf_*_model_present()` is false and the cascade returns `UNKNOWN`, so the
+firmware is safe to run with no model at all. The input pre-processing (per-window normalization,
+int8 quantization from the model's own scale/zero-point) mirrors the training pipeline so on-device
+inference matches what was trained.
+
+Two things still pending: the telemetry state/activity/steps are **simulated** for now (a dwell-based
+behaviour state machine; real battery is wired) and switch to real classifier output once a model is
+loaded; and the OTA delivery that pushes a trained `.tflite` to the collar is **Phase 3**. See the
+root [README](../../README.md) for the model + OTA plan. The cascade itself already runs at capture
+time in `streaming.c` on the IMU window paired with each clip.
 
 ## Build & flash
 

@@ -63,6 +63,27 @@ static void nvs_save(const char *ssid, const char *pass, const char *owner,
     setstr(g_name, sizeof g_name, name);    g_lat = lat; g_lon = lon;
 }
 
+/* Last model version this station pushed to the collar (OTA gate, see ota.c). Lives in the same
+ * "meow" namespace as the provisioned creds; absent == never pushed == 0. */
+uint32_t nvs_get_model_ver(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("meow", NVS_READONLY, &h) != ESP_OK) return 0;
+    uint32_t ver = 0;
+    nvs_get_u32(h, "modelver", &ver);   /* leaves ver=0 if the key is absent */
+    nvs_close(h);
+    return ver;
+}
+
+void nvs_set_model_ver(uint32_t ver)
+{
+    nvs_handle_t h;
+    if (nvs_open("meow", NVS_READWRITE, &h) != ESP_OK) return;
+    nvs_set_u32(h, "modelver", ver);
+    nvs_commit(h);
+    nvs_close(h);
+}
+
 /* ---------------- USB serial provisioning ---------------- */
 int serial_read_line(char *buf, int cap, int timeout_ms)
 {

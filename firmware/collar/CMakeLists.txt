@@ -9,5 +9,8 @@ target_sources(app PRIVATE
     src/streaming.c
     src/battery.c
     src/classifier.c
-    src/imu.c)
+    src/production.c            # production mode: real on-device classification -> telemetry
+    src/imu.c
+    src/ota.c                   # Phase-3 OTA model delivery: BLE -> flash slots -> XIP load
+    src/tflm_classifier.cpp)   # TFLM inference backend , strong overrides of the cascade hooks
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)   # shared meow_protocol.h

@@ -1,0 +1,47 @@
+# Static Partition Manager map for the Meowtion collar (xiao_ble/nrf52840/sense).
+#
+# This build uses Partition Manager (sysbuild generates build/partitions.yml from this file),
+# NOT the DTS fixed-partitions , so THIS file is the authoritative flash map. Without it, PM
+# placed the whole 0x27000..0xEC000 span (0xC5000, 788 KB) into `app`, which is wildly oversized
+# for a ~178 KB image. We carve a dedicated `models_storage` partition out of that slack so the
+# Phase-3 OTA path (src/ota.c) can stage runtime TFLite models in flash and run them in place (XIP).
+#
+# THE MAP (must stay byte-exact at the edges , the bootloader + settings live here):
+#   softdevice_reserved : 0x00000 size 0x27000   reserved low region (UNCHANGED)
+#   app  (code)         : 0x27000 size 0x85000   shrunk; now ends at 0xAC000
+#   models_storage      : 0xAC000 size 0x40000   NEW , 256 KB for OTA model slots
+#   settings_storage    : 0xEC000 size 0x08000   NVS settings (UNCHANGED , keep exactly)
+#   uf2_partition       : 0xF4000 size 0x0C000   Adafruit UF2 bootloader (UNCHANGED , keep exactly)
+#
+# `app` is fixed-size here (not `span`) so PM cannot silently regrow it and overlap models_storage.
+# Any gap/overlap is a hard PM error at build time , that is the safety net.
+
+softdevice_reserved:
+  address: 0x0
+  end_address: 0x27000
+  region: flash_primary
+  size: 0x27000
+
+app:
+  address: 0x27000
+  end_address: 0xac000
+  region: flash_primary
+  size: 0x85000
+
+models_storage:
+  address: 0xac000
+  end_address: 0xec000
+  region: flash_primary
+  size: 0x40000
+
+settings_storage:
+  address: 0xec000
+  end_address: 0xf4000
+  region: flash_primary
+  size: 0x8000
+
+uf2_partition:
+  address: 0xf4000
+  end_address: 0x100000
+  region: flash_primary
+  size: 0xc000

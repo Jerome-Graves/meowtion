@@ -38,6 +38,7 @@
 #include "wifi.h"
 #include "weather.h"
 #include "ble.h"
+#include "ota.h"
 
 static const char *TAG = "meowtion";
 
@@ -116,6 +117,15 @@ void app_main(void)
         if (ble_allowed_count() > 0 && tick % 900 == 0) poll_weather();   /* data only once a collar is registered */
 
         ble_service();   /* serviced every tick (~1 s) so the clip buffers never back up */
+
+        /* OTA model delivery (Phase 3): when the cloud has published a newer model than we last
+         * pushed AND a registered collar is in range AND audio capture is idle (so OTA and capture
+         * never share the radio), run a blocking push to the collar. Checked on a slow cadence
+         * (~30 s) so the RTDB ver poll is cheap; ota_run_push has its own per-step timeouts so a
+         * stalled transfer can't wedge the loop. NVS only advances on a clean push, so a failed one
+         * simply retries next window. */
+        if (tick % 30 == 0 && ble_allowed_count() > 0 && !ble_capture_active() && ota_push_due())
+            ota_run_push(0);
 
         tick++;
         vTaskDelay(pdMS_TO_TICKS(1000));

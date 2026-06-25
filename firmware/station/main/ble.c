@@ -59,6 +59,7 @@ typedef struct {
     uint8_t  addr[6];
     char     id[16];                 /* "cat_aabbcc" from the BLE address */
     /* latest from the advertisement (written by the scan callback) */
+    uint8_t  ver;                    /* packet version: 1 = simulated, 2 = real on-device classification */
     uint8_t  state, activity, battery;
     uint16_t steps;
     int64_t  last_ms;
@@ -112,6 +113,30 @@ static bool is_allowed(const char *id)
 }
 
 int ble_allowed_count(void) { return g_allow_n; }
+
+/* ---- OTA support: expose just enough for ota.c to connect to the in-range collar ----
+ * ota.c runs an entirely separate, brief BLE connection (its own GAP callback) to push a model;
+ * the service loop only lets it run when capture is idle, so the two never share the radio. */
+bool ble_capture_active(void)
+{
+    return g_cap != CAP_IDLE;
+}
+
+uint8_t ble_own_addr_type(void) { return g_own_addr_type; }
+
+/* Copy the address of the collar we currently hear (the same one start_capture connects to) into
+ * `out` (a ble_addr_t*). Returns false if no collar has been heard recently. */
+bool ble_near_collar_addr(void *out)
+{
+    bool ok = false;
+    xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
+    if ((now_ms() - g_near_ms) < 5000 && g_near_rssi > -128) {
+        memcpy(out, &g_near_addr, sizeof(ble_addr_t));
+        ok = true;
+    }
+    xSemaphoreGive(g_collar_mtx);
+    return ok;
+}
 
 void ble_fetch_allow(void)
 {
@@ -242,6 +267,10 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
                 break;
             }
     if (c) {
+        /* p points at mfg_data[2]: p[0]=version, p[1]=state/class, p[2]=activity/conf,
+         * p[3..4]=steps LE, p[5]=battery. In v2 (real classification) p[1] is the class INDEX
+         * (0xFF=UNKNOWN) and p[2] is confidence 0..100; in v1 (simulated) they're state/activity. */
+        c->ver      = p[0];
         c->state    = p[1];
         c->activity = p[2];
         c->steps    = p[3] | (p[4] << 8);
@@ -308,8 +337,14 @@ void ble_relay(void)
         char base[24], body[224], suffix[40];
         snprintf(base, sizeof base, "/cats/%s", snap.id);
 
-        snprintf(body, sizeof body, "{\"ts\":%lld,\"state\":\"%s\",\"steps\":%u,\"battery\":%d}",
-                 (long long)now, STATES[st], (unsigned)snap.steps, snap.battery);
+        /* Forward the production contract so the dashboard can tell real (ver=2) from simulated
+         * (ver=1) and read the model's class index + confidence. `cls` is the raw class byte
+         * (0..N-1, or 255 = UNKNOWN/low-confidence) and `conf` the 0..100 confidence; both are only
+         * meaningful when ver=2. `state` (the human-readable label) is kept for the v1 dashboard. */
+        snprintf(body, sizeof body,
+                 "{\"ts\":%lld,\"state\":\"%s\",\"steps\":%u,\"battery\":%d,\"ver\":%u,\"cls\":%u,\"conf\":%u}",
+                 (long long)now, STATES[st], (unsigned)snap.steps, snap.battery,
+                 (unsigned)snap.ver, (unsigned)snap.state, (unsigned)snap.activity);
         snprintf(suffix, sizeof suffix, "%s/current", base);
         dev_write(HTTP_METHOD_PUT, suffix, body);
 

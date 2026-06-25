@@ -30,6 +30,11 @@ extern double g_lat, g_lon;
 void    setstr(char *dst, size_t cap, const char *src);
 int64_t now_ms(void);
 
+/* Per-station "last model version pushed to the collar" (OTA gate). Stored in the same "meow" NVS
+ * namespace; defaults to 0 when never written. ota.c compares this against RTDB models/<owner>/ver. */
+uint32_t nvs_get_model_ver(void);
+void     nvs_set_model_ver(uint32_t ver);
+
 /* NVS persistence + USB-serial provisioning */
 bool nvs_load(void);
 int  serial_read_line(char *buf, int cap, int timeout_ms);
