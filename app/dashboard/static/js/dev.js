@@ -6,6 +6,7 @@
  */
 
     let g_uid = null;
+    const g_demo = new URLSearchParams(location.search).has("demo");   // ?demo=1 => public read-only showcase
     let g_actions = ["eat", "drink", "purr"];   // user-defined action set (any pet behaviour), from users/<uid>/actions
     let devicesRef = null, modelsRef = null, actionsRef = null, lastDevices = {}, timer = null, lastClipsSig = "";
     let clipEls = {};   // clip id -> {row}; tracks rows already drawn so renderClips only adds/removes, never rebuilds
@@ -129,6 +130,7 @@
       sel.value = c.label || "";
       sel.onclick = e => e.stopPropagation();   // don't toggle the row when using the dropdown
       sel.onchange = () => {
+        if (g_demo) { sel.value = c.label || ""; return; }   // read-only demo: revert the dropdown, no write
         const ref = firebase.database().ref("users/" + g_uid + "/devices/" + c.token + "/clips/" + c.id + "/label");
         if (sel.value) { ref.set(sel.value); c.label = sel.value; } else { ref.remove(); c.label = null; }
       };
@@ -168,6 +170,7 @@
       del.onclick = async e => {
         e.preventDefault();
         e.stopPropagation();
+        if (g_demo) return;   // read-only demo: no delete
         del.disabled = true;
         const path = "users/" + g_uid + "/devices/" + c.token + "/clips/" + c.id;
         try {
@@ -219,6 +222,10 @@
         dimR.style.left = bx + "px"; dimR.style.width = Math.max(0, w - bx) + "px";
         tnum.textContent = fmt(aMs) + " – " + fmt(bMs) + "  (" + ((bMs - aMs) / 1000).toFixed(2) + "s)";
       }
+
+      // In the read-only demo the audio lives in private Storage (a public visitor would 403), so don't
+      // even attempt the fetch , just say so. The waveform/trim/play stay inert.
+      if (g_demo) { tnum.textContent = "audio hidden in demo"; return () => {}; }
 
       // New clips store an owner-scoped Storage path, resolved via the authed SDK (getDownloadURL
       // returns a tokened URL the rules allow). Older/flat clips stored a direct ?alt=media URL.
@@ -281,6 +288,7 @@
       };
 
       saveBtn.onclick = async () => {
+        if (g_demo) return;   // read-only demo: no trim save
         if (!durMs) return;
         saveBtn.disabled = true; const old = saveBtn.textContent; saveBtn.textContent = "Saving…";
         try {
@@ -321,6 +329,7 @@
     // runaway capture can leave behind. Files go in small concurrent batches; DB rows are wiped per
     // device in a single node removal so we don't issue hundreds of separate writes.
     async function deleteAllClips() {
+      if (g_demo) return;   // read-only demo: no bulk delete
       const all = [];
       Object.entries(lastDevices || {}).forEach(([token, d]) => {
         if (d && d.type === "station" && d.clips)
@@ -409,6 +418,7 @@
       g_actions.forEach(a => { const c = el.appendChild(document.createElement("span")); c.className = "devid"; c.textContent = a; });
     }
     async function addAction() {
+      if (g_demo) return msg("action-msg", "Read-only demo , sign in with a dev account to make changes.", "err");
       const inp = document.getElementById("newAction");
       const v = (inp.value || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
       if (!v) return;
@@ -432,6 +442,7 @@
       el.textContent = p.join("  ·  ");
     }
     async function retrainModels() {
+      if (g_demo) return msg("train-msg", "Read-only demo , sign in with a dev account to make changes.", "err");
       const btn = document.getElementById("trainBtn");
       btn.disabled = true;
       msg("train-msg", "Training on the server , this can take a few minutes. Status updates below.", "ok");
@@ -460,6 +471,7 @@
       document.getElementById("modeState").textContent = g_production ? "Production" : "Training";
     }
     async function toggleMode() {
+      if (g_demo) { renderCapBtn(); return msg("mode-msg", "Read-only demo , sign in with a dev account to make changes.", "err"); }
       const next = document.getElementById("modeToggle").checked;   // true = production
       const tokens = Object.entries(lastDevices).filter(([, d]) => d && d.type === "station").map(([t]) => t);
       if (!tokens.length) { renderCapBtn(); return msg("mode-msg", "No stations to control.", "err"); }
@@ -476,6 +488,7 @@
       }
     }
     async function toggleForce() {
+      if (g_demo) { renderCapBtn(); return msg("force-msg", "Read-only demo , sign in with a dev account to make changes.", "err"); }
       const next = document.getElementById("forceToggle").checked;
       const tokens = Object.entries(lastDevices).filter(([, d]) => d && d.type === "station").map(([t]) => t);
       if (!tokens.length) { renderCapBtn(); return msg("force-msg", "No stations to control.", "err"); }
@@ -491,6 +504,7 @@
       }
     }
     async function toggleCapture() {
+      if (g_demo) { renderCapBtn(); return msg("cap-msg", "Read-only demo , sign in with a dev account to make changes.", "err"); }
       const next = document.getElementById("capToggle").checked;   // the switch's new position
       const tokens = Object.entries(lastDevices).filter(([, d]) => d && d.type === "station").map(([t]) => t);
       if (!tokens.length) { renderCapBtn(); return msg("cap-msg", "No stations to control.", "err"); }
@@ -522,6 +536,7 @@
       }
     }
     async function saveConfig() {
+      if (g_demo) return msg("cfg-msg", "Read-only demo , sign in with a dev account to make changes.", "err");
       const rssiThreshold = parseInt(document.getElementById("thr").value, 10);
       const dwellMs = parseInt(document.getElementById("dwell").value, 10) || 0;
       const tokens = Object.entries(lastDevices).filter(([, d]) => d && d.type === "station").map(([t]) => t);
@@ -536,8 +551,21 @@
     }
     function msg(id, t, k) { const e = document.getElementById(id); e.textContent = t || ""; e.className = "msg" + (k ? " " + k : ""); }
 
+    // ---- read-only demo (?demo=1): load the demo owner's data without auth, every write disabled ----
+    async function initDemo() {
+      const demoUid = (await firebase.database().ref("config/demoOwner").once("value")).val();
+      if (!demoUid) { document.getElementById("gateMsg").textContent = "Demo isn't configured yet."; return show("gate"); }
+      g_uid = demoUid;
+      document.body.classList.add("demo-readonly");
+      const who = document.getElementById("who"); if (who) who.textContent = "Demo , read-only";
+      const banner = document.getElementById("demoBanner"); if (banner) banner.classList.remove("hidden");
+      attach(demoUid);
+      show("dev");
+    }
+
     // ---- auth + dev-account gate ----
     firebase.auth().onAuthStateChanged(async (user) => {
+      if (g_demo) return;   // demo mode owns the view , don't let auth state override it
       if (devicesRef) { devicesRef.off(); devicesRef = null; }
       if (modelsRef) { modelsRef.off(); modelsRef = null; }
       if (actionsRef) { actionsRef.off(); actionsRef = null; }
@@ -557,3 +585,6 @@
       document.getElementById("delAll").onclick = deleteAllClips;
       show("dev");
     });
+
+    // In demo mode, skip the auth gate entirely and load the showcase data on page load.
+    if (g_demo) initDemo();

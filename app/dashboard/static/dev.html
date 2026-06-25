@@ -13,6 +13,44 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/dev.css" />
+  <style>
+    /* Read-only demo (?demo=1): disable WRITE controls only. The clip expand rows and audio
+       play stay clickable so the page is still fully explorable. body.demo-readonly is added
+       by initDemo() in dev.js. */
+    .demo-readonly #modeToggle,
+    .demo-readonly #capToggle,
+    .demo-readonly #forceToggle,
+    .demo-readonly .switch,
+    .demo-readonly #trainBtn,
+    .demo-readonly #delAll,
+    .demo-readonly #newAction,
+    .demo-readonly #thr,
+    .demo-readonly #dwell,
+    .demo-readonly #clips .chead select.sm,   /* per-clip label dropdown */
+    .demo-readonly #clips .chead button.sm,    /* per-clip delete (✕) */
+    .demo-readonly #clips .cbar button.sm:not(.primary):not(:last-child) {  /* per-clip "Save trim" */
+      pointer-events: none;
+      opacity: .45;
+    }
+    /* The "Add action" and "Save range" buttons sit next to their disabled inputs , disable them too.
+       They have no stable id, so target the buttons inside those specific cards' input rows. */
+    .demo-readonly #newAction + button.sm,
+    .demo-readonly #dwell ~ .row button.primary {
+      pointer-events: none;
+      opacity: .45;
+    }
+    .demo-banner {
+      background: #2a2350;
+      color: #d9d4ff;
+      border: 1px solid #4a3f8a;
+      border-radius: 10px;
+      padding: .7rem 1rem;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      font-size: .92rem;
+    }
+    .demo-banner.hidden { display: none; }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -30,6 +68,8 @@
 
     <!-- the dev view -->
     <div id="devview" class="hidden">
+      <!-- shown only in read-only demo mode (un-hidden by initDemo() in dev.js) -->
+      <div id="demoBanner" class="demo-banner hidden">Demo , read-only. Sign in with a dev account to control devices and train.</div>
       <div class="card">
         <div class="top">
           <div class="who" id="who"></div>
