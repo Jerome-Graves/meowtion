@@ -29,6 +29,30 @@ of Firebase, clears the cookie, and returns to the login form. No token is ever 
 Trust comes from the **database rules**: a real token reads only its owner; the demo account is
 world-readable but write-locked, so the demo is genuinely read-only.
 
+## Python code layout
+
+`app.py` is a thin entry point , it only wires the pieces in order (theme → sign-in → live cards →
+analytics). Everything else is split so you can work on the charts without reading any login or
+data-formatting code:
+
+```
+app/dashboard/
+├── app.py              entry point (wiring only)
+├── dashboard_view.py   the editable analytics view  ←  TEAMMATES EDIT THIS
+└── meowtion_dash/      plumbing (rarely opened)
+    ├── theme.py        page config + brand header
+    ├── auth.py         cookie / JWT sign-in → (uid, token, is_demo)
+    ├── firebase.py     cached Realtime Database read
+    ├── data.py         activity_dataframe() + filter helpers
+    ├── charts.py       branded Altair chart helper
+    └── live.py         live current-state cards
+```
+
+**Teammates:** edit [`dashboard_view.py`](dashboard_view.py). You are handed a clean pandas
+DataFrame `df` (one row per episode: `cat, activity, event_date, event_weekday_name, start_time,
+event_duration`) plus ready-made helpers from `meowtion_dash` (filters and a branded chart). You
+never touch cookies, JWTs, or the raw Firebase JSON.
+
 ## Dev console (`dev.html`)
 
 Visible only to dev accounts (`config/devAccounts/<uid> = true`). It is the data-collection and
