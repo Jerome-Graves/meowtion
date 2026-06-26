@@ -1,10 +1,19 @@
-# 🐾 Meowtion
+<p align="center">
+  <img src="docs/hero.png" alt="Meowtion — on-device AI that reads your cat's health from its daily habits" width="820">
+</p>
+
+<p align="center">
+  <a href="https://meowtion.streamlit.app"><b>🐾 Live dashboard</b></a>
+  &nbsp;·&nbsp; <a href="#how-it-works">How it works</a>
+  &nbsp;·&nbsp; <a href="#build-your-own">Build your own</a>
+  &nbsp;·&nbsp; <a href="#license">License</a>
+</p>
+
+---
 
 **A smart cat collar that watches your cat's health through its habits.** On-device AI tracks
 eating, drinking, activity, rest and purring, surfacing the routine changes that can flag illness
 early (cats hide it well). It is trainable to recognise any behaviour, all on a live dashboard.
-
-**Live dashboard:** https://meowtion.streamlit.app
 
 ![A cat wearing the Meowtion collar](hardware/images/photos/cat-wearing-collar.jpg)
 
