@@ -1,0 +1,53 @@
+\section{Introduction}
+\label{sec:introduction}
+
+\subsection{Motivation}
+
+Cats are evolved to conceal illness. A cat that feels unwell will mask it for as long
+as it can, so by the time a problem is obvious to an owner it is often already advanced.
+The early signal is rarely a dramatic symptom; it is a quiet shift in routine. A cat that
+begins to drink noticeably more, eats less, stops grooming, or sleeps through activity it
+used to enjoy is communicating a change. The difficulty is that no person watches their cat
+continuously, and day-to-day memory is a poor baseline. The change is real but invisible.
+
+Meowtion makes that change visible. It observes the behaviours that make up a cat's routine,
+continuously and unobtrusively, and surfaces the trend to the owner. The goal is not to
+diagnose; it is to notice the routine change early enough that the owner can act, rather than
+only seeing the crisis.
+
+\subsection{Approach}
+
+The system is a wearable plus a small fixed gateway. A lightweight, battery-powered collar
+carries the sensors and the intelligence: it classifies behaviour on the device itself, in
+real time, and never streams raw sensor data off the cat. It reports only a compact result
+(``eating, high confidence'') over Bluetooth Low Energy (BLE) to a mains-powered base station
+in the home. The station bridges BLE to the internet over Wi-Fi and forwards results to a
+cloud backend, which drives a hosted dashboard where the owner sees their cat's activity and
+trends live.
+
+Two design commitments shape the whole system:
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Privacy by construction.} Classification happens on the collar. The
+        microphone is used only to help recognise behaviour on-device; raw audio is processed
+        and discarded, never recorded or transmitted. Each owner's data is scoped to their own
+        account by the backend's security rules.
+  \item \textbf{Trainable, not fixed-function.} The recognised behaviours are defined by the
+        owner, not baked into firmware. Owners capture and label example clips, a cloud trainer
+        produces tiny models, and those models are delivered back to the collar over the air.
+        Meowtion is a platform for recognising any pet behaviour.
+\end{itemize}
+
+\subsection{Scope of this document}
+
+This document is the complete technical reference for Meowtion as built. It is organised
+bottom-up: the physical hardware (\cref{sec:hardware}), the firmware on each of the two
+microcontrollers (\cref{sec:firmware-collar,sec:firmware-station}), the on-device AI
+(\cref{sec:on-device-ai}), the training pipeline that produces and delivers models
+(\cref{sec:training-pipeline}), the cloud backend (\cref{sec:cloud-backend}), the dashboard
+(\cref{sec:dashboard}), the communication protocols that tie the tiers together
+(\cref{sec:protocols}), and the security and privacy model (\cref{sec:security-privacy}).
+\Cref{sec:future-work} records known limitations and planned work.
+
+\Cref{sec:system-overview} gives the system-level picture first, so the detailed sections that
+follow have a frame to hang on.

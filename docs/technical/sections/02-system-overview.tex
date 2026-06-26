@@ -1,0 +1,78 @@
+\section{System overview}
+\label{sec:system-overview}
+
+\subsection{Architecture}
+
+Meowtion is a four-tier system: the collar on the cat, the station in the home, the cloud
+backend, and the owner's dashboard. \Cref{fig:architecture} shows the data path.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}[node distance=8mm and 12mm]
+    \node[mwnode] (cat) {Cat};
+    \node[mwnode, right=of cat, fill=mwlav!10, draw=mwlav] (collar)
+      {\textbf{Collar}\\\footnotesize XIAO nRF52840 Sense\\\footnotesize Zephyr, battery\\\footnotesize on-device AI};
+    \node[mwnode, right=of collar, fill=mwlav!10, draw=mwlav] (station)
+      {\textbf{Station}\\\footnotesize XIAO ESP32-S3\\\footnotesize ESP-IDF, mains\\\footnotesize Wi-Fi gateway};
+    \node[mwnode, right=of station] (cloud)
+      {\textbf{Firebase}\\\footnotesize Auth, Database\\\footnotesize Storage, Functions};
+    \node[mwnode, below=14mm of station] (dash)
+      {\textbf{Dashboard}\\\footnotesize Streamlit + web SDK};
+    \node[mwnode, left=of dash] (owner) {Owner};
+
+    \draw[mwedge] (cat) -- (collar);
+    \draw[mwedge] (collar) -- node[above,font=\scriptsize,text=mwmut]{BLE} (station);
+    \draw[mwedge] (station) -- node[above,font=\scriptsize,text=mwmut]{Wi-Fi / HTTPS} (cloud);
+    \draw[mwedge] (cloud.south) |- (dash.east);
+    \draw[mwedge] (dash) -- (owner);
+  \end{tikzpicture}
+  \caption{End-to-end data path. The collar is BLE-only, so the always-on station is its
+           gateway to the cloud.}
+  \label{fig:architecture}
+\end{figure}
+
+\subsection{Data flow}
+
+In normal operation the collar runs a classifier on its own sensors and advertises a compact
+telemetry record over BLE (\cref{sec:protocols}). The station, scanning continuously, reads
+that record, attaches the cat and device identity, and writes it to the cloud over an
+authenticated HTTPS connection. The dashboard reads the same data and renders the owner's view.
+Because the collar transmits only a classification result and not raw sensor data, the uplink is
+tiny and the cat's audio never leaves the device.
+
+The system has two operating modes, selected per station from the dashboard:
+
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[Training mode] The station records short labelled audio clips (with time-aligned motion)
+        while a registered collar is in range, and uploads them for model training. This is how a
+        new behaviour is taught.
+  \item[Production mode] The station stops recording entirely and simply relays the collar's
+        on-device classification. This is the everyday monitoring mode.
+\end{description}
+
+\subsection{Multi-user model}
+
+Meowtion is multi-tenant. Each owner creates an account, registers their own station(s) and
+collar(s), and sees only their own cats. Identity and isolation are enforced by the backend's
+authentication and security rules (\cref{sec:cloud-backend,sec:security-privacy}), not by the
+client. A single public, read-only demo account lets anyone explore the dashboard without
+sign-in.
+
+\subsection{Technology summary}
+
+\begin{table}[ht]
+  \centering
+  \caption{Technology at each tier.}
+  \label{tab:stack}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Tier} & \textbf{Stack} \\
+    \midrule
+    Collar    & Seeed XIAO nRF52840 Sense; Zephyr / nRF Connect SDK; TensorFlow Lite Micro \\
+    Station   & Seeed XIAO ESP32-S3; ESP-IDF; NimBLE (BLE central) + Wi-Fi \\
+    Cloud     & Firebase: Authentication, Realtime Database, Cloud Storage, Python Cloud Functions \\
+    Dashboard & Streamlit (Python) + Firebase web SDK (JavaScript) \\
+    Training  & TensorFlow, executed server-side in a Cloud Function \\
+    \bottomrule
+  \end{tabularx}
+\end{table}

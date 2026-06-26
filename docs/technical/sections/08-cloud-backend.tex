@@ -1,0 +1,56 @@
+\section{Cloud backend}
+\label{sec:cloud-backend}
+
+The backend is Firebase. It provides authentication, a Realtime Database for live state and
+history, Cloud Storage for training clips and model blobs, and Python Cloud Functions for
+server-side training. There is no custom server to operate.
+
+\subsection{Database schema}
+
+State and history live in the Realtime Database, keyed by owner so the security rules can scope
+every read and write to the owning account. \Cref{tab:db} lists the main paths.
+
+\begin{table}[ht]
+  \centering
+  \caption{Realtime Database paths (illustrative).}
+  \label{tab:db}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Path} & \textbf{Contents} \\
+    \midrule
+    \texttt{users/<uid>/devices/<token>/} & A registered station or collar, by scoped token \\
+    \texttt{.../cats/<catId>/current}     & The cat's live state (version, class, confidence) \\
+    \texttt{.../cats/<catId>/events}      & Discrete activity episodes (carry version + class index) \\
+    \texttt{users/<uid>/models/}          & Current model version and label list for the owner \\
+    \texttt{config/demoOwner}             & UID whose data backs the public read-only demo \\
+    \texttt{config/modelVer}              & Per-station model-version key the station watches \\
+    \texttt{config/devAccounts/<uid>}     & Flags accounts allowed to use the dev/training tools \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Events store the model version and class index rather than a pre-resolved name. The dashboard
+maps the index to a label using the version's label list, so historical events stay correct even
+as the owner changes their behaviour set.
+
+\subsection{Storage}
+
+Cloud Storage holds the training clips (audio plus aligned motion) and the trained model blobs.
+Training clips are private to the owner and are deliberately \emph{not} world-readable, even in
+the demo: home audio must never be public. The model blobs are what the station downloads during
+over-the-air delivery.
+
+\subsection{Cloud Functions}
+
+A Python Cloud Function performs training. It reads the owner's labelled clips, trains the
+model(s) with TensorFlow, writes the quantised \texttt{.tflite} outputs to Storage, records the
+new version and labels in the database, and mirrors the version into each of the owner's stations
+so delivery is triggered (\cref{sec:training-pipeline}). Running training server-side keeps the
+owner's experience to a single button and removes any local setup.
+
+\subsection{Configuration as a trust boundary}
+
+The \texttt{config} subtree is readable by clients but not writable by them; it is maintained
+through the console or an administrator path. This lets the system publish facts the clients need
+(which account backs the demo, the current model version, which accounts are developers) without
+allowing a client to grant itself privileges.

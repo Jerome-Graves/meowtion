@@ -1,0 +1,48 @@
+\section{Dashboard}
+\label{sec:dashboard}
+
+The owner-facing application is a Streamlit dashboard backed by a small set of static pages for
+the parts that need the Firebase web SDK directly (sign-in, account and device management,
+the developer/training console, and the privacy policy). It is hosted on Streamlit Community
+Cloud and deploys automatically from the repository's main branch.
+
+\subsection{Why a hybrid}
+
+Authentication and device pairing are easiest with the Firebase web SDK in the browser, while the
+data views and charts are easiest in Streamlit's Python. The two halves are served from the same
+origin so they can share a login: the static sign-in page writes the Firebase ID token into a
+same-origin cookie, and the Python dashboard reads that cookie to identify the owner. A separate
+flag cookie marks the public read-only demo.
+
+\subsection{Pages and views}
+
+\begin{table}[ht]
+  \centering
+  \caption{Dashboard surfaces.}
+  \label{tab:dash}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Surface} & \textbf{Role} \\
+    \midrule
+    \texttt{app.py} (Streamlit)   & Live cat state, activity history, charts, account controls \\
+    \texttt{account.html}         & Sign-in, account, device pairing over Web Serial \\
+    \texttt{dev.html}             & Developer/training console: capture, label, train, mode \\
+    \texttt{privacy.html}         & Privacy policy \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Live view and history}
+
+The dashboard reads the cat's live ``current'' record and renders the latest behaviour, and it
+flattens the event history into a table for charts (totals per behaviour, frequency, and trends
+over time). Activity charts are rendered with a transparent background so they sit on the page's
+brand canvas rather than in a clashing panel.
+
+\subsection{Read-only demo}
+
+A public demo lets anyone explore the product without an account. It reads the demo owner's data
+(permitted by the security rules) but every write control and function trigger is disabled, and
+the developer/training console is available in a read-only variant. The demo is genuinely
+read-only because it is enforced by the backend rules, not just hidden in the UI: the demo
+account is world-readable but write-locked (\cref{sec:security-privacy}).

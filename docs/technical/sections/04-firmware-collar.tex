@@ -1,0 +1,85 @@
+\section{Collar firmware}
+\label{sec:firmware-collar}
+
+The collar runs on Zephyr via the nRF Connect SDK (NCS v3.3.1), targeting the board
+\texttt{xiao\_ble/nrf52840/sense}. It is a BLE peripheral with a USB CDC ACM console for
+development logging, and it is flashed by drag-and-dropping a UF2 image onto the bootloader
+drive (double-tap RESET to enter the bootloader). The repository build is driven by
+\texttt{build.ps1}.
+
+\subsection{Responsibilities}
+
+The collar firmware has four jobs that run from the main loop and BLE callbacks:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Sample the IMU (and, when needed, the microphone) and run the classifier.
+  \item Advertise the result as BLE telemetry for the station to read (\cref{sec:protocols}).
+  \item Receive new models over the air and swap them in safely.
+  \item In training mode, stream sensor data to the station for capture instead of classifying.
+\end{enumerate}
+
+\subsection{Source layout}
+
+\begin{table}[ht]
+  \centering
+  \caption{Key collar source files.}
+  \label{tab:collar-src}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{File} & \textbf{Role} \\
+    \midrule
+    \texttt{main.c}            & Boot, BLE init, the service loop (model service, then production/sim dispatch) \\
+    \texttt{production.c}      & Rolling IMU window, runs inference, writes telemetry v2 in production mode \\
+    \texttt{ota.c}             & OTA receive state machine; commits models and defers the swap to the main thread \\
+    \texttt{classifier.c}      & Cascade logic with weak hooks for model presence and inference \\
+    \texttt{tflm\_classifier.cpp} & Strong TensorFlow Lite Micro backend overriding the weak hooks \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+The classifier is split deliberately. \texttt{classifier.c} defines the cascade with
+\emph{weak} C hooks (model-present queries and inference calls). \texttt{tflm\_classifier.cpp}
+provides \emph{strong} \texttt{extern\ "C"} definitions that override them when the TensorFlow
+Lite Micro backend is compiled in. This keeps the cascade policy in plain C and the heavy C++
+inference cleanly separable.
+
+\subsection{Flash layout}
+
+Models are not linked into the firmware image; they live in a dedicated flash partition and run
+execute-in-place (XIP), so a new model can be written without reflashing firmware.
+
+\begin{table}[ht]
+  \centering
+  \caption{Model storage partition.}
+  \label{tab:flash}
+  \begin{tabularx}{\textwidth}{@{}llX@{}}
+    \toprule
+    \textbf{Partition} & \textbf{Address / size} & \textbf{Contents} \\
+    \midrule
+    \texttt{models\_storage} & \texttt{0xAC000}, \texttt{0x40000} (256\,KiB) &
+      Header plus the IMU (slot 0) and audio (slot 1) model blobs, executed in place \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Build configuration}
+
+Enabling on-device inference required pulling TensorFlow Lite Micro into the NCS workspace (it
+is an optional, excluded west module) and turning on the C++ and TFLM options. The relevant
+\texttt{prj.conf} settings are shown in \cref{lst:prjconf}.
+
+\begin{lstlisting}[language=C,caption={Inference-related \texttt{prj.conf} settings (collar).},label={lst:prjconf}]
+CONFIG_CPP=y
+CONFIG_STD_CPP17=y
+CONFIG_TENSORFLOW_LITE_MICRO=y
+CONFIG_TENSORFLOW_LITE_MICRO_CMSIS_NN_KERNELS=y
+# AllocateTensors()/Invoke() overflow the default ~2 KiB main stack:
+CONFIG_MAIN_STACK_SIZE=16384
+# stream_flash lazily erases model pages during OTA:
+CONFIG_STREAM_FLASH_ERASE=y
+\end{lstlisting}
+
+Two stability fixes are baked into these settings. The TFLM \texttt{AllocateTensors()} and
+\texttt{Invoke()} calls overflow Zephyr's small default stack, so the main stack is raised to
+16\,KiB; and because committing a model touches a lot of stack, the swap is deferred off the
+BLE-RX callback onto the main thread (\cref{sec:protocols}).

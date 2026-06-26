@@ -1,0 +1,32 @@
+% packages.tex - every \usepackage for the Meowtion technical document.
+% Compiled with XeLaTeX, so fontspec is available and no Perl/latexmk is needed.
+% Kept to widely-available packages so it builds on a stock MiKTeX/TeX Live.
+
+\usepackage{fontspec}                 % XeLaTeX font handling (Latin Modern by default)
+\usepackage[british]{babel}           % British spelling and hyphenation
+\usepackage{csquotes}                 % context-sensitive quotes (biblatex wants this)
+
+\usepackage[a4paper,margin=2.5cm,headheight=14pt]{geometry}
+\usepackage{microtype}                % subtle spacing/kerning improvements
+
+\usepackage{graphicx}                 % \includegraphics
+\usepackage{xcolor}                   % brand colours (see style.tex)
+\usepackage{booktabs}                 % \toprule \midrule \bottomrule
+\usepackage{tabularx}                 % tables that fill \textwidth
+\usepackage{array}
+\usepackage{enumitem}                 % tidy list spacing
+\usepackage{caption}
+\usepackage{subcaption}
+
+\usepackage{listings}                 % source-code listings (no external deps)
+\usepackage{fancyhdr}                 % page headers/footers
+\usepackage{titlesec}                 % section heading styling
+
+\usepackage{tikz}                     % architecture diagram
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,backgrounds,fit}
+
+\usepackage[backend=biber,style=numeric-comp,sorting=none]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage[hidelinks]{hyperref}      % must come late
+\usepackage{cleveref}                 % \cref - load after hyperref

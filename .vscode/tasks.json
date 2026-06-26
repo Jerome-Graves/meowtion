@@ -50,6 +50,40 @@
         "panel": "dedicated",
         "clear": true
       }
+    },
+    {
+      "label": "LaTeX: Build doc",
+      "type": "shell",
+      "command": "& '${workspaceFolder}/docs/technical/build.ps1' -Full",
+      "options": { "cwd": "${workspaceFolder}/docs/technical" },
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "LaTeX: Quick build",
+      "type": "shell",
+      "command": "& '${workspaceFolder}/docs/technical/build.ps1' -Quick",
+      "options": { "cwd": "${workspaceFolder}/docs/technical" },
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "LaTeX: View PDF",
+      "type": "shell",
+      "command": "& '${workspaceFolder}/docs/technical/build.ps1' -View",
+      "options": { "cwd": "${workspaceFolder}/docs/technical" },
+      "problemMatcher": [],
+      "presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "LaTeX: Clean",
+      "type": "shell",
+      "command": "& '${workspaceFolder}/docs/technical/build.ps1' -Clean",
+      "options": { "cwd": "${workspaceFolder}/docs/technical" },
+      "problemMatcher": [],
+      "presentation": { "echo": true, "reveal": "always", "focus": false, "panel": "shared", "clear": true }
     }
   ]
 }

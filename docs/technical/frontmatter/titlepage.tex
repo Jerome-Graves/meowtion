@@ -1,0 +1,30 @@
+% titlepage.tex - branded cover page using the README hero banner.
+\begin{titlepage}
+  \centering
+  \vspace*{1.5cm}
+
+  \includegraphics[width=0.82\textwidth]{hero-banner.png}\\[2.2cm]
+
+  {\Huge\bfseries\color{mwink}\doctitle}\\[0.7cm]
+  {\large\color{mwmut}\docsubtitle}\\[2.2cm]
+
+  {\large\color{mwink}\docauthor}\\[0.35cm]
+  {\color{mwmut}\docversion\quad\textbullet\quad\docdate}\\[2.0cm]
+
+  \begin{minipage}{0.82\textwidth}
+    \small\color{mwink}
+    \textbf{Abstract.} Meowtion is a smart cat collar that infers a cat's health
+    from changes in its daily habits. A battery-powered collar classifies behaviour
+    (eating, drinking, activity, rest, purring) on the device itself, relays the
+    result over Bluetooth Low Energy to a mains-powered base station, and the station
+    forwards it to the cloud for a live owner-facing dashboard. The behaviour set is
+    not hard-coded: owners define the actions to recognise, label captured clips, and
+    a cloud trainer produces tiny quantised models that are delivered back to the
+    collar over the air. This document is the end-to-end technical reference for the
+    system: hardware, firmware, on-device AI, the training pipeline, the cloud
+    backend, the dashboard, the communication protocols, and the security model.
+  \end{minipage}
+
+  \vfill
+  {\footnotesize\color{mwmut}\docrepo \quad\textbullet\quad \docdash}\\[0.4cm]
+\end{titlepage}

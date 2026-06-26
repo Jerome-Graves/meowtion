@@ -1,0 +1,71 @@
+% style.tex - visual identity: brand colours, headings, headers/footers, code listings.
+
+% ---- Brand palette (matches the dashboard: white + lavender) ----
+\definecolor{mwlav}{HTML}{BC7BC2}   % brand lavender (188,123,194)
+\definecolor{mwlavd}{HTML}{A25CB3}  % darker lavender, for accents
+\definecolor{mwink}{HTML}{1B1B2B}   % near-black text
+\definecolor{mwmut}{HTML}{6B7280}   % muted grey
+\definecolor{mwline}{HTML}{E6E7EC}  % hairline rules
+\definecolor{mwcodebg}{HTML}{F4F4F8}
+
+% ---- Headings: ink titles, lavender numbers ----
+\titleformat{\section}{\Large\bfseries\color{mwink}}{\color{mwlavd}\thesection}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{mwink}}{\color{mwlavd}\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{mwink}}{\color{mwlavd}\thesubsubsection}{0.6em}{}
+
+% ---- Running headers / footers ----
+\pagestyle{fancy}
+\fancyhf{}
+\setlength{\headheight}{14pt}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\renewcommand{\sectionmark}[1]{\markboth{#1}{}}
+\fancyhead[L]{\small\color{mwmut}\doctitle}
+\fancyhead[R]{\small\color{mwmut}\nouppercase{\leftmark}}
+\fancyfoot[C]{\small\color{mwmut}\thepage}
+
+% ---- Links ----
+\hypersetup{
+  colorlinks=true,
+  linkcolor=mwlavd,
+  urlcolor=mwlavd,
+  citecolor=mwlavd,
+  pdftitle={\doctitle},
+  pdfauthor={\docauthor},
+}
+
+% ---- Code listings (C and Python) ----
+\definecolor{codekw}{HTML}{A25CB3}
+\definecolor{codecom}{HTML}{6B7280}
+\definecolor{codestr}{HTML}{2F855A}
+\lstdefinestyle{mw}{
+  backgroundcolor=\color{mwcodebg},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecom}\itshape,
+  stringstyle=\color{codestr},
+  numberstyle=\tiny\color{mwmut},
+  numbers=left,
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{mwline},
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=2,
+  columns=fullflexible,
+  keepspaces=true,
+  xleftmargin=16pt,
+  framexleftmargin=16pt,
+  captionpos=b,
+}
+\lstset{style=mw}
+
+% A reusable box style for the architecture diagram.
+\tikzset{
+  mwnode/.style={
+    draw=mwline, fill=white, rounded corners=4pt, line width=0.5pt,
+    text=mwink, align=center, inner sep=6pt, minimum height=1.1cm, font=\small
+  },
+  mwedge/.style={-{Stealth[length=2.5mm]}, draw=mwlavd, line width=0.8pt},
+  mwpill/.style={draw=mwlav, fill=mwlav!12, rounded corners=10pt, text=mwlavd, font=\footnotesize, inner sep=4pt},
+}

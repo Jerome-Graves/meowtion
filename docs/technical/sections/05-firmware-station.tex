@@ -1,0 +1,46 @@
+\section{Station firmware}
+\label{sec:firmware-station}
+
+The station runs on ESP-IDF. It combines a NimBLE BLE central with a Wi-Fi client, so a single
+ESP32-S3 both listens to the collar and talks to the cloud. It is built and flashed with
+\texttt{idf.py} over USB serial.
+
+\subsection{Responsibilities}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Scan for registered collars and read their telemetry advertisements.
+  \item In production mode, relay the collar's classification to the cloud.
+  \item In training mode, connect and capture short audio clips (with time-aligned motion) and
+        upload them for labelling and training.
+  \item Gate, download, and push new models to the collar over the air.
+\end{enumerate}
+
+\subsection{Capture and relay}
+
+When relaying, the station maps the collar's compact telemetry (mode, class index, confidence)
+onto the cat's record in the database, writing both a live ``current'' state and discrete
+activity events as episodes begin and end. Events carry the model version and class index so the
+dashboard can resolve them to human-readable labels even as the label set changes
+(\cref{sec:cloud-backend}).
+
+When capturing, the station records audio back-to-back while a registered collar is within a
+configurable signal-strength gate, uploads each clip to Cloud Storage, and records its metadata
+in the database for the dashboard's labelling UI. A manual capture path ignores the range gate,
+which is used to collect behaviours such as purring that happen while the cat rests rather than
+at the bowl.
+
+\subsection{Robustness: scanning after OTA}
+
+The station uses one BLE radio for several jobs, and OTA push exposed a subtle defect. To push a
+model the station must cancel scanning and open a connection to the collar; the OTA path used its
+own GAP callback and never restarted scanning when it finished, so after an update the station
+went deaf and the dashboard reported the collar offline. The fix is an idempotent
+\texttt{ble\_resume\_scan()} (guarded on the discovery-active flag) that the OTA path calls on
+both completion and bail-out. This was verified on hardware.
+
+\subsection{Configuration}
+
+Wi-Fi credentials are provisioned to the station over USB during device pairing in the
+dashboard and are never stored in the repository (see the \texttt{.gitignore} note on
+\texttt{secrets.h}). The capture range (signal threshold and dwell) and the operating mode are
+configured per station from the dashboard and read by the firmware from the database.

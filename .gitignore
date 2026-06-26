@@ -45,6 +45,24 @@ build/
 sdkconfig
 sdkconfig.old
 
+# ---- LaTeX (docs/technical) ----
+# Build output goes in docs/technical/build/ (already covered by build/ above), but ignore the
+# usual in-place aux clutter too in case anyone builds without -output-directory.
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+
 # ---- OS noise ----
 .DS_Store
 Thumbs.db
