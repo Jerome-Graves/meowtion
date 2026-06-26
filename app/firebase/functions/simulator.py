@@ -29,6 +29,7 @@ SIM_NAME = "Purrminator"                   # the collar's pun name (change here)
 SIM_STATION = "sim-station-purrminator"    # fixed station device id for the sim
 SIM_CAT = "cat-purrminator"                # fixed collar/cat id
 BACKFILL_DAYS = 182                        # ~6 months
+GEN_VERSION = 2                            # bump to force a clean rebuild when the model changes
 DEFAULT_LATLON = (51.5074, -0.1278)        # London, used only if the owner has no stored location
 
 
@@ -49,9 +50,16 @@ def _condition(code, precip):
     return "clear"
 
 
-# Typical duration range (minutes) per activity.
-_DUR = {"sleep": (120, 300), "resting": (40, 150), "moving": (5, 25),
-        "play": (6, 20), "eat": (4, 12), "drink": (1, 4)}
+# Typical duration range in SECONDS per activity. A cat laps water for under a minute, eats for a
+# couple of minutes, plays/moves for several, naps for ~an hour, and sleeps for hours.
+_DUR = {
+    "sleep":   (5400, 14400),   # 1.5 , 4 h
+    "resting": (1800, 7200),    # 30 , 120 min
+    "moving":  (120, 900),      # 2 , 15 min
+    "play":    (180, 1200),     # 3 , 20 min
+    "eat":     (60, 300),       # 1 , 5 min
+    "drink":   (15, 75),        # 15 , 75 s
+}
 
 
 def _hour_weights(h):
@@ -84,13 +92,13 @@ def _day_timeline(day, wx):
             w["drink"] = w.get("drink", 0) + 3
         act = rng.choices(list(w), weights=list(w.values()), k=1)[0]
         lo, hi = _DUR[act]
-        dur = rng.randint(lo, hi)
+        dur = rng.randint(lo, hi)                 # seconds
         if act == "drink" and hot:
-            dur += rng.randint(1, 3)
+            dur += rng.randint(10, 40)            # a bit longer at the bowl when it's hot
         if act in ("moving", "play") and coldwet:
-            dur = max(2, dur // 2)
-        out.append((int(t.timestamp() * 1000), act, dur * 60))
-        t += dt.timedelta(minutes=dur)
+            dur = max(60, dur // 2)
+        out.append((int(t.timestamp() * 1000), act, dur))
+        t += dt.timedelta(seconds=dur)
     return out
 
 
@@ -217,6 +225,12 @@ def run_simulation():
         return 0, "skipped"
     base = f"users/{uid}/devices"
     _ensure_registered(base)
+
+    # If the generation model changed, wipe the old events so they're rebuilt cleanly (a re-run
+    # with different durations would otherwise leave stale events behind).
+    if _ref(f"{base}/{SIM_CAT}/genVersion").get() != GEN_VERSION:
+        _ref(f"{base}/{SIM_CAT}/events").delete()
+        _ref(f"{base}/{SIM_CAT}/genVersion").set(GEN_VERSION)
 
     now = dt.datetime.now(dt.timezone.utc)
     last = _last_event_ms(base)
