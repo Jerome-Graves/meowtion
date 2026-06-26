@@ -1,12 +1,12 @@
 """Simulated companion collar , "Purrminator".
 
-Gives the demo/owner account a second, fully simulated collar with a realistic ~6-month activity
-history that keeps growing, so the dashboard's collar switcher, history, Health watch and weather
-context all have rich data to show.
+Gives the demo/owner account a second, fully simulated collar (a STANDALONE device , no station)
+with a realistic ~6-month activity history that keeps growing, so the dashboard's collar switcher,
+history, Health watch and weather context all have rich data to show.
 
-  * Scheduled hourly: on the first run it backfills ~6 months of events (and the matching daily
-    weather from Open-Meteo's free archive API); every run after, it appends new events up to "now"
-    and refreshes the live state.
+  * Scheduled every 15 minutes: on the first run it backfills ~6 months of events (and the matching
+    daily weather from Open-Meteo's free archive API); every run after, it appends new events up to
+    "now" from a continuous time-of-day timeline, and refreshes the live state.
   * simulate_now (HTTP, dev-account token): kick a run immediately instead of waiting for the timer.
 
 Everything is generated; it never touches the real collar. Idempotent: events are keyed by their
@@ -129,18 +129,18 @@ def _owner_latlon(uid):
 
 
 def _ensure_registered(base):
+    # The simulated collar is a STANDALONE device , no station; its data lives directly on it.
     _ref("/").update({
-        f"{base}/{SIM_STATION}/type": "station",
-        f"{base}/{SIM_STATION}/name": "Purrminator's pad (simulated)",
-        f"{base}/{SIM_STATION}/simulated": True,
         f"{base}/{SIM_CAT}/type": "collar",
         f"{base}/{SIM_CAT}/name": SIM_NAME,
         f"{base}/{SIM_CAT}/simulated": True,
     })
+    if _ref(f"{base}/{SIM_STATION}").get():        # drop the old station-based layout, if present
+        _ref(f"{base}/{SIM_STATION}").delete()
 
 
 def _last_event_ms(base):
-    snap = _ref(f"{base}/{SIM_STATION}/cats/{SIM_CAT}/events").order_by_key().limit_to_last(1).get()
+    snap = _ref(f"{base}/{SIM_CAT}/events").order_by_key().limit_to_last(1).get()
     if not snap:
         return None
     try:
@@ -168,7 +168,7 @@ def _backfill_weather(base, lat, lon, start, end):
         prec = (precs[i] if i < len(precs) else 0) or 0
         cond = _condition(codes[i] if i < len(codes) else 0, prec)
         ts = int(dt.datetime.fromisoformat(day).replace(hour=12, tzinfo=dt.timezone.utc).timestamp() * 1000)
-        updates[f"{base}/{SIM_STATION}/weather/history/{ts}"] = {
+        updates[f"{base}/{SIM_CAT}/weather/history/{ts}"] = {
             "tempC": round(temp, 1) if temp is not None else None,
             "condition": cond, "raining": cond in ("rain", "thunder")}
     if updates:
@@ -178,7 +178,7 @@ def _backfill_weather(base, lat, lon, start, end):
 
 def _weather_by_day(base):
     out = {}
-    for ts, w in (_ref(f"{base}/{SIM_STATION}/weather/history").get() or {}).items():
+    for ts, w in (_ref(f"{base}/{SIM_CAT}/weather/history").get() or {}).items():
         if not isinstance(w, dict):
             continue
         try:
@@ -190,7 +190,7 @@ def _weather_by_day(base):
 
 
 def _write_events(base, events):
-    path = f"{base}/{SIM_STATION}/cats/{SIM_CAT}/events"
+    path = f"{base}/{SIM_CAT}/events"
     items = [(f"{path}/{e['id']}",
               {"start": e["start"], "durationSec": e["durationSec"], "type": e["type"]})
              for e in events]
@@ -200,7 +200,7 @@ def _write_events(base, events):
 
 def _update_current(base, activity):
     """Set the live state to what the cat is doing now, with a fresh timestamp."""
-    _ref(f"{base}/{SIM_STATION}/cats/{SIM_CAT}/current").set({
+    _ref(f"{base}/{SIM_CAT}/current").set({
         "ts": int(dt.datetime.now(dt.timezone.utc).timestamp() * 1000),
         "state": activity,
         "battery": random.randint(55, 95),

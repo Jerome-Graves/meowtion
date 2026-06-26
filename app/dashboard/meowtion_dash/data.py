@@ -27,17 +27,44 @@ def model_labels(data):
     return (data or {}).get("models", {}).get("labels") or []
 
 
-def list_cats(data):
-    """Every cat/collar on the account as [(name, cat_id), ...], friendly name preferred.
-    Used for the dashboard's collar switcher."""
+def iter_cats(data):
+    """Yield one record per cat/collar, whether it's nested under a station or STANDALONE (a
+    simulated collar needs no station , its data sits directly on the device). Each record:
+        {id, name, events, current, simulated, weather, via}
+    """
     devices = (data or {}).get("devices", {})
-    seen = {}
-    for station in devices.values():
-        if not isinstance(station, dict):
+    for dev_id, dev in devices.items():
+        if not isinstance(dev, dict):
             continue
-        for cat_id, cat in (station.get("cats") or {}).items():
-            seen[cat_id] = (devices.get(cat_id) or {}).get("name") or (cat or {}).get("name") or cat_id
-    return [(name, cid) for cid, name in seen.items()]
+        if dev.get("type") == "station":
+            wx = (dev.get("weather") or {}).get("current")
+            for cat_id, cat in (dev.get("cats") or {}).items():
+                if not isinstance(cat, dict):
+                    continue
+                reg = devices.get(cat_id) or {}
+                yield {"id": cat_id,
+                       "name": reg.get("name") or cat.get("name") or cat_id,
+                       "events": cat.get("events") or {},
+                       "current": cat.get("current") or {},
+                       "simulated": bool(reg.get("simulated") or cat.get("simulated")),
+                       "weather": wx, "via": dev.get("name", "station")}
+        elif dev.get("events") or dev.get("current"):     # standalone collar holding its own data
+            yield {"id": dev_id,
+                   "name": dev.get("name") or dev_id,
+                   "events": dev.get("events") or {},
+                   "current": dev.get("current") or {},
+                   "simulated": bool(dev.get("simulated")),
+                   "weather": (dev.get("weather") or {}).get("current"), "via": None}
+
+
+def list_cats(data):
+    """Every cat/collar on the account as [(name, cat_id), ...]. For the collar switcher."""
+    out, seen = [], set()
+    for rec in iter_cats(data):
+        if rec["id"] not in seen:
+            seen.add(rec["id"])
+            out.append((rec["name"], rec["id"]))
+    return out
 
 
 def activity_dataframe(data, labels):
@@ -50,31 +77,26 @@ def activity_dataframe(data, labels):
     `event_duration` is in minutes. `activity` is the trained model's label for real
     (ver == 2) events, otherwise the stored state name.
     """
-    devices = (data or {}).get("devices", {})
     rows = []
-    for station in devices.values():
-        if not isinstance(station, dict):
-            continue
-        for cat_id, cat in (station.get("cats") or {}).items():
-            cat_name = (devices.get(cat_id) or {}).get("name") or cat.get("name") or cat_id
-            for ev in (cat.get("events") or {}).values():
-                start = ev.get("start")
-                if not isinstance(start, (int, float)):
-                    continue
-                dt = datetime.datetime.fromtimestamp(start / 1000)
-                ecls = ev.get("cls")
-                if ev.get("ver") == 2 and isinstance(ecls, int) and 0 <= ecls < len(labels):
-                    activity = labels[ecls]                # real on-device class -> action name
-                else:
-                    activity = ev.get("type", "unknown")   # older / simulated event
-                rows.append({
-                    "cat": cat_name,
-                    "activity": str(activity).capitalize(),
-                    "event_date": dt.strftime("%Y-%m-%d"),
-                    "event_weekday_name": dt.strftime("%A"),
-                    "start_time": dt.strftime("%H:%M"),
-                    "event_duration": round((ev.get("durationSec") or 0) / 60.0, 2),  # minutes
-                })
+    for rec in iter_cats(data):
+        for ev in rec["events"].values():
+            start = ev.get("start")
+            if not isinstance(start, (int, float)):
+                continue
+            when = datetime.datetime.fromtimestamp(start / 1000)
+            ecls = ev.get("cls")
+            if ev.get("ver") == 2 and isinstance(ecls, int) and 0 <= ecls < len(labels):
+                activity = labels[ecls]                # real on-device class -> action name
+            else:
+                activity = ev.get("type", "unknown")   # older / simulated event
+            rows.append({
+                "cat": rec["name"],
+                "activity": str(activity).capitalize(),
+                "event_date": when.strftime("%Y-%m-%d"),
+                "event_weekday_name": when.strftime("%A"),
+                "start_time": when.strftime("%H:%M"),
+                "event_duration": round((ev.get("durationSec") or 0) / 60.0, 2),  # minutes
+            })
     return pd.DataFrame(rows, columns=["cat", "activity", "event_date",
                                        "event_weekday_name", "start_time", "event_duration"])
 
