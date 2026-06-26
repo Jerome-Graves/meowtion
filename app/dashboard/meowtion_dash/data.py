@@ -167,7 +167,7 @@ def over_time(df, period, value="event_duration"):
 
 # Health-relevant habits, most informative first. A cat eating less or drinking more is a classic
 # early warning, so those lead.
-_HEALTH_PRIORITY = ["Eat", "Drink", "Moving", "Active", "Walk", "Play", "Resting", "Sleep"]
+_HEALTH_PRIORITY = ["Eat", "Drink", "Moving", "Resting", "Active", "Walk", "Sleep", "Play"]
 
 
 def health_signals(df, recent_days=3, baseline_days=14, limit=4):

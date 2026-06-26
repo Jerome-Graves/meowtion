@@ -253,3 +253,8 @@ def train(req: https_fn.Request) -> https_fn.Response:
     except Exception as ex:
         ref(f"users/{uid}/models").update({"status": "error", "error": str(ex)})
         return https_fn.Response(f"error: {ex}", status=500)
+
+
+# Simulated companion collar ("Purrminator"): a scheduled history generator + manual trigger.
+# Imported here so the Firebase CLI discovers `simulate` and `simulate_now` in main's namespace.
+from simulator import simulate, simulate_now  # noqa: E402,F401
