@@ -149,10 +149,7 @@
           chosen length at <em>any</em> distance (ignoring the range gate), and every clip is auto-labelled with that
           action , no listening and labelling afterwards. Use this for behaviours away from the bowl: resting,
           sleeping, walking, playing, purring. The buttons come from your action set above.</p>
-        <div id="activityBtns" class="row" style="flex-wrap:wrap;gap:.4rem;">
-          <span class="muted" style="font-size:.85rem;">Add actions above to get buttons here.</span>
-        </div>
-        <div class="row" style="margin-top:.6rem;align-items:center;gap:.5rem;">
+        <div class="row" style="margin-bottom:.6rem;align-items:center;gap:.5rem;">
           <span class="hint" style="margin:0;">Length</span>
           <select id="actSecs" class="sm">
             <option value="5">5s</option>
@@ -160,6 +157,11 @@
             <option value="15">15s</option>
             <option value="30" selected>30s</option>
           </select>
+        </div>
+        <div id="activityBtns" class="row" style="flex-wrap:wrap;gap:.4rem;">
+          <span class="muted" style="font-size:.85rem;">Add actions above to get buttons here.</span>
+        </div>
+        <div class="row" style="margin-top:.6rem;align-items:center;gap:.5rem;">
           <button id="actStop" class="sm" type="button" onclick="stopActivity('manual')" style="display:none;">■ Stop</button>
           <span id="act-status" class="msg"></span>
         </div>
