@@ -26,7 +26,7 @@ from .theme import configure_page, brand_header
 from .auth import require_session
 from .firebase import fetch
 from .data import (
-    activity_dataframe, model_labels, EVENT_ICON, fmt_time, fmt_dur,
+    activity_dataframe, model_labels, list_cats, EVENT_ICON, fmt_time, fmt_dur,
     filter_by_activity, filter_by_weekday, filter_by_date_range, last_n_days,
     period_options, filter_to_window, over_time, health_signals,
 )
@@ -36,7 +36,7 @@ from .live import live_view
 
 __all__ = [
     "configure_page", "brand_header", "require_session", "fetch", "live_view",
-    "activity_dataframe", "model_labels", "EVENT_ICON", "fmt_time", "fmt_dur",
+    "activity_dataframe", "model_labels", "list_cats", "EVENT_ICON", "fmt_time", "fmt_dur",
     "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",
     "period_options", "filter_to_window", "over_time", "health_signals", "bar", "stacked_bar",
     "weather_dataframe", "window_weather", "weather_caption",

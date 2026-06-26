@@ -10,8 +10,9 @@ from .firebase import fetch
 from .data import EVENT_ICON, fmt_time, fmt_dur, model_labels
 
 
-def live_view(uid, token):
-    """Render the live cards. Auto-refreshes every 10 s without rerunning the whole page."""
+def live_view(uid, token, only_cat=None):
+    """Render the live cards. If `only_cat` (a cat's display name) is given, show just that one.
+    Auto-refreshes every 10 s without rerunning the whole page."""
 
     @st.fragment(run_every=10)
     def _show():
@@ -29,13 +30,14 @@ def live_view(uid, token):
             sname = station.get("name", "station")
             weather = (station.get("weather") or {}).get("current")
             for cat_id, cat in (station.get("cats") or {}).items():
+                # prefer the friendly name the owner set when registering the collar
+                cat_name = (devices.get(cat_id) or {}).get("name") or cat.get("name") or cat_id
+                if only_cat and cat_name != only_cat:
+                    continue                     # collar switcher: show only the selected one
                 found = True
                 cur = cat.get("current", {})
                 ts = cur.get("ts")
                 fresh = isinstance(ts, (int, float)) and (now_ms - ts) < 35000
-
-                # prefer the friendly name the owner set when registering the collar
-                cat_name = (devices.get(cat_id) or {}).get("name") or cat.get("name") or cat_id
                 # ver == 2 = REAL on-device classification: cls is the index into the model labels,
                 # conf is the confidence. Otherwise it's the collar's simulated state machine.
                 real = cur.get("ver") == 2

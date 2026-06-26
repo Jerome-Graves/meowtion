@@ -27,6 +27,19 @@ def model_labels(data):
     return (data or {}).get("models", {}).get("labels") or []
 
 
+def list_cats(data):
+    """Every cat/collar on the account as [(name, cat_id), ...], friendly name preferred.
+    Used for the dashboard's collar switcher."""
+    devices = (data or {}).get("devices", {})
+    seen = {}
+    for station in devices.values():
+        if not isinstance(station, dict):
+            continue
+        for cat_id, cat in (station.get("cats") or {}).items():
+            seen[cat_id] = (devices.get(cat_id) or {}).get("name") or (cat or {}).get("name") or cat_id
+    return [(name, cid) for cid, name in seen.items()]
+
+
 def activity_dataframe(data, labels):
     """Flatten every cat's logged events into one DataFrame, one row per event.
 
