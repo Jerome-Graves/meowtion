@@ -91,7 +91,7 @@
       <div class="card">
         <h3>Mode</h3>
         <p class="hint"><b>Training</b> (default): the station records and uploads labelled clips , use the
-          toggles below to collect data. <b>Production</b>: the station stops recording and uploading
+          capture cards below to collect data. <b>Production</b>: the station stops recording and uploading
           entirely and just relays the collar's on-device behaviour classification. Switch to
           Production once your models are trained and flashed.</p>
         <div class="row">
@@ -107,39 +107,13 @@
       <div class="card">
         <h3>Actions to recognise</h3>
         <p class="hint">The behaviours your collar learns , eat, drink, resting, moving, scratch… anything
-          you can capture and tell apart. These fill the label dropdown on each clip, and the trainer learns
-          whatever set you define here.</p>
+          you can capture and tell apart. These fill the label dropdown on each clip and the buttons below,
+          and the trainer learns whatever set you define here.</p>
         <div id="actionList" class="row" style="flex-wrap:wrap;gap:.4rem;"></div>
         <div class="row" style="margin-top:.5rem;">
           <input id="newAction" type="text" placeholder="new action, e.g. scratch" class="sm" />
           <button class="sm" onclick="addAction()">Add</button>
           <span id="action-msg" class="msg"></span>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Train models (cloud)</h3>
-        <p class="hint">Trains the models from your labelled clips on the server (no local
-          setup) and stores them on Firebase. Run it after you've collected and labelled a batch.</p>
-        <div class="row">
-          <button id="trainBtn" class="sm primary" onclick="retrainModels()">Retrain models</button>
-          <span id="train-msg" class="msg"></span>
-        </div>
-        <div id="modelStatus" class="hint" style="margin-top:.6rem;">No models trained yet.</div>
-      </div>
-
-      <div class="card">
-        <h3>Data capture</h3>
-        <p class="hint">When ON, the station records audio clips back-to-back whenever a registered collar
-          is in range. Turn it OFF when you're done collecting so it stops recording.
-          <em>(Training mode only , ignored in Production.)</em></p>
-        <div class="row">
-          <label class="switch">
-            <input type="checkbox" id="capToggle" onchange="toggleCapture()" />
-            <span class="track"><span class="thumb"></span></span>
-            <span class="switch-label" id="capState">Off</span>
-          </label>
-          <span id="cap-msg" class="msg"></span>
         </div>
       </div>
 
@@ -169,13 +143,23 @@
       </div>
 
       <div class="card">
-        <h3>Capture range</h3>
-        <p class="hint">How close the cat must be (signal strength) before the station connects and records.
-          Stronger / less-negative = must be closer. Applies to all your stations. Measure the real value with
-          the cat at the bowl, then set the threshold a few dB below it.</p>
+        <h3>Bowl capture (label later)</h3>
+        <p class="hint">For behaviours at the bowl (eat, drink): when ON, the station records clips back-to-back
+          whenever a registered collar is within the range set below. Label these afterwards from the audio in
+          Recorded clips. Turn it OFF when you're done. <em>(Training mode only , ignored in Production.)</em></p>
+        <div class="row">
+          <label class="switch">
+            <input type="checkbox" id="capToggle" onchange="toggleCapture()" />
+            <span class="track"><span class="thumb"></span></span>
+            <span class="switch-label" id="capState">Off</span>
+          </label>
+          <span id="cap-msg" class="msg"></span>
+        </div>
         <label>Signal threshold: <span id="thrVal">-60</span> dBm</label>
         <input type="range" id="thr" min="-90" max="-40" step="1" value="-60"
                oninput="document.getElementById('thrVal').textContent=this.value" />
+        <p class="hint" style="margin-top:.3rem;">How close the cat must be before the station records. Stronger /
+          less-negative = must be closer. Measure the value with the cat at the bowl, then set a few dB below it.</p>
         <label for="dwell">Dwell before connecting (ms)</label>
         <input type="number" id="dwell" min="0" max="10000" step="250" value="2000" />
         <div class="row" style="margin-top:1rem;">
@@ -189,12 +173,23 @@
           <h3 style="margin:0;">Recorded clips</h3>
           <button id="delAll" class="sm" title="Delete every clip and its files">Delete all</button>
         </div>
-        <p class="hint">Audio clips the station captured at the bowl. Each row shows its label, length and whether
-          it has paired motion data. Set the action from the dropdown, or click a row to expand it
+        <p class="hint">Clips your station captured, grouped by day then recording session. Each row shows its label,
+          length and whether it has paired motion data. Set the action from the dropdown, or click a row to expand it
           and load the waveform: drag the start / end markers to cut dead space, Play to preview, then Save trim. The
           trim is a non-destructive window, applied to the audio and the time-aligned motion together. Delete the clips
           that aren't good for training. Only expanded clips load their audio, so a long list stays fast.</p>
         <div id="clips"><div class="empty">No clips yet.</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Train models (cloud)</h3>
+        <p class="hint">The final step: trains the models from your labelled clips on the server (no local
+          setup) and stores them on Firebase. Run it after you've collected and labelled a batch.</p>
+        <div class="row">
+          <button id="trainBtn" class="sm primary" onclick="retrainModels()">Retrain models</button>
+          <span id="train-msg" class="msg"></span>
+        </div>
+        <div id="modelStatus" class="hint" style="margin-top:.6rem;">No models trained yet.</div>
       </div>
     </div>
   </div>
