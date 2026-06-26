@@ -488,6 +488,44 @@
     }
     function plural(n, w) { return n + " " + w + (n === 1 ? "" : "s"); }
 
+    // Recommended minimum labelled clips per category before training. Easy to tune.
+    const MIN_PER_CLASS = 30;
+
+    // Dataset stats: a count per category with a progress mark against the minimum, plus the
+    // unlabelled backlog. Built from the same clip list, so it updates whenever clips/labels change.
+    function buildClipStats(all) {
+      const counts = {};
+      let unl = 0;
+      all.forEach(c => { if (c.label) counts[c.label] = (counts[c.label] || 0) + 1; else unl++; });
+      const box = el("div", "clip-stats");
+      const ready = g_actions.filter(a => (counts[a] || 0) >= MIN_PER_CLASS).length;
+      box.appendChild(el("div", "cs-summary",
+        plural(all.length, "clip") + " · " + unl + " unlabelled · " +
+        ready + "/" + g_actions.length + " actions at the " + MIN_PER_CLASS + "-clip minimum"));
+      const chips = el("div", "cs-chips");
+      const cats = [...g_actions];
+      Object.keys(counts).forEach(l => { if (!cats.includes(l)) cats.push(l); });   // include stray labels too
+      cats.forEach(a => {
+        const n = counts[a] || 0;
+        const chip = el("span", "cs-chip " + (n >= MIN_PER_CLASS ? "met" : (n > 0 ? "low" : "none")));
+        chip.title = n >= MIN_PER_CLASS ? "Enough clips for training" : "Below the recommended minimum (" + MIN_PER_CLASS + ")";
+        chip.appendChild(el("span", "cs-lbl", a));
+        chip.appendChild(el("span", "cs-num", n + "/" + MIN_PER_CLASS));
+        const bar = el("span", "cs-bar"), fill = el("i");
+        fill.style.width = Math.min(100, Math.round(n / MIN_PER_CLASS * 100)) + "%";
+        bar.appendChild(fill); chip.appendChild(bar);
+        chips.appendChild(chip);
+      });
+      if (unl) {
+        const chip = el("span", "cs-chip unl");
+        chip.appendChild(el("span", "cs-lbl", "unlabelled"));
+        chip.appendChild(el("span", "cs-num", String(unl)));
+        chips.appendChild(chip);
+      }
+      box.appendChild(chips);
+      return box;
+    }
+
     function renderClips(devices) {
       maybeLabelNewClips(devices);   // auto-label clips arriving during a live-label session
       const wrap = document.getElementById("clips");
@@ -528,6 +566,7 @@
 
       clipEls = {};
       wrap.innerHTML = "";
+      wrap.appendChild(buildClipStats(all));                        // dataset stats on top
       days.slice().reverse().forEach(day => {                       // newest day first
         const totalClips = day.sessions.reduce((n, s) => n + s.length, 0);
         const dayKey = "day:" + day.key, dayOpen = openGroups.has(dayKey);
