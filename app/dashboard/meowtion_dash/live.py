@@ -35,6 +35,7 @@ def live_view(uid, token, only_cat=None):
                 if only_cat and cat_name != only_cat:
                     continue                     # collar switcher: show only the selected one
                 found = True
+                is_sim = bool((devices.get(cat_id) or {}).get("simulated"))
                 cur = cat.get("current", {})
                 ts = cur.get("ts")
                 fresh = isinstance(ts, (int, float)) and (now_ms - ts) < 35000
@@ -48,7 +49,8 @@ def live_view(uid, token, only_cat=None):
                         detected = labels[cls]
 
                 st.subheader(f"🐈 {cat_name}")
-                st.caption(("🟢 online" if fresh else "⚪ offline")
+                status = "🟢 simulated" if is_sim else ("🟢 online" if fresh else "⚪ offline")
+                st.caption(status
                            + ("  ·  🧠 detecting on-device" if real else "")
                            + f"  ·  via {sname}")
 

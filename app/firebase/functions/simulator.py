@@ -49,68 +49,73 @@ def _condition(code, precip):
     return "clear"
 
 
-def _day_events(day, wx):
-    """A realistic day for one cat as a list of (datetime_utc, activity, duration_minutes).
+# Typical duration range (minutes) per activity.
+_DUR = {"sleep": (120, 300), "resting": (40, 150), "moving": (5, 25),
+        "play": (6, 20), "eat": (4, 12), "drink": (1, 4)}
 
-    `wx` is {"tempC":..., "raining":...} for that day, or None. Cats drink more when it's hot and
-    stay in (less moving) when it's cold or wet, so the weather shows up in the data.
-    """
+
+def _hour_weights(h):
+    """How likely the cat is to START each activity in hour `h` (0-23). The cat does a continuous
+    chain of activities; these weights bias what comes next by time of day."""
+    if h < 6:    return {"sleep": 10, "resting": 2}                                  # deep night
+    if h == 6:   return {"sleep": 4, "resting": 3, "eat": 2, "drink": 1, "moving": 1}  # waking
+    if h <= 8:   return {"eat": 3, "drink": 2, "moving": 3, "resting": 3}            # breakfast
+    if h <= 11:  return {"resting": 6, "moving": 2, "drink": 1, "eat": 1}            # morning naps
+    if h <= 13:  return {"resting": 4, "eat": 2, "drink": 1, "moving": 1}            # midday
+    if h <= 16:  return {"resting": 7, "moving": 2, "drink": 1}                      # afternoon
+    if h <= 20:  return {"play": 3, "moving": 4, "eat": 2, "drink": 2, "resting": 3}  # active evening
+    if h <= 22:  return {"resting": 5, "moving": 1, "drink": 1}                      # settling
+    return {"sleep": 6, "resting": 2}                                               # late night
+
+
+def _day_timeline(day, wx):
+    """A continuous chain of activities filling one day, as (start_ms, activity, duration_sec).
+    Deterministic for a given date (seeded by the date), so re-running can never duplicate events.
+    Weather nudges it: hotter -> more/longer drinking; cold or wet -> shorter moving/play."""
     hot = bool(wx and (wx.get("tempC") or 15) >= 24)
-    cold = bool(wx and (wx.get("tempC") or 15) <= 5)
-    wet = bool(wx and wx.get("raining"))
-    weekend = day.weekday() >= 5
-    rng = random.Random(day.toordinal())   # stable per-day, but varied across days
-    evs = []
-
-    def add(hour, minute, activity, dur):
-        evs.append((dt.datetime(day.year, day.month, day.day, hour, minute % 60,
-                                tzinfo=dt.timezone.utc), activity, max(1, int(dur))))
-
-    # night sleep
-    add(0, 0, "sleep", 180 + rng.randint(-20, 40))
-    add(3, rng.randint(0, 40), "sleep", 200 + rng.randint(-30, 60))
-    # wake + breakfast
-    add(7, rng.randint(0, 40), "eat", 6 + rng.randint(0, 6))
-    add(7, 35, "drink", 1 + rng.randint(0, 2) + (2 if hot else 0))
-    add(8, rng.randint(0, 30), "moving", 5 + rng.randint(0, 10))
-    # morning
-    add(9, 10, "resting", 60 + rng.randint(0, 70))
-    if not wet:
-        add(10, 30, "moving", 8 + rng.randint(0, 12))
-    add(11, 30, "drink", 1 + rng.randint(0, 2) + (3 if hot else 0))
-    # midday
-    if rng.random() < 0.6:
-        add(12, rng.randint(0, 30), "eat", 4 + rng.randint(0, 5))
-    add(13, 10, "resting", 90 + rng.randint(0, 100))    # long afternoon nap
-    # afternoon
-    add(15, 30, "drink", 1 + rng.randint(0, 2) + (3 if hot else 0))
-    if not cold and not wet:
-        add(16, 10, "moving", 10 + rng.randint(0, 15))
-    # evening: most active stretch + dinner
-    add(17, 30, "play" if rng.random() < (0.6 if weekend else 0.4) else "moving", 12 + rng.randint(0, 18))
-    add(18, rng.randint(0, 30), "eat", 8 + rng.randint(0, 7))
-    add(18, 50, "drink", 2 + rng.randint(0, 3))
-    if not wet:
-        add(19, 30, "moving", 8 + rng.randint(0, 20))   # zoomies
-    # settle for the night
-    add(21, 10, "resting", 60 + rng.randint(0, 50))
-    add(22, 40, "sleep", 80 + rng.randint(0, 50))
-    return evs
+    coldwet = bool(wx and ((wx.get("tempC") or 15) <= 5 or wx.get("raining")))
+    rng = random.Random(day.toordinal())
+    t = dt.datetime(day.year, day.month, day.day, 0, 0, tzinfo=dt.timezone.utc)
+    day_end = t + dt.timedelta(days=1)
+    out = []
+    while t < day_end:
+        w = dict(_hour_weights(t.hour))
+        if hot:
+            w["drink"] = w.get("drink", 0) + 3
+        act = rng.choices(list(w), weights=list(w.values()), k=1)[0]
+        lo, hi = _DUR[act]
+        dur = rng.randint(lo, hi)
+        if act == "drink" and hot:
+            dur += rng.randint(1, 3)
+        if act in ("moving", "play") and coldwet:
+            dur = max(2, dur // 2)
+        out.append((int(t.timestamp() * 1000), act, dur * 60))
+        t += dt.timedelta(minutes=dur)
+    return out
 
 
 def generate_events(start, now, weather):
-    """All events with start in (start, now], across days. `weather` is {date_iso: {tempC,raining}}.
-    Returns dicts {id, start, durationSec, type}, oldest first."""
+    """All events that START in (start, now], built from each day's continuous timeline.
+    `weather` is {date_iso: {tempC, raining}}. Returns {id, start, durationSec, type}, oldest first."""
     out, day = [], start.date()
     while day <= now.date():
-        for when, activity, dur in _day_events(day, weather.get(day.isoformat())):
+        for ms, act, dursec in _day_timeline(day, weather.get(day.isoformat())):
+            when = dt.datetime.fromtimestamp(ms / 1000, tz=dt.timezone.utc)
             if when <= start or when > now:
                 continue
-            ms = int(when.timestamp() * 1000)
-            out.append({"id": str(ms), "start": ms, "durationSec": dur * 60, "type": activity})
+            out.append({"id": str(ms), "start": ms, "durationSec": dursec, "type": act})
         day += dt.timedelta(days=1)
     out.sort(key=lambda e: e["start"])
     return out
+
+
+def current_activity(now, weather):
+    """What the cat is doing right now , the timeline activity whose span covers `now`."""
+    nowms = int(now.timestamp() * 1000)
+    for ms, act, dursec in _day_timeline(now.date(), weather.get(now.date().isoformat())):
+        if ms <= nowms < ms + dursec * 1000:
+            return act
+    return "resting"
 
 
 # --------------------------------------------------------------------------- #
@@ -193,17 +198,19 @@ def _write_events(base, events):
         _ref("/").update(dict(items[i:i + 500]))
 
 
-def _update_current(base, last):
+def _update_current(base, activity):
+    """Set the live state to what the cat is doing now, with a fresh timestamp."""
     _ref(f"{base}/{SIM_STATION}/cats/{SIM_CAT}/current").set({
         "ts": int(dt.datetime.now(dt.timezone.utc).timestamp() * 1000),
-        "state": last["type"],
+        "state": activity,
         "battery": random.randint(55, 95),
         "steps": random.randint(200, 2500),
     })
 
 
 def run_simulation():
-    """Backfill on the first run, else append new events up to now. Returns (count, mode)."""
+    """Backfill on the first run, else append new events up to now; always refresh the live state
+    to the cat's current time-of-day activity. Returns (count, mode)."""
     uid = _ref("config/demoOwner").get()
     if not uid:
         print("simulate: config/demoOwner not set; nothing to do")
@@ -222,15 +229,16 @@ def run_simulation():
         start = dt.datetime.fromtimestamp(last / 1000, tz=dt.timezone.utc) + dt.timedelta(seconds=1)
         mode = "top-up"
 
-    events = generate_events(start, now, _weather_by_day(base))
+    weather = _weather_by_day(base)
+    events = generate_events(start, now, weather)
     if events:
         _write_events(base, events)
-        _update_current(base, events[-1])
+    _update_current(base, current_activity(now, weather))   # live state always reflects "now"
     print(f"simulate: {mode}, wrote {len(events)} events for {SIM_NAME}")
     return len(events), mode
 
 
-@scheduler_fn.on_schedule(schedule="every 1 hours", region=REGION,
+@scheduler_fn.on_schedule(schedule="every 15 minutes", region=REGION,
                           memory=options.MemoryOption.MB_256, timeout_sec=300)
 def simulate(event: scheduler_fn.ScheduledEvent) -> None:
     run_simulation()
