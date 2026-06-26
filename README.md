@@ -65,8 +65,12 @@ meowtion/
 ├── app/          the web app
 │   ├── dashboard/  Streamlit + static front end                        (app/dashboard/README.md)
 │   └── firebase/   Auth, database, storage, functions, rules           (app/firebase/README.md)
-└── docs/         system documentation
+└── docs/         system documentation, incl. the full technical reference (docs/technical/)
 ```
+
+**Full technical reference** (hardware, firmware, on-device AI, training, cloud, protocols,
+security): [`docs/technical/`](docs/technical/) — read the prebuilt
+[PDF](docs/technical/meowtion-technical.pdf) or build it from the LaTeX sources.
 
 ## Build your own
 

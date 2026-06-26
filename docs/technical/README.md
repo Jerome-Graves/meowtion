@@ -3,6 +3,9 @@
 The complete technical reference for Meowtion, built with XeLaTeX + Biber. No Perl or
 `latexmk` is required; the build passes are run by a small PowerShell script.
 
+A prebuilt copy is committed as [`meowtion-technical.pdf`](meowtion-technical.pdf) so you can
+read it without a LaTeX toolchain. Rebuild it from source with the steps below.
+
 ## Build
 
 From this folder (`docs/technical/`):
