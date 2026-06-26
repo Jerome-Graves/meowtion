@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/hero.png" alt="Meowtion — on-device AI that reads your cat's health from its daily habits" width="820">
+  <img src="docs/hero-banner.png" alt="Meowtion — on-device AI that reads your cat's health from its daily habits" width="820">
 </p>
 
 <p align="center">
