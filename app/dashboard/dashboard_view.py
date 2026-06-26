@@ -97,22 +97,33 @@ def render(df, data=None):
     chosen_label = st.selectbox(span, [label for label, key in windows])
     chosen_key = dict(windows)[chosen_label]
 
+    # Sleep and Resting dominate the minutes, so the small habits (eat, drink) are tiny slivers.
+    # Deselecting the big ones here is how you see those small events.
+    acts = sorted(df["activity"].unique())
+    shown = st.multiselect("Activities (hide Sleep / Resting to see the small ones)",
+                           acts, default=acts)
+
     # ===================================================================== #
-    # STEP 3 , Keep just the rows in that window, then chart them STACKED BY ACTIVITY.
-    #   mw.over_time sums minutes per hour (Day) or per date (Week/Month), split by activity,
-    #   and mw.stacked_bar colours each activity its own colour.
+    # STEP 3 , Keep the rows in that window (and chosen activities), then chart them STACKED BY
+    #   ACTIVITY. Binning the x-axis to the hour (Day) or date (Week/Month) gives one fat bar per
+    #   bucket with one label, instead of thin bars and a label repeated at every tick.
     # ===================================================================== #
     window = mw.filter_to_window(df, span, chosen_key)
+    window = mw.filter_by_activity(window, shown) if shown else window.iloc[0:0]
     if window.empty:
-        st.info("No activity in this window , pick another.")
+        st.info("Nothing to show , pick another window or add activities.")
     else:
         frame = mw.over_time(window, span)
-        unit = "hour" if span == "Day" else "day"
-        time_format = "%H:%M" if span == "Day" else "%d %b"
+        if span == "Day":
+            unit, time_unit, time_format = "hour", "yearmonthdatehours", "%H:%M"
+        elif span == "Week":
+            unit, time_unit, time_format = "day", "yearmonthdate", "%a %d"
+        else:
+            unit, time_unit, time_format = "day", "yearmonthdate", "%d"
         st.write(f"**Minutes per {unit}, by activity** , {chosen_label}")
         st.altair_chart(
             mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
-                           temporal=True, time_format=time_format),
+                           time_unit=time_unit, time_format=time_format, height=380),
             use_container_width=True,
         )
         # weather over the same window, so you can read the activity against hot/cold/wet days

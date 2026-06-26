@@ -27,27 +27,35 @@ def activity_scale(activities):
     return alt.Scale(domain=dom, range=rng)
 
 
-def stacked_bar(data, x, y, color, y_title=None, temporal=False, time_format="%d %b", legend=True):
+def stacked_bar(data, x, y, color, y_title=None, time_unit=None, time_format="%d %b",
+                legend=True, height=300):
     """A branded bar chart split by colour into the `color` column (e.g. activity), transparent
-    background. Set temporal=True when `x` is a date/time column."""
-    if temporal:
-        x_enc = alt.X(f"{x}:T", title=None,
-                      axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600))
+    background.
+
+    For a date/time x, pass `time_unit` (e.g. "yearmonthdate" for days, "yearmonthdatehours" for
+    hours): the bars are then binned to that unit, so each gets ONE fat band and ONE axis label,
+    instead of thin bars and a repeated label at every tick. `time_format` styles those labels.
+    """
+    cats = sorted(map(str, data[color].unique()))
+    if time_unit:
+        x_enc = alt.X(f"{x}:T", timeUnit=time_unit, title=None,
+                      axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0))
+        y_enc = alt.Y(f"sum({y}):Q", title=y_title, axis=alt.Axis(labelColor="#6b7280", titleColor="#6b7280"))
     else:
         x_enc = alt.X(f"{x}:N", title=None, sort="-y",
                       axis=alt.Axis(labelAngle=0, labelColor="#3a3a4a", labelFontWeight=600))
+        y_enc = alt.Y(f"{y}:Q", title=y_title, axis=alt.Axis(labelColor="#6b7280", titleColor="#6b7280"))
     leg = alt.Legend(title=None, orient="bottom", labelColor="#3a3a4a") if legend else None
-    cats = sorted(map(str, data[color].unique()))
     return (
         alt.Chart(data)
         .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
         .encode(
             x=x_enc,
-            y=alt.Y(f"{y}:Q", title=y_title, axis=alt.Axis(labelColor="#6b7280", titleColor="#6b7280")),
+            y=y_enc,
             color=alt.Color(f"{color}:N", scale=activity_scale(cats), legend=leg),
             tooltip=[color, y],
         )
-        .properties(height=280, background="transparent")
+        .properties(height=height, background="transparent")
         .configure_view(fill=None, stroke=None)
         .configure_axis(grid=False, domainColor="#e6e7ec", tickColor="#e6e7ec")
     )
