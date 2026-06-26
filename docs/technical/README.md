@@ -4,7 +4,8 @@ The complete technical reference for Meowtion, built with XeLaTeX + Biber. No Pe
 `latexmk` is required; the build passes are run by a small PowerShell script.
 
 A prebuilt copy is committed as [`meowtion-technical.pdf`](meowtion-technical.pdf) so you can
-read it without a LaTeX toolchain. Rebuild it from source with the steps below.
+read it without a LaTeX toolchain. Every full build refreshes it automatically, so the committed
+PDF always matches the sources, just rebuild and commit.
 
 ## Build
 

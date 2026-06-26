@@ -5,12 +5,15 @@
   by hand. Everything LaTeX generates goes in .\build so the source folder stays
   clean, and that one folder is the only thing .gitignore needs to exclude.
 
+  A full build also auto-publishes the result to meowtion-technical.pdf (the committed copy),
+  so the repo PDF always matches the sources. A -Quick pass does not publish.
+
   Run from anywhere (the script cd's to its own folder):
-    .\build.ps1                  full build  (xelatex, biber, xelatex, xelatex)
-    .\build.ps1 -Quick           single xelatex pass (fast; skips bibliography)
+    .\build.ps1                  full build (xelatex, biber, xelatex, xelatex) + publish PDF
+    .\build.ps1 -Quick           single xelatex pass (fast; skips bibliography; no publish)
     .\build.ps1 -Clean           delete the build folder and stop
-    .\build.ps1 -Clean -Full     clean, then full rebuild
-    .\build.ps1 -View            (full) build, then open the PDF
+    .\build.ps1 -Clean -Full     clean, then full rebuild + publish
+    .\build.ps1 -View            (full) build, publish, then open the PDF
 #>
 [CmdletBinding()]
 param(
@@ -57,4 +60,14 @@ if (-not $Quick) {
 
 $pdf = Join-Path $buildDir "$job.pdf"
 Write-Host "Done: $pdf" -ForegroundColor Green
+
+# Auto-publish the finished PDF to a stable, committed filename so the repo copy always
+# matches the sources. Only after a full build - a -Quick pass skips the bibliography and
+# cross-references, so it would publish a half-resolved document.
+if (-not $Quick -and (Test-Path $pdf)) {
+    $published = Join-Path $PSScriptRoot 'meowtion-technical.pdf'
+    Copy-Item $pdf $published -Force
+    Write-Host "Published: $published" -ForegroundColor Green
+}
+
 if ($View -and (Test-Path $pdf)) { Start-Process $pdf }
