@@ -467,7 +467,22 @@
       } catch (e) { /* keep the default note if the lookup fails */ }
     }
 
+    // If we arrived from the dashboard's Log out (account.html?logout=1), defer the sign-out
+    // until auth state has been restored. Calling signOut() during initial page load races
+    // Firebase's persistence restore and can sign the user straight back in (the bug where
+    // "Log out" just dropped you back on the account page, still logged in).
+    let wantLogout = new URLSearchParams(location.search).has("logout");
+    if (wantLogout) history.replaceState(null, "", location.pathname);
+
     firebase.auth().onAuthStateChanged(async (user) => {
+      if (wantLogout) {
+        wantLogout = false;
+        clearTokenCookie();
+        document.cookie = "mdemo=; path=/; max-age=0; SameSite=Lax; Secure";
+        isDemo = false;
+        detachData();
+        if (user) { await firebase.auth().signOut(); return; }   // next callback (user=null) shows login
+      }
       if (user) {
         isDemo = false;
         document.cookie = "mdemo=; path=/; max-age=0; SameSite=Lax; Secure";
@@ -497,9 +512,5 @@
       }
     });
 
-    // Arrived from the dashboard's Log out (account.html?logout=1): sign out, then the auth-state
-    // listener above clears the cookie and shows the login form (same tab, no redirect loop).
-    if (new URLSearchParams(location.search).has("logout")) {
-      doLogout();
-      history.replaceState(null, "", location.pathname);
-    }
+    // (Logout via ?logout=1 is handled inside onAuthStateChanged above, once auth state
+    // is restored, so signOut() doesn't race the persistence restore on initial load.)
