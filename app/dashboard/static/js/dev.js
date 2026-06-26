@@ -14,7 +14,34 @@
     function show(which) {
       document.getElementById("gate").classList.toggle("hidden", which !== "gate");
       document.getElementById("devview").classList.toggle("hidden", which !== "dev");
-      if (which === "dev") installHelpTooltips();
+      if (which === "dev") { installHelpTooltips(); installCardCollapse(); }
+    }
+
+    // Make each card collapsible: click the title to open/close. Cards start collapsed, so the
+    // console opens as a thin list of titles. Idempotent, so re-running it does nothing.
+    function installCardCollapse() {
+      document.querySelectorAll("#devview > .card").forEach(card => {
+        if (card.dataset.collapsible) return;
+        const h = card.querySelector("h3");
+        if (!h) return;
+        card.dataset.collapsible = "1";
+        // header row = the direct child of the card that holds the h3 (h3 itself, or its flex wrapper)
+        let header = h;
+        while (header.parentElement && header.parentElement !== card) header = header.parentElement;
+        // move everything after the header row into a collapsible body
+        const body = el("div", "card-body");
+        let node = header.nextSibling;
+        while (node) { const nx = node.nextSibling; body.appendChild(node); node = nx; }
+        card.appendChild(body);
+        header.classList.add("card-header");
+        h.insertBefore(el("span", "card-chev", "▸"), h.firstChild);
+        card.classList.add("collapsible", "collapsed");
+        header.addEventListener("click", e => {
+          if (e.target.closest("button, a, input, select, .help")) return;   // let header controls work
+          const collapsed = card.classList.toggle("collapsed");
+          h.querySelector(".card-chev").textContent = collapsed ? "▸" : "▾";
+        });
+      });
     }
 
     // Tidy the cards: move each card's description paragraph into a "?" help icon next to the

@@ -172,6 +172,14 @@ h3 .help:hover, h3 .help:focus { background: var(--accent); color: #fff; outline
   transition: opacity .12s, transform .12s; z-index: 50; pointer-events: none;
 }
 .help:hover .help-pop, .help:focus .help-pop { opacity: 1; visibility: visible; transform: translateY(0); }
+
+/* ---- collapsible cards (click the title to open/close) ---- */
+.card.collapsible > .card-header { margin: 0; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.card.collapsible > .card-header h3 { margin: 0; }
+.card-chev { display: inline-block; color: var(--muted); margin-right: .5rem; font-size: .85em; }
+.card.collapsible > .card-header:hover .card-chev { color: var(--accent); }
+.card-body { margin-top: .85rem; }
+.card.collapsed > .card-body { display: none; }
 .wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
 .wave-marker {
   position: absolute;
