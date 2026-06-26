@@ -17,7 +17,28 @@ import pandas as pd
 import extra_streamlit_components as stx
 
 st.set_page_config(page_title="Meowtion", page_icon="🐾")
-st.title("🐾 Meowtion")
+
+# Brand the dashboard to match the static pages (css/base.css): Inter, the lavender radial-gradient
+# canvas, and a proper brand block instead of the default title.
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', system-ui, sans-serif; }
+.stApp { background: radial-gradient(1100px 480px at 50% -220px, #e9e7fc, transparent), #f4f4f8; }
+.mw-brand { display:flex; align-items:center; gap:.8rem; margin:.2rem 0 1.3rem; }
+.mw-logo { width:46px; height:46px; border-radius:13px; display:grid; place-items:center;
+  font-size:1.5rem; background:linear-gradient(135deg,#6557f5,#9d8bff); box-shadow:0 10px 30px rgba(16,18,40,.12); }
+.mw-word { font-weight:800; font-size:1.5rem; letter-spacing:-.02em; line-height:1; color:#1b1b2b; }
+.mw-tag { font-size:.82rem; color:#6b7280; margin-top:3px; }
+</style>
+<div class="mw-brand">
+  <div class="mw-logo"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M9 12 L6.5 4.5 14 9.5 Z" fill="#fff"/><path d="M23 12 L25.5 4.5 18 9.5 Z" fill="#fff"/><ellipse cx="16" cy="18" rx="9" ry="8" fill="#fff"/><circle cx="12.5" cy="17" r="1.5" fill="#6557f5"/><circle cx="19.5" cy="17" r="1.5" fill="#6557f5"/><path d="M14.6 20.2 16 21.5 17.4 20.2 Z" fill="#6557f5"/></svg></div>
+  <div>
+    <div class="mw-word">Meowtion</div>
+    <div class="mw-tag">On-device AI activity tracking · helping cats run the world, one nap at a time</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 
 def jwt_payload(t):
@@ -252,6 +273,12 @@ if df.empty:
 
 # --- from here `df` has data; everything below is plain tutorial-style code on `df` ---
 
+# 😼 Theme flair: a cheeky "world domination" headline pulled from the real activity data.
+_dom_h = round(df["event_duration"].sum() / 60)
+_nap_h = round(df[df["activity"].str.lower() == "sleep"]["event_duration"].sum() / 60)
+st.markdown(f"#### 😼 World-domination progress: **{_dom_h} h** logged "
+            f"— _{_nap_h} h of it strategic napping._")
+
 with st.expander("See the raw data table"):
     st.dataframe(df, use_container_width=True)
 
@@ -276,3 +303,4 @@ st.bar_chart(counts, x="activity", y="count", color="activity")
 #    Example (copy + tweak):
 #       st.bar_chart(df, x="event_weekday_name", y="event_duration", color="activity")
 # ============================================================================
+
