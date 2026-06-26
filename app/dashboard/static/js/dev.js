@@ -193,12 +193,31 @@
     // and play. Returns a teardown fn (stops playback) so the caller can release it on collapse.
     // `setLen` refreshes the collapsed header's length text after a trim is saved.
     function buildClipDetail(c, container, setLen) {
+      const hasImu = !!(c.imuPath || c.imuUrl);
+      const imuAxes = c.imuAxes || 6;
+      const IMU_COLORS = ["#d1495b", "#2a9d8f", "#5b6cc2"];   // X, Y, Z
+
+      // Audio waveform plus, when present, the time-aligned IMU motion as line graphs. All lanes
+      // stack in one wrap so the trim window and playhead span audio + motion together.
       const wrap = el("div", "wave-wrap");
-      const canvas = el("canvas");
+      const stack = el("div", "wave-stack");
+      const lane = (cv, label) => {
+        const d = el("div", "wave-lane"); d.appendChild(cv);
+        if (label) d.appendChild(el("div", "wave-lane-label", label));
+        return d;
+      };
+      const canvas = el("canvas", "wave-audio");
+      stack.appendChild(lane(canvas, "audio"));
+      let accelCv = null, gyroCv = null;
+      if (hasImu) {
+        accelCv = el("canvas", "wave-imu");
+        stack.appendChild(lane(accelCv, "accel x·y·z"));
+        if (imuAxes >= 6) { gyroCv = el("canvas", "wave-imu"); stack.appendChild(lane(gyroCv, "gyro x·y·z")); }
+      }
       const dimL = el("div", "wave-dim"), dimR = el("div", "wave-dim");
       const mStart = el("div", "wave-marker start"), mEnd = el("div", "wave-marker end");
       const playhead = el("div", "wave-play");
-      wrap.append(canvas, dimL, dimR, mStart, mEnd, playhead);
+      wrap.append(stack, dimL, dimR, mStart, mEnd, playhead);
       container.appendChild(wrap);
 
       const bar = el("div", "cbar");
@@ -207,9 +226,17 @@
       const saveBtn = el("button", "sm", "Save trim");
       const fullBtn = el("button", "sm", "Full");
       bar.append(playBtn, tnum, saveBtn, fullBtn);
+      if (hasImu) {
+        const lg = el("div", "imu-legend");
+        lg.innerHTML = '<span><i style="background:#d1495b"></i>X</span>' +
+                       '<span><i style="background:#2a9d8f"></i>Y</span>' +
+                       '<span><i style="background:#5b6cc2"></i>Z</span>';
+        bar.appendChild(lg);
+      }
       container.appendChild(bar);
 
       let buf = null, durMs = 0, src = null, raf = 0;
+      let cancelled = false, imuData = null;
       let aMs = (typeof c.trimStartMs === "number") ? c.trimStartMs : 0;
       let bMs = (typeof c.trimEndMs === "number") ? c.trimEndMs : null;
       const fmt = ms => (ms / 1000).toFixed(2) + "s";
@@ -238,7 +265,7 @@
             buf = b; durMs = b.duration * 1000;
             if (bMs == null) bMs = durMs;
             aMs = Math.max(0, Math.min(aMs, durMs)); bMs = Math.max(aMs, Math.min(bMs, durMs));
-            drawWave(canvas, b); layout();
+            drawWave(canvas, b); layout(); drawImuLanes();
           });
       }).catch(e => {
         // Surface the REAL reason so a load failure is self-diagnosing (the full error + path also go
@@ -249,6 +276,56 @@
         console.error("clip audio load failed:", c.path || c.url, e);
         tnum.textContent = "audio: " + ((e && (e.code || e.message)) || e);
       });
+
+      // ---- IMU motion: raw little-endian int16, imuAxes interleaved per frame at imuRateHz ----
+      // Drawn as line graphs on the same time axis as the audio (x = frame_time / clip_duration),
+      // so the motion lines up with the sound and shares the trim window above.
+      function drawImuLane(cv, axisIdx) {
+        if (!cv || !imuData) return;
+        const axes = imuAxes, rate = c.imuRateHz || 100;
+        const n = Math.floor(imuData.length / axes);
+        if (!n) return;
+        const dpr = window.devicePixelRatio || 1;
+        const w = cv.clientWidth || 1, h = cv.clientHeight || 1;
+        cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+        const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, w, h);
+        // normalise each lane by its own peak so accel and gyro both fill the height
+        let maxAbs = 1;
+        for (let i = 0; i < n; i++) for (const a of axisIdx) { const v = Math.abs(imuData[i * axes + a]); if (v > maxAbs) maxAbs = v; }
+        const mid = h / 2, amp = (h / 2) * 0.86;
+        ctx.strokeStyle = "#dcdce6"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();   // zero line
+        const total = durMs || (n / rate * 1000);                                // align to audio time
+        const xScale = w / total;
+        const step = Math.max(1, Math.floor(n / (w * 2)));
+        axisIdx.forEach((a, k) => {
+          ctx.strokeStyle = IMU_COLORS[k]; ctx.lineWidth = 1.2; ctx.lineJoin = "round";
+          ctx.beginPath();
+          let first = true;
+          for (let i = 0; i < n; i += step) {
+            const x = (i / rate * 1000) * xScale;
+            const y = mid - (imuData[i * axes + a] / maxAbs) * amp;
+            if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        });
+      }
+      function drawImuLanes() {
+        if (cancelled || !imuData || !durMs) return;   // need the audio duration to align the time axis
+        drawImuLane(accelCv, [0, 1, 2]);
+        if (gyroCv && imuAxes >= 6) drawImuLane(gyroCv, [3, 4, 5]);
+      }
+      if (hasImu) {
+        const imuUrl = c.imuPath ? firebase.storage().ref(c.imuPath).getDownloadURL() : Promise.resolve(c.imuUrl || null);
+        imuUrl.then(u => (u ? fetch(u) : null))
+          .then(r => { if (!r) return null; if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+          .then(ab => {
+            if (!ab || cancelled) return;
+            imuData = new Int16Array(ab, 0, Math.floor(ab.byteLength / 2));   // little-endian int16
+            drawImuLanes();
+          })
+          .catch(e => { console.error("clip IMU load failed:", c.imuPath || c.imuUrl, e); });
+      }
 
       function dragMarker(which) {
         return down => {
@@ -302,7 +379,7 @@
       };
       fullBtn.onclick = () => { aMs = 0; bMs = durMs; layout(); };
 
-      return () => { if (src) { try { src.stop(); } catch (e) {} } cancelAnimationFrame(raf); };
+      return () => { cancelled = true; if (src) { try { src.stop(); } catch (e) {} } cancelAnimationFrame(raf); };
     }
 
     // Delete a clip's Storage objects (audio + IMU sidecar) with the authed SDK. The old approach

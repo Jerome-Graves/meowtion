@@ -89,7 +89,6 @@ input[type=range] { width: 100%; margin-top: .5rem; accent-color: var(--accent);
 /* ---- waveform + trim markers ---- */
 .wave-wrap {
   position: relative;
-  height: 66px;
   margin: .55rem 0;
   border-radius: 9px;
   background: #f3f3fa;
@@ -98,7 +97,21 @@ input[type=range] { width: 100%; margin-top: .5rem; accent-color: var(--accent);
   user-select: none;
   -webkit-user-select: none;
 }
-.wave-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Lanes stack vertically (audio, then IMU); the dim/markers/playhead overlay them all so the
+   trim window and playhead span audio + motion together. */
+.wave-stack { position: relative; }
+.wave-lane { position: relative; }
+.wave-lane + .wave-lane { border-top: 1px solid #e6e7ec; }
+.wave-lane canvas { display: block; width: 100%; }
+canvas.wave-audio { height: 64px; }
+canvas.wave-imu { height: 46px; }
+.wave-lane-label {
+  position: absolute; top: 3px; left: 7px;
+  font-size: .6rem; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); pointer-events: none; z-index: 1;
+}
+.imu-legend { display: inline-flex; gap: .55rem; align-items: center; font-size: .68rem; color: var(--muted); }
+.imu-legend i { display: inline-block; width: 10px; height: 2px; margin-right: 3px; vertical-align: middle; border-radius: 1px; }
 .wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
 .wave-marker {
   position: absolute;
@@ -116,7 +129,7 @@ input[type=range] { width: 100%; margin-top: .5rem; accent-color: var(--accent);
 .wave-marker::after {
   content: "";
   position: absolute;
-  top: 50%;
+  top: 32px;            /* centre of the 64px audio lane, where the grab handle is expected */
   width: 11px;
   height: 11px;
   margin-top: -5.5px;
