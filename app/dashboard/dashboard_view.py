@@ -17,9 +17,10 @@ Ready-made helpers (we did the fiddly bits for you):
 
     import meowtion_dash as mw
     mw.filter_by_activity(df, "Eat")            # or a list: ["Eat", "Drink"]
-    mw.filter_by_weekday(df, "Saturday")        # or ["Saturday", "Sunday"]
-    mw.totals_by_period(df, "Day")              # sum minutes per "Day" / "Week" / "Month"
-    mw.bar(frame, x, y, title)                  # a branded bar chart (add temporal=True for dates)
+    mw.period_options(df, "Week")               # the weeks (or days/months) you can pick from
+    mw.filter_to_window(df, "Week", key)        # keep just the chosen day/week/month
+    mw.over_time(window, "Week")                # minutes along the x-axis (per hour / per day)
+    mw.bar(frame, x, y, title)                  # a branded bar chart (temporal=True for dates)
 """
 import streamlit as st
 
@@ -41,53 +42,61 @@ def render(df, data=None):
     #   st.metric(label, value) shows one big number in a slot.
     # ===================================================================== #
     col1, col2, col3 = st.columns(3)
-    col1.metric("Episodes", len(df))                                   # how many rows
-    col2.metric("Minutes tracked", round(df["event_duration"].sum()))  # add up the minutes column
+    col1.metric("Episodes", len(df))                                     # how many rows
+    col2.metric("Minutes tracked", round(df["event_duration"].sum()))    # sum the minutes column
     col3.metric("Top activity", df["activity"].value_counts().index[0])  # most frequent activity
 
     # A fun headline , just to show you can do maths on the data.
     hours = round(df["event_duration"].sum() / 60)
     st.caption(f"😼 {hours} hours of world domination logged so far.")
 
-    # st.expander hides the raw table behind a click, so it doesn't clutter the page.
-    with st.expander("See the data table"):
+    with st.expander("See the data table"):     # st.expander hides this until clicked
         st.dataframe(df, use_container_width=True)
 
     # ===================================================================== #
-    # STEP 2 , Add controls the viewer can change.
-    #   st.radio       , pick ONE option (here: the time period).
-    #   st.multiselect , pick MANY options (here: which activities to include).
-    #   Whatever they pick comes back as a normal Python value you can use below.
+    # STEP 2 , Pick a time window to zoom into.
+    #   First choose the SPAN of the x-axis (a Day, a Week, or a Month) with st.radio,
+    #   then choose WHICH one with st.selectbox. The options come from a helper.
     # ===================================================================== #
-    st.write("### Choose what to show")
+    st.write("### Zoom in")
 
-    period = st.radio("Group by", ["Day", "Week", "Month"], horizontal=True)
+    span = st.radio("X-axis spans a", ["Day", "Week", "Month"], horizontal=True)
 
+    windows = mw.period_options(df, span)        # [(label, key), ...], newest first
+    labels = [label for label, key in windows]
+    chosen_label = st.selectbox(span, labels)    # e.g. "Week of 23 Jun 2025"
+    chosen_key = dict(windows)[chosen_label]     # the matching key for the helper below
+
+    # (optional) also let the viewer narrow to certain activities
     all_activities = sorted(df["activity"].unique())
-    chosen = st.multiselect("Activities", all_activities, default=all_activities)
+    chosen_acts = st.multiselect("Activities", all_activities, default=all_activities)
 
     # ===================================================================== #
-    # STEP 3 , Filter the data to what the viewer chose.
-    #   mw.filter_by_activity takes the DataFrame and returns a smaller DataFrame.
+    # STEP 3 , Keep just the rows in that window (and those activities).
     # ===================================================================== #
-    filtered = mw.filter_by_activity(df, chosen) if chosen else df.iloc[0:0]
-    st.caption(f"Showing {len(filtered)} of {len(df)} episodes.")
+    window = mw.filter_to_window(df, span, chosen_key)
+    window = mw.filter_by_activity(window, chosen_acts) if chosen_acts else window.iloc[0:0]
+    st.caption(f"{len(window)} episodes in {chosen_label}.")
 
     # ===================================================================== #
-    # STEP 4 , Chart the FILTERED data over time.
-    #   mw.totals_by_period adds up the minutes per Day / Week / Month for you.
-    #   mw.bar(..., temporal=True) draws a date-axis bar chart in the app's colours.
+    # STEP 4 , Chart that window.
+    #   mw.over_time sums the minutes per hour (for a Day) or per date (Week / Month).
+    #   We label the x-axis with hours for a Day, otherwise with dates.
     # ===================================================================== #
-    if not filtered.empty:
-        over_time = mw.totals_by_period(filtered, period)
-        st.write(f"**Minutes per {period.lower()}**")
+    if window.empty:
+        st.info("No activity in this window , pick another, or add more activities.")
+    else:
+        frame = mw.over_time(window, span)
+        unit = "hour" if span == "Day" else "day"
+        time_format = "%H:%M" if span == "Day" else "%d %b"
+        st.write(f"**Minutes per {unit}** , {chosen_label}")
         st.altair_chart(
-            mw.bar(over_time, "period", "event_duration", "minutes", temporal=True),
+            mw.bar(frame, "when", "event_duration", "minutes", temporal=True, time_format=time_format),
             use_container_width=True,
         )
 
     # ===================================================================== #
-    # STEP 5 , Charts on ALL the data (no filtering).
+    # STEP 5 , Charts across ALL the data (ignoring the window above).
     #   df.groupby("activity")["event_duration"].sum() adds up minutes per activity.
     #   df["activity"].value_counts() counts how many times each activity happened.
     # ===================================================================== #

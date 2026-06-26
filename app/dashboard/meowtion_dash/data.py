@@ -104,19 +104,48 @@ def last_n_days(df, n=7):
     return df[df["event_date"] >= cutoff]
 
 
-def totals_by_period(df, period="Day", value="event_duration"):
-    """Add up `value` per calendar Day, Week, or Month.
+# ---------------------------------------------------------------------------
+# Drill-down by time window. The dashboard lets the viewer pick a span (one Day,
+# Week, or Month) and which specific window, then charts just that window.
+# ---------------------------------------------------------------------------
+def period_options(df, period):
+    """The distinct Day / Week / Month windows present in df, newest first.
 
-    Returns a DataFrame with two columns: `period` (a date marking the start of each bucket) and
-    `value`. Ready to chart with mw.bar(frame, "period", value, ..., temporal=True).
+    Returns a list of (label, key) pairs; `key` is what filter_to_window() expects.
     """
     if df.empty:
-        return pd.DataFrame(columns=["period", value])
+        return []
     dates = pd.to_datetime(df["event_date"])
     if period == "Week":
-        bucket = dates.dt.to_period("W").dt.start_time     # the Monday of that week
-    elif period == "Month":
-        bucket = dates.dt.to_period("M").dt.start_time     # the 1st of that month
-    else:                                                  # "Day"
-        bucket = dates.dt.normalize()                      # the day itself
-    return df.assign(period=bucket).groupby("period")[value].sum().reset_index()
+        starts = sorted(set(dates.dt.to_period("W").dt.start_time), reverse=True)
+        return [(f"Week of {d.strftime('%d %b %Y')}", d.strftime("%Y-%m-%d")) for d in starts]
+    if period == "Month":
+        months = sorted(set(dates.dt.to_period("M").astype(str)), reverse=True)   # "YYYY-MM"
+        return [(pd.Period(m).strftime("%B %Y"), m) for m in months]
+    days = sorted(set(df["event_date"]), reverse=True)                            # "YYYY-MM-DD"
+    return [(pd.to_datetime(d).strftime("%a %d %b %Y"), d) for d in days]
+
+
+def filter_to_window(df, period, key):
+    """Keep only the rows inside the chosen window (the `key` from period_options)."""
+    if df.empty or not key:
+        return df.iloc[0:0]
+    if period == "Week":
+        start = pd.to_datetime(key)
+        dates = pd.to_datetime(df["event_date"])
+        return df[(dates >= start) & (dates < start + pd.Timedelta(days=7))]
+    if period == "Month":
+        return df[df["event_date"].str.startswith(key)]   # key is "YYYY-MM"
+    return df[df["event_date"] == key]                    # key is one day
+
+
+def over_time(df, period, value="event_duration"):
+    """Sum `value` along the x-axis of the chosen window: per HOUR within a Day, per DATE within a
+    Week or Month. Returns columns `when` (a datetime) and `value`, for a temporal bar chart."""
+    if df.empty:
+        return pd.DataFrame(columns=["when", value])
+    if period == "Day":
+        when = pd.to_datetime(df["event_date"] + " " + df["start_time"]).dt.floor("h")  # the hour
+    else:
+        when = pd.to_datetime(df["event_date"]).dt.normalize()                          # the date
+    return df.assign(when=when).groupby("when")[value].sum().reset_index()

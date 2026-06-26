@@ -6,25 +6,25 @@ import altair as alt
 ACCENT = "#bc7bc2"   # brand lavender
 
 
-def bar(data, x, y, y_title=None, temporal=False):
+def bar(data, x, y, y_title=None, temporal=False, time_format="%d %b"):
     """A branded Altair bar chart: lavender bars on a TRANSPARENT background, so it sits on the
     page's gradient instead of in a clashing white panel. `x`/`y` are column names.
 
-    Pass temporal=True when `x` is a date column (e.g. "event_date"): bars stay in chronological
-    order with dated axis labels, instead of being a category sorted by value.
+    Pass temporal=True when `x` is a date/time column: bars stay in chronological order with dated
+    axis labels. `time_format` controls those labels, e.g. "%d %b" for dates or "%H:%M" for hours.
 
     Examples:
         counts = df["activity"].value_counts().reset_index()
         counts.columns = ["activity", "count"]
         st.altair_chart(mw.bar(counts, "activity", "count", "episodes"), use_container_width=True)
 
-        per_day = df.groupby("event_date")["event_duration"].sum().reset_index()
-        st.altair_chart(mw.bar(per_day, "event_date", "event_duration", "minutes", temporal=True),
+        frame = mw.over_time(window, "Week")        # columns: when, event_duration
+        st.altair_chart(mw.bar(frame, "when", "event_duration", "minutes", temporal=True),
                         use_container_width=True)
     """
     if temporal:
         x_enc = alt.X(f"{x}:T", title=None,
-                      axis=alt.Axis(format="%d %b", labelColor="#3a3a4a", labelFontWeight=600))
+                      axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600))
         mark = dict(color=ACCENT, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
     else:
         x_enc = alt.X(f"{x}:N", title=None, sort="-y",
