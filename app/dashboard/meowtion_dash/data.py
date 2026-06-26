@@ -102,3 +102,21 @@ def last_n_days(df, n=7):
     latest = datetime.date.fromisoformat(df["event_date"].max())
     cutoff = (latest - datetime.timedelta(days=n - 1)).isoformat()
     return df[df["event_date"] >= cutoff]
+
+
+def totals_by_period(df, period="Day", value="event_duration"):
+    """Add up `value` per calendar Day, Week, or Month.
+
+    Returns a DataFrame with two columns: `period` (a date marking the start of each bucket) and
+    `value`. Ready to chart with mw.bar(frame, "period", value, ..., temporal=True).
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["period", value])
+    dates = pd.to_datetime(df["event_date"])
+    if period == "Week":
+        bucket = dates.dt.to_period("W").dt.start_time     # the Monday of that week
+    elif period == "Month":
+        bucket = dates.dt.to_period("M").dt.start_time     # the 1st of that month
+    else:                                                  # "Day"
+        bucket = dates.dt.normalize()                      # the day itself
+    return df.assign(period=bucket).groupby("period")[value].sum().reset_index()

@@ -27,7 +27,7 @@ from .auth import require_session
 from .firebase import fetch
 from .data import (
     activity_dataframe, model_labels, EVENT_ICON, fmt_time, fmt_dur,
-    filter_by_activity, filter_by_weekday, filter_by_date_range, last_n_days,
+    filter_by_activity, filter_by_weekday, filter_by_date_range, last_n_days, totals_by_period,
 )
 from .charts import bar
 from .live import live_view
@@ -35,5 +35,6 @@ from .live import live_view
 __all__ = [
     "configure_page", "brand_header", "require_session", "fetch", "live_view",
     "activity_dataframe", "model_labels", "EVENT_ICON", "fmt_time", "fmt_dur",
-    "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days", "bar",
+    "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",
+    "totals_by_period", "bar",
 ]
