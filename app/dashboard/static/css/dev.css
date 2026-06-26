@@ -128,10 +128,16 @@ canvas.wave-imu { height: 46px; }
 
 /* ---- dataset stats: per-category totals vs the recommended minimum ---- */
 .clip-stats { margin: 0 0 .8rem; }
-.cs-summary { font-size: .76rem; color: var(--muted); margin-bottom: .45rem; }
+.cs-summary { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .76rem; color: var(--muted); margin-bottom: .5rem; }
+.cs-analyse { font-size: .72rem; padding: .3rem .6rem; }
 .cs-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
-.cs-chip { display: inline-flex; flex-direction: column; gap: .18rem; min-width: 82px; padding: .35rem .55rem .4rem; border-radius: 9px; border: 1px solid var(--line); background: #fff; }
+.cs-chip { display: inline-flex; flex-direction: column; gap: .2rem; min-width: 124px; padding: .4rem .55rem .45rem; border-radius: 9px; border: 1px solid var(--line); background: #fff; }
+.cs-chip .cs-top { display: flex; align-items: center; gap: .4rem; }
 .cs-chip .cs-lbl { font-size: .74rem; font-weight: 600; }
+.cs-chip .cs-var { margin-left: auto; font-size: .64rem; font-weight: 700; padding: .05rem .32rem; border-radius: 6px; white-space: nowrap; }
+.cs-var.v-low { background: #fde8e8; color: var(--bad); }
+.cs-var.v-mid { background: #fdf3e3; color: var(--amber); }
+.cs-var.v-high { background: #e8f7ee; color: var(--ok); }
 .cs-chip .cs-num { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cs-chip .cs-bar { height: 3px; border-radius: 2px; background: #ececf2; overflow: hidden; }
 .cs-chip .cs-bar i { display: block; height: 100%; background: var(--accent); }

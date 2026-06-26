@@ -514,26 +514,142 @@
     // Recommended minimum labelled clips per category before training. Easy to tune.
     const MIN_PER_CLASS = 30;
 
-    // Dataset stats: a count per category with a progress mark against the minimum, plus the
-    // unlabelled backlog. Built from the same clip list, so it updates whenever clips/labels change.
+    // Motion-variety analysis state (filled on demand by analyzeVariety).
+    let g_featCache = {};        // clipId -> {vec, label}  (downloaded motion features, cached)
+    let g_variety = null;        // { byLabel: {label: {n, sim, variety}}, total } after a run
+    let g_varietyBusy = false, g_varietyProgress = "", g_analyseBtn = null;
+
+    // Count distinct recording sessions in a set of clips, using the same minute-bucket chaining
+    // as the clip grouping (same or consecutive minute = one session).
+    function countSessions(clips) {
+      const sorted = clips.slice().sort((a, b) => clipTs(a) - clipTs(b));
+      let n = 0, prev = null;
+      sorted.forEach(c => { const m = minuteBucket(clipTs(c)); if (prev === null || m - prev > 1) n++; prev = m; });
+      return n;
+    }
+    function varietyClass(v) { return v < 34 ? "v-low" : (v < 60 ? "v-mid" : "v-high"); }
+
+    // A compact motion fingerprint for a clip: per-axis mean (posture/orientation) and std (intensity).
+    function imuFeatures(frames, axes, rate, trimStart, trimEnd) {
+      const n0 = Math.floor(frames.length / axes);
+      let lo = 0, hi = n0;
+      if (typeof trimStart === "number" && rate) lo = Math.max(0, Math.floor(trimStart * rate / 1000));
+      if (typeof trimEnd === "number" && rate) hi = Math.min(n0, Math.ceil(trimEnd * rate / 1000));
+      if (hi - lo < 2) { lo = 0; hi = n0; }
+      const n = Math.max(1, hi - lo), f = [];
+      for (let a = 0; a < axes; a++) {
+        let s = 0, s2 = 0;
+        for (let i = lo; i < hi; i++) { const v = frames[i * axes + a]; s += v; s2 += v * v; }
+        const m = s / n, vr = Math.max(0, s2 / n - m * m);
+        f.push(m, Math.sqrt(vr));
+      }
+      return f;
+    }
+    async function runPool(items, limit, fn) {
+      let i = 0;
+      await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (i < items.length) { const idx = i++; await fn(items[idx], idx); }
+      }));
+    }
+    function setAnalyseProgress(txt) { g_varietyProgress = txt; if (g_analyseBtn) g_analyseBtn.textContent = txt; }
+
+    // Variety per category = 1 - average within-class similarity. Features are standardised, then
+    // compared with a Gaussian (RBF) kernel whose scale is the median pairwise distance, so a class
+    // of near-identical clips scores ~0 and a well-spread class scores high.
+    function computeVariety(items) {
+      const D = items[0].vec.length, N = items.length;
+      const mean = new Array(D).fill(0), sd = new Array(D).fill(0);
+      items.forEach(it => { for (let k = 0; k < D; k++) mean[k] += it.vec[k]; });
+      for (let k = 0; k < D; k++) mean[k] /= N;
+      items.forEach(it => { for (let k = 0; k < D; k++) { const d = it.vec[k] - mean[k]; sd[k] += d * d; } });
+      for (let k = 0; k < D; k++) { sd[k] = Math.sqrt(sd[k] / N) || 1; }
+      const Z = items.map(it => it.vec.map((v, k) => (v - mean[k]) / sd[k]));
+      const d2 = (a, b) => { let s = 0; for (let k = 0; k < a.length; k++) { const d = a[k] - b[k]; s += d * d; } return s; };
+      const sample = [], maxPairs = 6000;
+      if (N * (N - 1) / 2 <= maxPairs) { for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) sample.push(d2(Z[i], Z[j])); }
+      else { for (let p = 0; p < maxPairs; p++) { const i = (Math.random() * N) | 0, j = (Math.random() * N) | 0; if (i !== j) sample.push(d2(Z[i], Z[j])); } }
+      sample.sort((a, b) => a - b);
+      const sigma2 = (sample[Math.floor(sample.length / 2)] || 1) || 1;
+      const groups = {};
+      items.forEach((it, idx) => { (groups[it.label] = groups[it.label] || []).push(idx); });
+      const byLabel = {};
+      Object.keys(groups).forEach(lab => {
+        const idx = groups[lab];
+        let sum = 0, cnt = 0;
+        for (let i = 0; i < idx.length; i++) for (let j = i + 1; j < idx.length; j++) { sum += Math.exp(-d2(Z[idx[i]], Z[idx[j]]) / (2 * sigma2)); cnt++; }
+        const sim = cnt ? sum / cnt : null;
+        byLabel[lab] = { n: idx.length, sim, variety: sim == null ? null : Math.round((1 - sim) * 100) };
+      });
+      return { byLabel, total: N };
+    }
+
+    // Download each labelled clip's motion data, fingerprint it, and score per-category variety.
+    async function analyzeVariety() {
+      if (g_demo || g_varietyBusy) return;
+      const clips = [];
+      Object.entries(lastDevices || {}).forEach(([token, d]) => {
+        if (d && d.type === "station" && d.clips) Object.entries(d.clips).forEach(([id, c]) => {
+          if (c.label && (c.imuPath || c.imuUrl)) clips.push({ id, token, ...c });
+        });
+      });
+      if (clips.length < 2) { alert("Need at least 2 labelled clips with motion data to compare."); return; }
+      g_varietyBusy = true; setAnalyseProgress("Analysing… 0/" + clips.length);
+      const todo = clips.filter(c => !g_featCache[c.id]);
+      let done = clips.length - todo.length;
+      await runPool(todo, 8, async c => {
+        try {
+          const u = c.imuPath ? await firebase.storage().ref(c.imuPath).getDownloadURL() : c.imuUrl;
+          if (u) {
+            const ab = await (await fetch(u)).arrayBuffer();
+            const frames = new Int16Array(ab, 0, Math.floor(ab.byteLength / 2));
+            g_featCache[c.id] = { vec: imuFeatures(frames, c.imuAxes || 6, c.imuRateHz || 104, c.trimStartMs, c.trimEndMs), label: c.label };
+          }
+        } catch (e) { console.error("variety: motion load failed", c.id, e); }
+        done++; setAnalyseProgress("Analysing… " + done + "/" + clips.length);
+      });
+      // keep features current with each clip's latest label
+      clips.forEach(c => { if (g_featCache[c.id]) g_featCache[c.id].label = c.label; });
+      const items = clips.map(c => g_featCache[c.id]).filter(Boolean);
+      g_variety = items.length >= 2 ? computeVariety(items) : null;
+      g_varietyBusy = false; g_varietyProgress = "";
+      lastClipsSig = ""; renderClips(lastDevices);   // one rebuild to show the scores
+    }
+
+    // Dataset stats: per category, clip and session counts, a minimum-clip progress mark, and (after
+    // an analysis run) a motion-variety score. Rebuilt whenever clips or labels change.
     function buildClipStats(all) {
-      const counts = {};
+      const byLabel = {};
       let unl = 0;
-      all.forEach(c => { if (c.label) counts[c.label] = (counts[c.label] || 0) + 1; else unl++; });
+      all.forEach(c => { if (c.label) (byLabel[c.label] = byLabel[c.label] || []).push(c); else unl++; });
       const box = el("div", "clip-stats");
-      const ready = g_actions.filter(a => (counts[a] || 0) >= MIN_PER_CLASS).length;
-      box.appendChild(el("div", "cs-summary",
-        plural(all.length, "clip") + " · " + unl + " unlabelled · " +
-        ready + "/" + g_actions.length + " actions at the " + MIN_PER_CLASS + "-clip minimum"));
+
+      const head = el("div", "cs-summary");
+      head.appendChild(el("span", null, plural(all.length, "clip") + " · " + unl + " unlabelled"));
+      const btn = el("button", "sm cs-analyse");
+      btn.type = "button";
+      btn.textContent = g_varietyBusy ? (g_varietyProgress || "Analysing…") : (g_variety ? "Re-analyse motion variety" : "Analyse motion variety");
+      btn.disabled = !!(g_demo || g_varietyBusy);
+      btn.onclick = analyzeVariety;
+      head.appendChild(btn);
+      g_analyseBtn = btn;
+      box.appendChild(head);
+
       const chips = el("div", "cs-chips");
       const cats = [...g_actions];
-      Object.keys(counts).forEach(l => { if (!cats.includes(l)) cats.push(l); });   // include stray labels too
+      Object.keys(byLabel).forEach(l => { if (!cats.includes(l)) cats.push(l); });   // include stray labels too
       cats.forEach(a => {
-        const n = counts[a] || 0;
+        const clips = byLabel[a] || [], n = clips.length, sessions = countSessions(clips);
         const chip = el("span", "cs-chip " + (n >= MIN_PER_CLASS ? "met" : (n > 0 ? "low" : "none")));
-        chip.title = n >= MIN_PER_CLASS ? "Enough clips for training" : "Below the recommended minimum (" + MIN_PER_CLASS + ")";
-        chip.appendChild(el("span", "cs-lbl", a));
-        chip.appendChild(el("span", "cs-num", n + "/" + MIN_PER_CLASS));
+        const top = el("div", "cs-top");
+        top.appendChild(el("span", "cs-lbl", a));
+        const v = g_variety && g_variety.byLabel[a];
+        if (v && v.variety != null) {
+          const vb = el("span", "cs-var " + varietyClass(v.variety), "variety " + v.variety);
+          vb.title = "Motion variety " + v.variety + "/100 (avg clip similarity " + Math.round(v.sim * 100) + "%). Higher = more varied data.";
+          top.appendChild(vb);
+        }
+        chip.appendChild(top);
+        chip.appendChild(el("span", "cs-num", n + " clip" + (n === 1 ? "" : "s") + " · " + plural(sessions, "session")));
         const bar = el("span", "cs-bar"), fill = el("i");
         fill.style.width = Math.min(100, Math.round(n / MIN_PER_CLASS * 100)) + "%";
         bar.appendChild(fill); chip.appendChild(bar);
@@ -541,8 +657,9 @@
       });
       if (unl) {
         const chip = el("span", "cs-chip unl");
-        chip.appendChild(el("span", "cs-lbl", "unlabelled"));
-        chip.appendChild(el("span", "cs-num", String(unl)));
+        const top = el("div", "cs-top"); top.appendChild(el("span", "cs-lbl", "unlabelled"));
+        chip.appendChild(top);
+        chip.appendChild(el("span", "cs-num", unl + " clip" + (unl === 1 ? "" : "s")));
         chips.appendChild(chip);
       }
       box.appendChild(chips);
