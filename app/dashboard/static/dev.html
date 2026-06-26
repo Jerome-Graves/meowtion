@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/base.css" />
-  <link rel="stylesheet" href="css/dev.css?v=13" />
+  <link rel="stylesheet" href="css/dev.css?v=14" />
   <style>
     /* Read-only demo (?demo=1): disable WRITE controls only. The clip expand rows and audio
        play stay clickable so the page is still fully explorable. body.demo-readonly is added
@@ -75,13 +75,15 @@
     <div id="devview" class="hidden">
       <!-- shown only in read-only demo mode (un-hidden by initDemo() in dev.js) -->
       <div id="demoBanner" class="demo-banner hidden">Demo , read-only. Sign in with a dev account to control devices and train.</div>
-      <div class="card">
+      <div class="card acct-bar">
         <div class="top">
           <div class="who" id="who"></div>
           <a href="account.html">Account</a>
           <button class="ghost" onclick="location.href='account.html?logout=1'">Log out</button>
         </div>
+      </div>
 
+      <div class="card">
         <h3>Collar capture</h3>
         <p class="hint">Live status reported by each station. Fields like signal, recording and collar battery
           populate once the station's capture firmware is running; battery/power show now.</p>

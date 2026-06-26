@@ -180,6 +180,10 @@ h3 .help:hover, h3 .help:focus { background: var(--accent); color: #fff; outline
 .card.collapsible > .card-header:hover .card-chev { color: var(--accent); }
 .card-body { margin-top: .85rem; }
 .card.collapsed > .card-body { display: none; }
+
+/* Account bar: a slim, always-visible card (no title, so the collapse transform skips it). */
+.acct-bar { padding: .6rem 1rem; }
+.acct-bar .top { margin: 0; }
 .wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
 .wave-marker {
   position: absolute;
