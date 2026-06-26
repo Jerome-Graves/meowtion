@@ -776,6 +776,7 @@
     function renderAll() {
       try { renderStations(lastDevices); } catch (e) { console.error("renderStations failed:", e); }
       try { renderClips(lastDevices); } catch (e) { console.error("renderClips failed:", e); }
+      try { renderActivityStatus(); } catch (e) { console.error("renderActivityStatus failed:", e); }   // refresh connection state
     }
 
     function attach(uid) {
@@ -876,6 +877,86 @@
     // auto-label every clip that arrives during the window. Reuses the station's captureForce flag
     // (ignore-range) , no firmware change. Replaces the old manual force toggle. ----
     let g_session = null;
+    let g_focusOpen = false, g_focusEl = null;
+
+    // Is a collar actually connected to a station right now? Clips can't be buffered on the collar
+    // (its RAM is tiny), so recording only works while a station is online AND hearing the collar.
+    function recordReadiness() {
+      const stations = Object.values(lastDevices || {}).filter(d => d && d.type === "station");
+      if (!stations.length) return { ok: false, msg: "No station registered. Connect a station first." };
+      const online = stations.filter(d => fresh(d.lastSeen));
+      if (!online.length) return { ok: false, msg: "Station offline. Check it's powered and on Wi-Fi." };
+      const heard = online.some(d => { const dev = d.dev || {}; return dev.state && dev.state !== "idle"; });
+      if (!heard) return { ok: false, msg: "Collar not connected to the station. Bring the cat near the station, the collar must be heard while recording (clips can't be stored on the collar)." };
+      return { ok: true, msg: "" };
+    }
+
+    // ---- focused "phone app" record view: one big-button screen, easy to tap while following the cat ----
+    function createFocusOverlay() {
+      if (g_focusEl) return g_focusEl;
+      const ov = el("div", "rec-focus hidden");
+      ov.innerHTML =
+        '<div class="rec-focus-inner">' +
+          '<div class="rec-focus-head"><div class="rec-focus-title">What is your cat doing?</div>' +
+          '<button class="rec-focus-close" type="button" aria-label="Close">✕</button></div>' +
+          '<div class="rec-focus-warn hidden"></div>' +
+          '<div class="rec-focus-status"></div>' +
+          '<div class="rec-focus-btns"></div>' +
+          '<div class="rec-focus-foot"><span class="rec-focus-len">Length ' +
+          '<select class="rec-focus-secs"></select></span>' +
+          '<button class="rec-focus-stop" type="button">■ Stop</button></div>' +
+        '</div>';
+      ov.querySelector(".rec-focus-close").onclick = closeFocus;
+      ov.querySelector(".rec-focus-stop").onclick = () => stopActivity("manual");
+      const sel = ov.querySelector(".rec-focus-secs");
+      [["5", "5s"], ["10", "10s"], ["15", "15s"], ["30", "30s"]].forEach(([v, t]) => {
+        const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o);
+      });
+      const a0 = document.getElementById("actSecs");
+      sel.value = (a0 && a0.value) || "30";
+      sel.onchange = () => { const a = document.getElementById("actSecs"); if (a) a.value = sel.value; };
+      document.body.appendChild(ov);
+      g_focusEl = ov;
+      return ov;
+    }
+    function openFocus() {
+      if (g_demo) return;
+      createFocusOverlay();
+      g_focusOpen = true;
+      g_focusEl.classList.remove("hidden");
+      document.body.classList.add("rec-focus-on");
+      renderActivityStatus();
+    }
+    function closeFocus() {
+      g_focusOpen = false;
+      if (g_focusEl) g_focusEl.classList.add("hidden");
+      document.body.classList.remove("rec-focus-on");
+    }
+    function renderFocus(ready) {
+      if (!g_focusOpen || !g_focusEl) return;
+      ready = ready || recordReadiness();
+      const s = g_session, recording = !!(s && s.active);
+      const warn = g_focusEl.querySelector(".rec-focus-warn");
+      if (!ready.ok && !recording) { warn.textContent = "⚠ " + ready.msg; warn.classList.remove("hidden"); }
+      else warn.classList.add("hidden");
+      const st = g_focusEl.querySelector(".rec-focus-status");
+      if (recording) {
+        const left = Math.max(0, Math.ceil((s.endAt - Date.now()) / 1000));
+        st.textContent = "⏺ Recording ‘" + s.label + "’ — " + left + "s left" + (s.labelled ? " (" + s.labelled + " clip" + (s.labelled > 1 ? "s" : "") + ")" : "");
+        st.className = "rec-focus-status on";
+      } else if (s) { st.textContent = "Saving ‘" + s.label + "’…"; st.className = "rec-focus-status"; }
+      else { st.textContent = ready.ok ? "Tap what your cat is doing now" : ""; st.className = "rec-focus-status"; }
+      g_focusEl.querySelector(".rec-focus-stop").style.display = recording ? "" : "none";
+      const btns = g_focusEl.querySelector(".rec-focus-btns");
+      btns.innerHTML = "";
+      if (!g_actions.length) { btns.appendChild(el("div", "rec-focus-empty", "Add actions first (in the Actions card).")); return; }
+      g_actions.forEach(a => {
+        const b = el("button", "rec-focus-btn" + (recording && a === s.label ? " active" : ""), a);
+        b.type = "button"; b.disabled = recording || !ready.ok;
+        b.onclick = () => startActivity(a);
+        btns.appendChild(b);
+      });
+    }
 
     function renderActivityButtons() {
       const wrap = document.getElementById("activityBtns");
@@ -895,12 +976,14 @@
     }
 
     function renderActivityStatus() {
+      const ready = recordReadiness();
       const st = document.getElementById("act-status");
       const stop = document.getElementById("actStop");
       const wrap = document.getElementById("activityBtns");
-      const s = g_session;
+      const warn = document.getElementById("recWarn");
+      const s = g_session, recording = !!(s && s.active);
       if (st) {
-        if (s && s.active) {
+        if (recording) {
           const left = Math.max(0, Math.ceil((s.endAt - Date.now()) / 1000));
           st.textContent = "⏺ Recording '" + s.label + "' , " + left + "s left" +
             (s.labelled ? " (" + s.labelled + " clip" + (s.labelled > 1 ? "s" : "") + ")" : "");
@@ -913,16 +996,23 @@
           st.className = "msg err";
         } else { st.textContent = ""; st.className = "msg"; }
       }
-      if (stop) stop.style.display = ((s && s.active) || (!s && g_forceOn)) ? "" : "none";
+      if (stop) stop.style.display = (recording || (!s && g_forceOn)) ? "" : "none";
+      if (warn) {
+        if (!ready.ok && !recording) { warn.textContent = "⚠ " + ready.msg; warn.classList.remove("hidden"); }
+        else warn.classList.add("hidden");
+      }
       if (wrap) wrap.querySelectorAll("button").forEach(b => {
-        b.disabled = !!(s && s.active);
+        b.disabled = recording || !ready.ok;   // can't record without a connected collar
         b.classList.toggle("primary", !!(s && b.dataset.action === s.label));
       });
+      renderFocus(ready);
     }
 
     async function startActivity(label) {
       if (g_demo) return msg("act-msg", "Read-only demo , sign in with a dev account to make changes.", "err");
       if (g_session) return;   // already recording , Stop first
+      const ready = recordReadiness();
+      if (!ready.ok) { msg("act-msg", ready.msg, "err"); renderActivityStatus(); return; }
       const tokens = Object.entries(lastDevices).filter(([, d]) => d && d.type === "station").map(([t]) => t);
       if (!tokens.length) return msg("act-msg", "No stations to control.", "err");
       const secs = parseInt(document.getElementById("actSecs").value, 10) || 30;

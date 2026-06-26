@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/base.css" />
-  <link rel="stylesheet" href="css/dev.css?v=15" />
+  <link rel="stylesheet" href="css/dev.css?v=16" />
   <style>
     /* Read-only demo (?demo=1): disable WRITE controls only. The clip expand rows and audio
        play stay clickable so the page is still fully explorable. body.demo-readonly is added
@@ -25,6 +25,7 @@
     .demo-readonly #activityBtns button,
     .demo-readonly #actSecs,
     .demo-readonly #actStop,
+    .demo-readonly #recordExpand,
     .demo-readonly .switch,
     .demo-readonly #trainBtn,
     .demo-readonly #delAll,
@@ -133,7 +134,9 @@
             <option value="15">15s</option>
             <option value="30" selected>30s</option>
           </select>
+          <button id="recordExpand" class="sm" type="button" onclick="openFocus()" style="margin-left:auto;">⛶ Full screen</button>
         </div>
+        <div id="recWarn" class="rec-warn hidden"></div>
         <div id="activityBtns" class="row" style="flex-wrap:wrap;gap:.4rem;">
           <span class="muted" style="font-size:.85rem;">Add actions above to get buttons here.</span>
         </div>
@@ -202,6 +205,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <script src="js/firebase-init.js"></script>
-  <script src="js/dev.js?v=13"></script>
+  <script src="js/dev.js?v=16"></script>
 </body>
 </html>

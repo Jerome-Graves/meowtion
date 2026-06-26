@@ -181,6 +181,33 @@ h3 .help:hover, h3 .help:focus { background: var(--accent); color: #fff; outline
 .card-body { margin-top: .85rem; }
 .card.collapsed > .card-body { display: none; }
 
+/* ---- "collar not connected" warning on the record card ---- */
+.rec-warn { background: #fde8e8; color: var(--bad); border: 1px solid #f5c2c2; border-radius: 10px; padding: .55rem .7rem; font-size: .82rem; font-weight: 600; margin-bottom: .6rem; }
+.rec-warn.hidden { display: none; }
+
+/* ---- focused "phone app" record view ---- */
+body.rec-focus-on { overflow: hidden; }
+.rec-focus { position: fixed; inset: 0; z-index: 1000; background: radial-gradient(1100px 480px at 50% -160px, #e9e7fc, transparent), #f7f4fa; display: flex; justify-content: center; overflow: auto; }
+.rec-focus.hidden { display: none; }
+.rec-focus-inner { width: 100%; max-width: 520px; display: flex; flex-direction: column; padding: 1.3rem 1.1rem 1.6rem; min-height: 100%; }
+.rec-focus-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .8rem; }
+.rec-focus-title { font-weight: 800; font-size: 1.35rem; letter-spacing: -.01em; }
+.rec-focus-close { background: #fff; border: 1px solid var(--line); border-radius: 50%; width: 42px; height: 42px; font-size: 1.15rem; color: var(--ink); cursor: pointer; }
+.rec-focus-warn { background: #fde8e8; color: var(--bad); border: 1px solid #f5c2c2; border-radius: 12px; padding: .85rem 1rem; font-weight: 600; margin-bottom: .9rem; }
+.rec-focus-warn.hidden { display: none; }
+.rec-focus-status { text-align: center; color: var(--muted); font-weight: 600; margin: .1rem 0 1rem; min-height: 1.4em; }
+.rec-focus-status.on { color: var(--ok); font-size: 1.15rem; }
+.rec-focus-btns { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; flex: 1; align-content: start; }
+.rec-focus-empty { grid-column: 1 / -1; color: var(--muted); text-align: center; padding: 1.5rem 0; }
+.rec-focus-btn { font-size: 1.3rem; font-weight: 700; padding: 1.5rem 1rem; min-height: 92px; border-radius: 16px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; box-shadow: var(--shadow); transition: transform .05s; }
+.rec-focus-btn:active { transform: scale(.97); }
+.rec-focus-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.rec-focus-btn:disabled { opacity: .4; box-shadow: none; }
+.rec-focus-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.2rem; }
+.rec-focus-len { font-size: .95rem; color: var(--muted); }
+.rec-focus-secs { font-size: 1rem; padding: .55rem; border-radius: 10px; border: 1px solid var(--line); background: #fff; margin-left: .3rem; }
+.rec-focus-stop { font-size: 1.1rem; font-weight: 700; padding: .9rem 1.7rem; border-radius: 14px; border: 1px solid var(--bad); background: var(--bad); color: #fff; cursor: pointer; }
+
 /* Account bar: a slim, always-visible top menu. Lavender tint sets it apart from the white cards. */
 .acct-bar {
   padding: .55rem 1rem;
