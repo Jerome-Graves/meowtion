@@ -9,6 +9,7 @@ write-locked, so the demo is genuinely read-only.
 import base64
 import datetime
 import json
+import os
 import time
 
 import requests
@@ -17,7 +18,8 @@ import pandas as pd
 import altair as alt
 import extra_streamlit_components as stx
 
-st.set_page_config(page_title="Meowtion", page_icon="🐾")
+_FAVICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "favicon.png")
+st.set_page_config(page_title="Meowtion", page_icon=_FAVICON if os.path.exists(_FAVICON) else "🐾")
 
 # Brand the dashboard to match the static pages (css/base.css): Inter, the lavender radial-gradient
 # canvas, and a proper brand block instead of the default title.
