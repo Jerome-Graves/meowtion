@@ -181,8 +181,13 @@ h3 .help:hover, h3 .help:focus { background: var(--accent); color: #fff; outline
 .card-body { margin-top: .85rem; }
 .card.collapsed > .card-body { display: none; }
 
-/* Account bar: a slim, always-visible card (no title, so the collapse transform skips it). */
-.acct-bar { padding: .6rem 1rem; }
+/* Account bar: a slim, always-visible top menu. Lavender tint sets it apart from the white cards. */
+.acct-bar {
+  padding: .55rem 1rem;
+  background: linear-gradient(180deg, #f3ecf8, #ece1f3);
+  border: 1px solid #e1d1ec;
+  box-shadow: 0 2px 10px rgba(120, 80, 140, .09);
+}
 .acct-bar .top { margin: 0; }
 .wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
 .wave-marker {
