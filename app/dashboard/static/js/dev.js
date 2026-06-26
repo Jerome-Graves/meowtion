@@ -148,7 +148,7 @@
       };
       lhs.appendChild(sel);
       const hasImu = !!(c.imuUrl || c.imuPath);
-      const imu = el("span", "imu-badge" + (hasImu ? "" : " no"), hasImu ? "IMU ✓" : "audio only");
+      const imu = el("span", "imu-badge" + (hasImu ? "" : " no"), hasImu ? "Motion ✓" : "audio only");
       if (hasImu) imu.title = (c.imuFrames || "?") + " frames @ " + (c.imuRateHz || "?") + " Hz, " + (c.imuAxes || 6) + " axes";
       lhs.appendChild(imu);
       head.appendChild(lhs);
@@ -428,7 +428,7 @@
       });
       const btn = document.getElementById("delAll");
       if (!all.length) { alert("No clips to delete."); return; }
-      if (!confirm("Delete ALL " + all.length + " clips and their audio/IMU files?\nThis cannot be undone.")) return;
+      if (!confirm("Delete ALL " + all.length + " clips and their audio/motion files?\nThis cannot be undone.")) return;
       const old = btn.textContent; btn.disabled = true;
       let done = 0;
       for (let i = 0; i < all.length; i += 12) {
