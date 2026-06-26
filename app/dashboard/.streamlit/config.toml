@@ -7,7 +7,7 @@ enableStaticServing = true
 # lavender accent, dark ink text. Forces light so it never falls back to the dark theme.
 [theme]
 base = "light"
-primaryColor = "#6557f5"
+primaryColor = "#6a486e"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f4f4f8"
 textColor = "#1b1b2b"

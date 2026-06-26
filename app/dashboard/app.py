@@ -26,13 +26,13 @@ st.markdown("""
 html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', system-ui, sans-serif; }
 .stApp { background: radial-gradient(1100px 480px at 50% -220px, #e9e7fc, transparent), #f4f4f8; }
 .mw-brand { display:flex; align-items:center; gap:.8rem; margin:.2rem 0 1.3rem; }
-.mw-logo { width:46px; height:46px; border-radius:13px; display:grid; place-items:center;
-  font-size:1.5rem; background:linear-gradient(135deg,#6557f5,#9d8bff); box-shadow:0 10px 30px rgba(16,18,40,.12); }
+.mw-logo { width:46px; height:46px; border-radius:50%; display:grid; place-items:center;
+  background:#6a486e; box-shadow:0 10px 30px rgba(16,18,40,.12); }
 .mw-word { font-weight:800; font-size:1.5rem; letter-spacing:-.02em; line-height:1; color:#1b1b2b; }
 .mw-tag { font-size:.82rem; color:#6b7280; margin-top:3px; }
 </style>
 <div class="mw-brand">
-  <div class="mw-logo"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M9 12 L6.5 4.5 14 9.5 Z" fill="#fff"/><path d="M23 12 L25.5 4.5 18 9.5 Z" fill="#fff"/><ellipse cx="16" cy="18" rx="9" ry="8" fill="#fff"/><circle cx="12.5" cy="17" r="1.5" fill="#6557f5"/><circle cx="19.5" cy="17" r="1.5" fill="#6557f5"/><path d="M14.6 20.2 16 21.5 17.4 20.2 Z" fill="#6557f5"/></svg></div>
+  <div class="mw-logo"><svg viewBox="0 0 35 33" width="24" height="24" fill="#fff" aria-hidden="true"><ellipse cx="9.5" cy="13" rx="2.7" ry="3.5"/><ellipse cx="15.2" cy="9.5" rx="2.8" ry="3.7"/><ellipse cx="21" cy="9.5" rx="2.8" ry="3.7"/><ellipse cx="26.7" cy="13" rx="2.7" ry="3.5"/><ellipse cx="18" cy="22.5" rx="6" ry="5.2"/></svg></div>
   <div>
     <div class="mw-word">Meowtion</div>
     <div class="mw-tag">On-device AI activity tracking · helping cats run the world, one nap at a time</div>
