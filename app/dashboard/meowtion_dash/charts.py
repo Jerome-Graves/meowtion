@@ -63,7 +63,7 @@ def bar(data, x, y, y_title=None, temporal=False, time_format="%d %b"):
     Examples:
         counts = df["activity"].value_counts().reset_index()
         counts.columns = ["activity", "count"]
-        st.altair_chart(mw.bar(counts, "activity", "count", "episodes"), use_container_width=True)
+        st.altair_chart(mw.bar(counts, "activity", "count", "events"), use_container_width=True)
 
         frame = mw.over_time(window, "Week")        # columns: when, event_duration
         st.altair_chart(mw.bar(frame, "when", "event_duration", "minutes", temporal=True),

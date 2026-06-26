@@ -1,5 +1,5 @@
 """The live, auto-refreshing 'current state' cards for each cat (detected activity, steps,
-battery, recent episodes). This is plumbing tied to the raw Firebase shape; the editable
+battery, recent events). This is plumbing tied to the raw Firebase shape; the editable
 analytics dashboard works off the clean DataFrame instead.
 """
 import time

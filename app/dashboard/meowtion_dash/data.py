@@ -28,14 +28,14 @@ def model_labels(data):
 
 
 def activity_dataframe(data, labels):
-    """Flatten every cat's logged episodes into one DataFrame, one row per episode.
+    """Flatten every cat's logged events into one DataFrame, one row per event.
 
     Columns (chosen to match the beginner Streamlit tutorial, so tutorial chart code just works):
 
         cat | activity | event_date | event_weekday_name | start_time | event_duration
 
     `event_duration` is in minutes. `activity` is the trained model's label for real
-    (ver == 2) episodes, otherwise the stored state name.
+    (ver == 2) events, otherwise the stored state name.
     """
     devices = (data or {}).get("devices", {})
     rows = []
@@ -53,7 +53,7 @@ def activity_dataframe(data, labels):
                 if ev.get("ver") == 2 and isinstance(ecls, int) and 0 <= ecls < len(labels):
                     activity = labels[ecls]                # real on-device class -> action name
                 else:
-                    activity = ev.get("type", "unknown")   # older / simulated episode
+                    activity = ev.get("type", "unknown")   # older / simulated event
                 rows.append({
                     "cat": cat_name,
                     "activity": str(activity).capitalize(),

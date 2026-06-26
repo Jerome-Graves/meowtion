@@ -4,7 +4,7 @@ It's written as a step-by-step tutorial. Each STEP is one small idea, with comme
 the Streamlit and pandas it uses. To make a new chart, copy a step and tweak it.
 
 You are handed a clean pandas DataFrame called `df`. You never deal with login, cookies, or
-Firebase , that's all done for you. There is ONE ROW PER LOGGED EPISODE, with these columns:
+Firebase , that's all done for you. There is ONE ROW PER LOGGED EVENT, with these columns:
 
     cat                  the cat's name
     activity             what it was doing, e.g. "Eat", "Drink", "Resting", "Moving"
@@ -34,7 +34,7 @@ def render(df, data=None):
     # If the collar hasn't logged anything yet, `df` is empty , show a note and stop.
     if df.empty:
         st.subheader("📊 Activity history")
-        st.caption("Charts appear here once the collar has logged some episodes.")
+        st.caption("Charts appear here once the collar has logged some events.")
         return
 
     # ===================================================================== #
@@ -69,7 +69,7 @@ def render(df, data=None):
 
     # A couple of headline numbers (st.columns + st.metric).
     col1, col2, col3 = st.columns(3)
-    col1.metric("Episodes", len(df))
+    col1.metric("Events", len(df))
     col2.metric("Minutes tracked", round(df["event_duration"].sum()))
     col3.metric("Top activity", df["activity"].value_counts().index[0])
 
@@ -123,7 +123,7 @@ def render(df, data=None):
     times_per_activity.columns = ["activity", "count"]
     st.write("**How often each activity happened**")
     st.altair_chart(
-        mw.stacked_bar(times_per_activity, "activity", "count", "activity", "episodes",
+        mw.stacked_bar(times_per_activity, "activity", "count", "activity", "events",
                        legend=False),
         use_container_width=True,
     )
