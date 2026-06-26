@@ -71,10 +71,12 @@ def render(df, data=None):
     st.caption(f"{len(fdf)} of {len(df)} episodes match your filter.")
 
     if not fdf.empty:
-        # easy chart on the FILTERED data: minutes per day
+        # easy chart on the FILTERED data: minutes per day (temporal=True keeps it transparent
+        # and in date order, so it blends with the page instead of a white panel)
         per_day = fdf.groupby("event_date")["event_duration"].sum().reset_index()
         st.write("**Minutes per day** (filtered)")
-        st.bar_chart(per_day, x="event_date", y="event_duration", color="#bc7bc2")
+        st.altair_chart(mw.bar(per_day, "event_date", "event_duration", "minutes", temporal=True),
+                        use_container_width=True)
 
     # =====================================================================
     # PART 2 , charts on the FULL (raw) data , no filtering
