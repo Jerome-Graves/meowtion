@@ -145,6 +145,27 @@ canvas.wave-imu { height: 46px; }
 .cs-chip.none .cs-bar i { background: var(--bad); }
 .cs-chip.unl { background: #f4f4f8; }
 .cs-chip.unl .cs-num { font-weight: 600; color: var(--ink); }
+
+/* ---- inline help: "?" beside a card title, description in a hover/focus popover ---- */
+h3 .help {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; margin-left: .35rem; vertical-align: middle;
+  border-radius: 50%; background: var(--line); color: var(--muted);
+  font-size: .7rem; font-weight: 700; line-height: 1; cursor: help;
+  position: relative; user-select: none; -webkit-user-select: none;
+}
+h3 .help:hover, h3 .help:focus { background: var(--accent); color: #fff; outline: none; }
+.help-pop {
+  position: absolute; top: calc(100% + 7px); left: 0;
+  width: 270px; max-width: 76vw;
+  background: #fff; color: var(--ink); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 10px 30px rgba(16, 18, 40, .16);
+  padding: .6rem .7rem; font-size: .78rem; font-weight: 400; line-height: 1.45;
+  letter-spacing: normal; text-transform: none; text-align: left;
+  opacity: 0; visibility: hidden; transform: translateY(-3px);
+  transition: opacity .12s, transform .12s; z-index: 50; pointer-events: none;
+}
+.help:hover .help-pop, .help:focus .help-pop { opacity: 1; visibility: visible; transform: translateY(0); }
 .wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
 .wave-marker {
   position: absolute;

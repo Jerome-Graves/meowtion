@@ -14,6 +14,29 @@
     function show(which) {
       document.getElementById("gate").classList.toggle("hidden", which !== "gate");
       document.getElementById("devview").classList.toggle("hidden", which !== "dev");
+      if (which === "dev") installHelpTooltips();
+    }
+
+    // Tidy the cards: move each card's description paragraph into a "?" help icon next to the
+    // title, shown as a hover/focus popover. Idempotent, so calling it again does nothing.
+    function installHelpTooltips() {
+      document.querySelectorAll("#devview .card").forEach(card => {
+        const h = card.querySelector("h3");
+        if (!h || h.querySelector(".help")) return;
+        const hint = card.querySelector(".hint");   // the first .hint is the card's description
+        if (!hint) return;
+        const help = el("span", "help");
+        help.tabIndex = 0;
+        help.setAttribute("role", "button");
+        help.setAttribute("aria-label", "Help");
+        const pop = el("span", "help-pop");
+        pop.innerHTML = hint.innerHTML;
+        help.appendChild(document.createTextNode("?"));
+        help.appendChild(pop);
+        h.appendChild(document.createTextNode(" "));
+        h.appendChild(help);
+        hint.remove();
+      });
     }
     function fresh(ts) { return typeof ts === "number" && (Date.now() - ts) < 35000; }
     function el(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
