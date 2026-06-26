@@ -113,6 +113,18 @@ canvas.wave-imu { height: 46px; }
 .imu-legend { display: inline-flex; gap: .55rem; align-items: center; font-size: .68rem; color: var(--muted); }
 .imu-legend i { display: inline-block; width: 10px; height: 2px; margin-right: 3px; vertical-align: middle; border-radius: 1px; }
 .clip-time { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---- clip grouping: Day > Session > Clip disclosures ---- */
+.day-group { border: 1px solid var(--line); border-radius: 11px; margin-bottom: .5rem; background: #fff; overflow: hidden; }
+.group-head { display: flex; align-items: center; gap: .5rem; padding: .5rem .7rem; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.group-head:hover { background: #f6f4fb; }
+.day-head { background: #f1edf7; font-weight: 700; }
+.sess-head { padding-left: 1.5rem; font-size: .92rem; font-weight: 600; border-top: 1px solid var(--line); }
+.group-head .chev { width: 1em; color: var(--muted); flex: none; }
+.group-head .g-title { font-variant-numeric: tabular-nums; }
+.group-head .g-meta { margin-left: auto; font-size: .72rem; font-weight: 500; color: var(--muted); }
+.group-body.hidden { display: none; }
+.session-group > .group-body:not(.hidden) { padding: .1rem .5rem .3rem 1.4rem; }
 .wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
 .wave-marker {
   position: absolute;

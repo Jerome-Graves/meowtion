@@ -450,32 +450,114 @@
       else alert("Deleted " + all.length + " clips and their files.");
     }
 
-    // Incremental: only ADD new clips (prepend) and REMOVE deleted ones; never touch existing rows.
-    // Rebuilding the whole list recreated every <audio> on each new clip , that's what caused the
-    // flashing and constant re-downloading.
+    // ---- clip grouping: Day > Session > Clip, each a collapsible disclosure ----
+    // A "session" is a run of clips in the same or consecutive minute (a continuous recording);
+    // a gap of a whole empty minute starts a new session. Open/closed state lives in openGroups
+    // so it survives the rebuilds that happen as new clips arrive.
+    let openGroups = new Set();
+    let groupsSeeded = false;
+
+    function clipTs(c) { return (typeof c.ts === "number") ? c.ts : (Number(c.id) || 0); }
+    function minuteBucket(ts) { return Math.floor(ts / 60000); }
+
+    function dayInfo(ts) {
+      const d = new Date(ts);
+      const key = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+      const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      const now = new Date(), yest = new Date(Date.now() - 86400000);
+      let label;
+      if (same(d, now)) label = "Today";
+      else if (same(d, yest)) label = "Yesterday";
+      else label = d.toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+      return { key, label };
+    }
+    function sessionTimeRange(sess) {
+      const t = ms => new Date(ms).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+      const a = t(clipTs(sess[0])), b = t(clipTs(sess[sess.length - 1]));
+      return a === b ? a : (a + "–" + b);
+    }
+    function sessionLabel(sess) {
+      const labels = new Set(sess.map(c => c.label).filter(Boolean));
+      if (!labels.size) return "unlabelled";
+      return labels.size === 1 ? [...labels][0] : "mixed";
+    }
+    function toggleGroup(key, head, body) {
+      const open = !body.classList.toggle("hidden");   // toggle returns true when 'hidden' is now set
+      if (open) openGroups.add(key); else openGroups.delete(key);
+      const chev = head.querySelector(".chev"); if (chev) chev.textContent = open ? "▾" : "▸";
+    }
+    function plural(n, w) { return n + " " + w + (n === 1 ? "" : "s"); }
+
     function renderClips(devices) {
       maybeLabelNewClips(devices);   // auto-label clips arriving during a live-label session
       const wrap = document.getElementById("clips");
+      if (!wrap) return;
       const all = [];
       Object.entries(devices || {}).forEach(([token, d]) => {
         if (d && d.type === "station" && d.clips)
           Object.entries(d.clips).forEach(([id, c]) => all.push({ id, token, ...c }));
       });
-      all.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-      const visible = all.slice(0, 200);                // rows are cheap now (collapsed, no audio), so show plenty
-      const inView = {};
-      visible.forEach(c => { inView[c.id] = c; });
-      // remove rows that are gone OR fell past the newest-200 (and DON'T re-add them , that loop was the bug)
-      Object.keys(clipEls).forEach(id => { if (!inView[id]) { clipEls[id].row.remove(); delete clipEls[id]; } });
-      if (!visible.length) { wrap.innerHTML = '<div class="empty">No clips yet.</div>'; clipEls = {}; return; }
-      const emp = wrap.querySelector(".empty"); if (emp) emp.remove();
-      // oldest -> newest of the visible set, prepend each so the newest ends up on top
-      visible.slice().reverse().forEach(c => {
-        if (!clipEls[c.id]) {
-          const row = buildClipRow(c);
-          clipEls[c.id] = { row };
-          wrap.insertBefore(row, wrap.firstChild);
-        }
+      if (!all.length) { wrap.innerHTML = '<div class="empty">No clips yet.</div>'; clipEls = {}; lastClipsSig = ""; return; }
+      all.sort((a, b) => clipTs(a) - clipTs(b));   // ascending, so sessions chain in recording order
+
+      // Skip the rebuild when neither the clip set nor any label changed (the 5 s refresh tick, etc.).
+      const sig = all.map(c => c.id + ":" + (c.label || "")).join("|");
+      if (sig === lastClipsSig) return;
+      lastClipsSig = sig;
+
+      // Build Day -> Sessions, chaining clips while consecutive minute buckets differ by <= 1.
+      const days = [], dayMap = {};
+      all.forEach(c => {
+        const di = dayInfo(clipTs(c));
+        let day = dayMap[di.key];
+        if (!day) { day = dayMap[di.key] = { key: di.key, label: di.label, sessions: [] }; days.push(day); }
+        const last = day.sessions[day.sessions.length - 1];
+        const prev = last && last[last.length - 1];
+        if (prev && minuteBucket(clipTs(c)) - minuteBucket(clipTs(prev)) <= 1) last.push(c);
+        else day.sessions.push([c]);
+      });
+
+      // First paint: open the newest day and its newest session so the latest clips are visible.
+      if (!groupsSeeded) {
+        groupsSeeded = true;
+        const nd = days[days.length - 1];
+        openGroups.add("day:" + nd.key);
+        const ns = nd.sessions[nd.sessions.length - 1];
+        if (ns) openGroups.add("sess:" + ns[0].id);
+      }
+
+      clipEls = {};
+      wrap.innerHTML = "";
+      days.slice().reverse().forEach(day => {                       // newest day first
+        const totalClips = day.sessions.reduce((n, s) => n + s.length, 0);
+        const dayKey = "day:" + day.key, dayOpen = openGroups.has(dayKey);
+        const dayWrap = el("div", "day-group");
+        const dayHead = el("div", "group-head day-head");
+        dayHead.appendChild(el("span", "chev", dayOpen ? "▾" : "▸"));
+        dayHead.appendChild(el("span", "g-title", day.label));
+        dayHead.appendChild(el("span", "g-meta", plural(totalClips, "clip") + " · " + plural(day.sessions.length, "session")));
+        const dayBody = el("div", "group-body" + (dayOpen ? "" : " hidden"));
+        dayHead.onclick = () => toggleGroup(dayKey, dayHead, dayBody);
+        dayWrap.append(dayHead, dayBody);
+
+        day.sessions.slice().reverse().forEach(sess => {            // newest session first
+          const sKey = "sess:" + sess[0].id, sOpen = openGroups.has(sKey);
+          const sWrap = el("div", "session-group");
+          const sHead = el("div", "group-head sess-head");
+          sHead.appendChild(el("span", "chev", sOpen ? "▾" : "▸"));
+          sHead.appendChild(el("span", "g-title", sessionTimeRange(sess)));
+          sHead.appendChild(el("span", "g-meta", sess.length + " · " + sessionLabel(sess)));
+          const sBody = el("div", "group-body" + (sOpen ? "" : " hidden"));
+          sHead.onclick = () => toggleGroup(sKey, sHead, sBody);
+          sess.slice().reverse().forEach(c => {                     // newest clip first within a session
+            const row = buildClipRow(c);
+            clipEls[c.id] = { row };
+            sBody.appendChild(row);
+          });
+          sWrap.append(sHead, sBody);
+          dayBody.appendChild(sWrap);
+        });
+        wrap.appendChild(dayWrap);
       });
     }
 
@@ -495,8 +577,8 @@
         g_actions = (Array.isArray(a) && a.length) ? a : ["eat", "drink", "resting", "moving"];
         renderActions();
         renderActivityButtons();
-        // refresh clip dropdowns so new actions appear as options
-        Object.keys(clipEls).forEach(id => { clipEls[id].row.remove(); delete clipEls[id]; });
+        // refresh clip dropdowns so new actions appear as options (force a rebuild)
+        lastClipsSig = "";
         renderClips(lastDevices);
       });
       timer = setInterval(renderAll, 5000);   // refresh freshness/"Xs ago"
