@@ -225,8 +225,8 @@
       let accelCv = null, gyroCv = null;
       if (hasImu) {
         accelCv = el("canvas", "wave-imu");
-        stack.appendChild(lane(accelCv, "accel x·y·z"));
-        if (imuAxes >= 6) { gyroCv = el("canvas", "wave-imu"); stack.appendChild(lane(gyroCv, "gyro x·y·z")); }
+        stack.appendChild(lane(accelCv, "movement x·y·z"));
+        if (imuAxes >= 6) { gyroCv = el("canvas", "wave-imu"); stack.appendChild(lane(gyroCv, "rotation x·y·z")); }
       }
       const dimL = el("div", "wave-dim"), dimR = el("div", "wave-dim");
       const mStart = el("div", "wave-marker start"), mEnd = el("div", "wave-marker end");
