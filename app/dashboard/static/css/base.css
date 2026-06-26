@@ -9,8 +9,8 @@
 
 /* ---- design tokens ---- */
 :root {
-  --accent: #6a486e;     /* render-matched plum/lavender (sampled from the CAD render panels) */
-  --accent-d: #543a58;   /* darker, for hovers */
+  --accent: #bc7bc2;     /* brand lavender (188,123,194) */
+  --accent-d: #a25cb3;   /* darker, for hovers */
   --ink: #1b1b2b;
   --muted: #6b7280;
   --line: #e6e7ec;
