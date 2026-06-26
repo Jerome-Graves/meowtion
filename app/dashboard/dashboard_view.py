@@ -13,14 +13,15 @@ Firebase , that's all done for you. There is ONE ROW PER LOGGED EPISODE, with th
     start_time           "HH:MM"
     event_duration       how long it lasted, in MINUTES
 
-Ready-made helpers (we did the fiddly bits for you):
+Ready-made helpers (import meowtion_dash as mw):
 
-    import meowtion_dash as mw
-    mw.filter_by_activity(df, "Eat")            # or a list: ["Eat", "Drink"]
-    mw.period_options(df, "Week")               # the weeks (or days/months) you can pick from
+    mw.health_signals(df)                       # recent vs usual for eat/drink/active/rest
+    mw.period_options(df, "Week")               # the days/weeks/months you can pick from
     mw.filter_to_window(df, "Week", key)        # keep just the chosen day/week/month
-    mw.over_time(window, "Week")                # minutes along the x-axis (per hour / per day)
-    mw.bar(frame, x, y, title)                  # a branded bar chart (temporal=True for dates)
+    mw.over_time(window, "Week")                # minutes per hour/date, split by activity
+    mw.filter_by_activity(df, "Eat")            # or a list: ["Eat", "Drink"]
+    mw.stacked_bar(frame, x, y, color, title)   # bars coloured by activity (temporal=True for dates)
+    mw.bar(frame, x, y, title)                  # single-colour bars
 """
 import streamlit as st
 
@@ -29,83 +30,92 @@ import meowtion_dash as mw
 
 def render(df, data=None):
     st.divider()
-    st.subheader("📊 Activity history")
 
     # If the collar hasn't logged anything yet, `df` is empty , show a note and stop.
     if df.empty:
+        st.subheader("📊 Activity history")
         st.caption("Charts appear here once the collar has logged some episodes.")
         return
 
     # ===================================================================== #
-    # STEP 1 , Show a few headline numbers.
-    #   st.columns(3) makes three slots side by side.
-    #   st.metric(label, value) shows one big number in a slot.
+    # STEP 1 , HEALTH WATCH , the useful bit.
+    #   For each key habit, mw.health_signals compares the last few days to the cat's
+    #   longer-run normal. A big change in eating or drinking is an early warning sign.
+    #   st.metric(label, value, delta) shows the recent level and the % change; we keep
+    #   delta_color="off" because "up" isn't always good or bad , the warnings below judge.
     # ===================================================================== #
+    st.subheader("🩺 Health watch")
+    st.caption("How your cat's key habits compare to their normal. Big, lasting changes in eating "
+               "or drinking are worth raising with your vet.")
+
+    signals = mw.health_signals(df)
+    if signals:
+        cols = st.columns(len(signals))
+        for col, s in zip(cols, signals):
+            delta = f"{s['change_pct']:+.0f}% vs usual" if s["change_pct"] is not None else "no baseline yet"
+            col.metric(f"{s['activity']}  (min/day)", f"{s['recent']:.0f}", delta=delta, delta_color="off")
+
+        # Flag any habit that has moved a lot versus the cat's baseline.
+        for s in signals:
+            if s["change_pct"] is not None and abs(s["change_pct"]) >= 30:
+                direction = "up" if s["change_pct"] > 0 else "down"
+                st.warning(f"⚠️ **{s['activity']} is {direction} {abs(s['change_pct']):.0f}%** vs your "
+                           f"cat's recent normal. Worth keeping an eye on.")
+    else:
+        st.caption("Not enough data yet to compare habits.")
+
+    st.divider()
+    st.subheader("📊 Activity history")
+
+    # A couple of headline numbers (st.columns + st.metric).
     col1, col2, col3 = st.columns(3)
-    col1.metric("Episodes", len(df))                                     # how many rows
-    col2.metric("Minutes tracked", round(df["event_duration"].sum()))    # sum the minutes column
-    col3.metric("Top activity", df["activity"].value_counts().index[0])  # most frequent activity
+    col1.metric("Episodes", len(df))
+    col2.metric("Minutes tracked", round(df["event_duration"].sum()))
+    col3.metric("Top activity", df["activity"].value_counts().index[0])
 
-    # A fun headline , just to show you can do maths on the data.
-    hours = round(df["event_duration"].sum() / 60)
-    st.caption(f"😼 {hours} hours of world domination logged so far.")
-
-    with st.expander("See the data table"):     # st.expander hides this until clicked
+    with st.expander("See the data table"):
         st.dataframe(df, use_container_width=True)
 
     # ===================================================================== #
     # STEP 2 , Pick a time window to zoom into.
-    #   First choose the SPAN of the x-axis (a Day, a Week, or a Month) with st.radio,
-    #   then choose WHICH one with st.selectbox. The options come from a helper.
+    #   st.radio chooses the SPAN of the x-axis (a Day / Week / Month); st.selectbox
+    #   chooses WHICH one. The options come from a helper.
     # ===================================================================== #
     st.write("### Zoom in")
-
     span = st.radio("X-axis spans a", ["Day", "Week", "Month"], horizontal=True)
-
     windows = mw.period_options(df, span)        # [(label, key), ...], newest first
-    labels = [label for label, key in windows]
-    chosen_label = st.selectbox(span, labels)    # e.g. "Week of 23 Jun 2025"
-    chosen_key = dict(windows)[chosen_label]     # the matching key for the helper below
-
-    # (optional) also let the viewer narrow to certain activities
-    all_activities = sorted(df["activity"].unique())
-    chosen_acts = st.multiselect("Activities", all_activities, default=all_activities)
+    chosen_label = st.selectbox(span, [label for label, key in windows])
+    chosen_key = dict(windows)[chosen_label]
 
     # ===================================================================== #
-    # STEP 3 , Keep just the rows in that window (and those activities).
+    # STEP 3 , Keep just the rows in that window, then chart them STACKED BY ACTIVITY.
+    #   mw.over_time sums minutes per hour (Day) or per date (Week/Month), split by activity,
+    #   and mw.stacked_bar colours each activity its own colour.
     # ===================================================================== #
     window = mw.filter_to_window(df, span, chosen_key)
-    window = mw.filter_by_activity(window, chosen_acts) if chosen_acts else window.iloc[0:0]
-    st.caption(f"{len(window)} episodes in {chosen_label}.")
-
-    # ===================================================================== #
-    # STEP 4 , Chart that window.
-    #   mw.over_time sums the minutes per hour (for a Day) or per date (Week / Month).
-    #   We label the x-axis with hours for a Day, otherwise with dates.
-    # ===================================================================== #
     if window.empty:
-        st.info("No activity in this window , pick another, or add more activities.")
+        st.info("No activity in this window , pick another.")
     else:
         frame = mw.over_time(window, span)
         unit = "hour" if span == "Day" else "day"
         time_format = "%H:%M" if span == "Day" else "%d %b"
-        st.write(f"**Minutes per {unit}** , {chosen_label}")
+        st.write(f"**Minutes per {unit}, by activity** , {chosen_label}")
         st.altair_chart(
-            mw.bar(frame, "when", "event_duration", "minutes", temporal=True, time_format=time_format),
+            mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
+                           temporal=True, time_format=time_format),
             use_container_width=True,
         )
 
     # ===================================================================== #
-    # STEP 5 , Charts across ALL the data (ignoring the window above).
-    #   df.groupby("activity")["event_duration"].sum() adds up minutes per activity.
-    #   df["activity"].value_counts() counts how many times each activity happened.
+    # STEP 4 , Charts across ALL the data, each activity in its own colour.
     # ===================================================================== #
     st.write("### All activity")
 
     minutes_per_activity = df.groupby("activity")["event_duration"].sum().reset_index()
     st.write("**Total minutes per activity**")
     st.altair_chart(
-        mw.bar(minutes_per_activity, "activity", "event_duration", "minutes"),
+        mw.stacked_bar(minutes_per_activity, "activity", "event_duration", "activity", "minutes",
+                       legend=False),
         use_container_width=True,
     )
 
@@ -113,12 +123,13 @@ def render(df, data=None):
     times_per_activity.columns = ["activity", "count"]
     st.write("**How often each activity happened**")
     st.altair_chart(
-        mw.bar(times_per_activity, "activity", "count", "episodes"),
+        mw.stacked_bar(times_per_activity, "activity", "count", "activity", "episodes",
+                       legend=False),
         use_container_width=True,
     )
 
     # ===================================================================== #
-    # STEP 6 , YOUR TURN. Add a chart below.
+    # STEP 5 , YOUR TURN. Add a chart below.
     #   `df` is everything; the mw.filter_* helpers give you a slice. For example:
     #
     #       weekend = mw.filter_by_weekday(df, ["Saturday", "Sunday"])

@@ -28,14 +28,14 @@ from .firebase import fetch
 from .data import (
     activity_dataframe, model_labels, EVENT_ICON, fmt_time, fmt_dur,
     filter_by_activity, filter_by_weekday, filter_by_date_range, last_n_days,
-    period_options, filter_to_window, over_time,
+    period_options, filter_to_window, over_time, health_signals,
 )
-from .charts import bar
+from .charts import bar, stacked_bar
 from .live import live_view
 
 __all__ = [
     "configure_page", "brand_header", "require_session", "fetch", "live_view",
     "activity_dataframe", "model_labels", "EVENT_ICON", "fmt_time", "fmt_dur",
     "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",
-    "period_options", "filter_to_window", "over_time", "bar",
+    "period_options", "filter_to_window", "over_time", "health_signals", "bar", "stacked_bar",
 ]

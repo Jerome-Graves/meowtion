@@ -140,12 +140,45 @@ def filter_to_window(df, period, key):
 
 
 def over_time(df, period, value="event_duration"):
-    """Sum `value` along the x-axis of the chosen window: per HOUR within a Day, per DATE within a
-    Week or Month. Returns columns `when` (a datetime) and `value`, for a temporal bar chart."""
+    """Sum `value` along the x-axis of the chosen window, SPLIT BY ACTIVITY: per HOUR within a Day,
+    per DATE within a Week or Month. Returns columns `when` (datetime), `activity`, and `value`,
+    ready for a stacked bar chart coloured by activity."""
     if df.empty:
-        return pd.DataFrame(columns=["when", value])
+        return pd.DataFrame(columns=["when", "activity", value])
     if period == "Day":
         when = pd.to_datetime(df["event_date"] + " " + df["start_time"]).dt.floor("h")  # the hour
     else:
         when = pd.to_datetime(df["event_date"]).dt.normalize()                          # the date
-    return df.assign(when=when).groupby("when")[value].sum().reset_index()
+    return df.assign(when=when).groupby(["when", "activity"])[value].sum().reset_index()
+
+
+# Health-relevant habits, most informative first. A cat eating less or drinking more is a classic
+# early warning, so those lead.
+_HEALTH_PRIORITY = ["Eat", "Drink", "Moving", "Active", "Walk", "Play", "Resting", "Sleep"]
+
+
+def health_signals(df, recent_days=3, baseline_days=14, limit=4):
+    """Compare each watched habit's RECENT daily average to a longer BASELINE, to surface routine
+    changes worth noticing.
+
+    Returns a list (most informative first) of dicts:
+        {activity, recent, baseline, change_pct}   minutes/day; change_pct is None if no baseline.
+    """
+    if df.empty:
+        return []
+    present = set(df["activity"])
+    watch = [a for a in _HEALTH_PRIORITY if a in present][:limit]
+    daily = df.groupby(["event_date", "activity"])["event_duration"].sum().reset_index()
+    all_days = sorted(df["event_date"].unique())   # days with any data; missing activity = 0 mins
+    out = []
+    for act in watch:
+        sub = daily[daily["activity"] == act]
+        by_date = dict(zip(sub["event_date"], sub["event_duration"]))
+        series = [by_date.get(d, 0.0) for d in all_days]
+        recent = series[-recent_days:]
+        base = series[max(0, len(series) - recent_days - baseline_days):len(series) - recent_days]
+        r = sum(recent) / len(recent) if recent else 0.0
+        b = (sum(base) / len(base)) if base else None
+        change = ((r - b) / b * 100) if b else None
+        out.append({"activity": act, "recent": r, "baseline": b, "change_pct": change})
+    return out
