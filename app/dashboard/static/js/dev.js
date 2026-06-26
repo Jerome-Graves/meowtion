@@ -103,6 +103,18 @@
       }
     }
 
+    // Local date+time the clip was recorded. c.ts is epoch ms (the clip key is the same value).
+    // Returns a compact label for the row and a full one for the tooltip, or null if unknown.
+    function clipWhen(c) {
+      const ms = (typeof c.ts === "number") ? c.ts : Number(c.id);
+      if (!ms || !isFinite(ms)) return null;
+      const d = new Date(ms);
+      return {
+        short: d.toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }),
+        full: d.toLocaleString(undefined, { weekday: "short", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }),
+      };
+    }
+
     // Human-readable clip length: trimmed window if one's been saved, else the recorded duration.
     function lenText(c) {
       if (typeof c.trimStartMs === "number" && typeof c.trimEndMs === "number")
@@ -142,6 +154,8 @@
       head.appendChild(lhs);
 
       const rhs = el("div", "lhs");
+      const when = clipWhen(c);
+      if (when) { const tEl = el("span", "clip-time", when.short); tEl.title = "Recorded " + when.full; rhs.appendChild(tEl); }
       const lenEl = el("span", "devid", lenText(c));
       rhs.appendChild(lenEl);
       const del = el("button", "sm", "✕"); del.title = "Delete clip"; del.type = "button";

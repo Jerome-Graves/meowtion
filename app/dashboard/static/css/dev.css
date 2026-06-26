@@ -112,6 +112,7 @@ canvas.wave-imu { height: 46px; }
 }
 .imu-legend { display: inline-flex; gap: .55rem; align-items: center; font-size: .68rem; color: var(--muted); }
 .imu-legend i { display: inline-block; width: 10px; height: 2px; margin-right: 3px; vertical-align: middle; border-radius: 1px; }
+.clip-time { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .wave-dim { position: absolute; top: 0; bottom: 0; background: rgba(27, 27, 43, .42); pointer-events: none; }
 .wave-marker {
   position: absolute;
