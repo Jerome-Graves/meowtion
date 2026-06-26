@@ -22,7 +22,9 @@
        by initDemo() in dev.js. */
     .demo-readonly #modeToggle,
     .demo-readonly #capToggle,
-    .demo-readonly #forceToggle,
+    .demo-readonly #activityBtns button,
+    .demo-readonly #actSecs,
+    .demo-readonly #actStop,
     .demo-readonly .switch,
     .demo-readonly #trainBtn,
     .demo-readonly #delAll,
@@ -142,18 +144,26 @@
       </div>
 
       <div class="card">
-        <h3>Manual capture (ignore range)</h3>
-        <p class="hint">Records whenever a registered collar is heard at <em>any</em> distance, ignoring the range
-          gate. Use this to capture purring, which happens while the cat is resting or being petted, not at the
-          bowl. Works on its own, independent of the toggle above. Turn it OFF when you're done.</p>
-        <div class="row">
-          <label class="switch">
-            <input type="checkbox" id="forceToggle" onchange="toggleForce()" />
-            <span class="track"><span class="thumb"></span></span>
-            <span class="switch-label" id="forceState">Off</span>
-          </label>
-          <span id="force-msg" class="msg"></span>
+        <h3>Record an action (live label)</h3>
+        <p class="hint">Press the button for what your cat is doing <em>right now</em>. The station records for the
+          chosen length at <em>any</em> distance (ignoring the range gate), and every clip is auto-labelled with that
+          action , no listening and labelling afterwards. Use this for behaviours away from the bowl: resting,
+          sleeping, walking, playing, purring. The buttons come from your action set above.</p>
+        <div id="activityBtns" class="row" style="flex-wrap:wrap;gap:.4rem;">
+          <span class="muted" style="font-size:.85rem;">Add actions above to get buttons here.</span>
         </div>
+        <div class="row" style="margin-top:.6rem;align-items:center;gap:.5rem;">
+          <span class="hint" style="margin:0;">Length</span>
+          <select id="actSecs" class="sm">
+            <option value="15">15s</option>
+            <option value="30" selected>30s</option>
+            <option value="60">60s</option>
+            <option value="120">2 min</option>
+          </select>
+          <button id="actStop" class="sm" type="button" onclick="stopActivity('manual')" style="display:none;">■ Stop</button>
+          <span id="act-status" class="msg"></span>
+        </div>
+        <span id="act-msg" class="msg"></span>
       </div>
 
       <div class="card">
@@ -193,6 +203,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <script src="js/firebase-init.js"></script>
-  <script src="js/dev.js?v=3"></script>
+  <script src="js/dev.js?v=4"></script>
 </body>
 </html>

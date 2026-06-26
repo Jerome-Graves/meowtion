@@ -454,6 +454,7 @@
     // Rebuilding the whole list recreated every <audio> on each new clip , that's what caused the
     // flashing and constant re-downloading.
     function renderClips(devices) {
+      maybeLabelNewClips(devices);   // auto-label clips arriving during a live-label session
       const wrap = document.getElementById("clips");
       const all = [];
       Object.entries(devices || {}).forEach(([token, d]) => {
@@ -493,6 +494,7 @@
         const a = s.val();
         g_actions = (Array.isArray(a) && a.length) ? a : ["eat", "drink", "purr"];
         renderActions();
+        renderActivityButtons();
         // refresh clip dropdowns so new actions appear as options
         Object.keys(clipEls).forEach(id => { clipEls[id].row.remove(); delete clipEls[id]; });
         renderClips(lastDevices);
@@ -556,8 +558,6 @@
     function renderCapBtn() {   // sync the toggle switches to their flags
       document.getElementById("capToggle").checked = g_captureOn;
       document.getElementById("capState").textContent = g_captureOn ? "On" : "Off";
-      document.getElementById("forceToggle").checked = g_forceOn;
-      document.getElementById("forceState").textContent = g_forceOn ? "On" : "Off";
       document.getElementById("modeToggle").checked = g_production;
       document.getElementById("modeState").textContent = g_production ? "Production" : "Training";
     }
@@ -578,20 +578,128 @@
         msg("mode-msg", e.message || "Failed.", "err");
       }
     }
-    async function toggleForce() {
-      if (g_demo) { renderCapBtn(); return msg("force-msg", "Read-only demo , sign in with a dev account to make changes.", "err"); }
-      const next = document.getElementById("forceToggle").checked;
+    // ---- live-label capture: press an action button, record a timed session at ANY distance, and
+    // auto-label every clip that arrives during the window. Reuses the station's captureForce flag
+    // (ignore-range) , no firmware change. Replaces the old manual force toggle. ----
+    let g_session = null;
+
+    function renderActivityButtons() {
+      const wrap = document.getElementById("activityBtns");
+      if (!wrap) return;
+      wrap.innerHTML = "";
+      if (!g_actions.length) {
+        wrap.innerHTML = '<span class="muted" style="font-size:.85rem;">Add actions above to get buttons here.</span>';
+        return;
+      }
+      g_actions.forEach(a => {
+        const b = el("button", "sm", a);
+        b.type = "button"; b.dataset.action = a;
+        b.onclick = () => startActivity(a);
+        wrap.appendChild(b);
+      });
+      renderActivityStatus();
+    }
+
+    function renderActivityStatus() {
+      const st = document.getElementById("act-status");
+      const stop = document.getElementById("actStop");
+      const wrap = document.getElementById("activityBtns");
+      const s = g_session;
+      if (st) {
+        if (s && s.active) {
+          const left = Math.max(0, Math.ceil((s.endAt - Date.now()) / 1000));
+          st.textContent = "⏺ Recording '" + s.label + "' , " + left + "s left" +
+            (s.labelled ? " (" + s.labelled + " clip" + (s.labelled > 1 ? "s" : "") + ")" : "");
+          st.className = "msg ok";
+        } else if (s) {
+          st.textContent = "Saving '" + s.label + "'… " + (s.labelled || 0) + " clip(s)";
+          st.className = "msg";
+        } else if (g_forceOn) {
+          st.textContent = "⏺ Force-capture is on , press Stop to end it.";
+          st.className = "msg err";
+        } else { st.textContent = ""; st.className = "msg"; }
+      }
+      if (stop) stop.style.display = ((s && s.active) || (!s && g_forceOn)) ? "" : "none";
+      if (wrap) wrap.querySelectorAll("button").forEach(b => {
+        b.disabled = !!(s && s.active);
+        b.classList.toggle("primary", !!(s && b.dataset.action === s.label));
+      });
+    }
+
+    async function startActivity(label) {
+      if (g_demo) return msg("act-msg", "Read-only demo , sign in with a dev account to make changes.", "err");
+      if (g_session) return;   // already recording , Stop first
       const tokens = Object.entries(lastDevices).filter(([, d]) => d && d.type === "station").map(([t]) => t);
-      if (!tokens.length) { renderCapBtn(); return msg("force-msg", "No stations to control.", "err"); }
+      if (!tokens.length) return msg("act-msg", "No stations to control.", "err");
+      const secs = parseInt(document.getElementById("actSecs").value, 10) || 30;
+      // remember the clips that already exist, so we only auto-label NEW ones
+      const known = new Set();
+      Object.values(lastDevices).forEach(d => { if (d && d.clips) Object.keys(d.clips).forEach(id => known.add(id)); });
+      const now = Date.now();
+      const sess = { label, id: "s" + now, tokens, known, active: true, secs, startMs: now,
+                     endAt: now + secs * 1000, graceUntil: 0, labelled: 0, stopTimer: 0, tickTimer: 0 };
       const updates = {};
-      tokens.forEach(t => { updates["users/" + g_uid + "/devices/" + t + "/config/captureForce"] = next; });
-      try {
-        await firebase.database().ref().update(updates);
-        g_forceOn = next; renderCapBtn();
-        msg("force-msg", next ? "On , recording whenever the collar is heard, any distance." : "Off.", "ok");
-      } catch (e) {
-        renderCapBtn();   // revert the switch , the write didn't land
-        msg("force-msg", e.message || "Failed.", "err");
+      tokens.forEach(t => { updates["users/" + g_uid + "/devices/" + t + "/config/captureForce"] = true; });
+      try { await firebase.database().ref().update(updates); }
+      catch (e) { return msg("act-msg", e.message || "Couldn't start recording.", "err"); }
+      g_session = sess; g_forceOn = true; msg("act-msg", "");
+      sess.tickTimer = setInterval(renderActivityStatus, 500);
+      sess.stopTimer = setTimeout(() => stopActivity("auto"), secs * 1000);
+      renderActivityButtons();
+    }
+
+    async function stopActivity(reason) {
+      // No managed session, but force-capture may be left on , turn it off.
+      if (!g_session) {
+        if (g_forceOn && !g_demo) {
+          const tokens = Object.entries(lastDevices).filter(([, d]) => d && d.type === "station").map(([t]) => t);
+          const updates = {}; tokens.forEach(t => { updates["users/" + g_uid + "/devices/" + t + "/config/captureForce"] = false; });
+          try { await firebase.database().ref().update(updates); g_forceOn = false; } catch (e) {}
+          renderActivityStatus();
+        }
+        return;
+      }
+      const s = g_session;
+      if (s.stopTimer) { clearTimeout(s.stopTimer); s.stopTimer = 0; }
+      s.active = false;
+      s.graceUntil = Date.now() + 15000;   // keep labelling late uploads for 15 s after stopping
+      const updates = {};
+      s.tokens.forEach(t => { updates["users/" + g_uid + "/devices/" + t + "/config/captureForce"] = false; });
+      try { await firebase.database().ref().update(updates); g_forceOn = false; } catch (e) {}
+      renderActivityStatus();
+      setTimeout(() => {
+        if (g_session === s) {
+          if (s.tickTimer) clearInterval(s.tickTimer);
+          g_session = null;
+          renderActivityButtons();
+          msg("act-msg", "Saved " + s.labelled + " clip" + (s.labelled === 1 ? "" : "s") + " as '" + s.label + "'.", s.labelled ? "ok" : "");
+        }
+      }, 15500);
+    }
+
+    // Auto-label clips that arrived during an active session. Called from renderClips on every update;
+    // the `known` set and the start-time guard keep it from touching old or unrelated clips.
+    function maybeLabelNewClips(devices) {
+      const s = g_session;
+      if (!s) return;
+      if (!s.active && Date.now() > s.graceUntil) return;   // window closed
+      const updates = {}; let n = 0;
+      Object.entries(devices || {}).forEach(([token, d]) => {
+        if (!d || d.type !== "station" || !d.clips) return;
+        Object.entries(d.clips).forEach(([id, c]) => {
+          if (s.known.has(id)) return;
+          s.known.add(id);
+          if (c && c.label) return;                                        // already labelled
+          if (c && typeof c.ts === "number" && c.ts < s.startMs - 5000) return;   // captured before this session
+          updates["users/" + g_uid + "/devices/" + token + "/clips/" + id + "/label"] = s.label;
+          updates["users/" + g_uid + "/devices/" + token + "/clips/" + id + "/session"] = s.id;
+          n++;
+        });
+      });
+      if (n) {
+        s.labelled += n;
+        firebase.database().ref().update(updates).catch(e => console.error("auto-label failed:", e));
+        renderActivityStatus();
       }
     }
     async function toggleCapture() {
@@ -624,6 +732,7 @@
         g_forceOn = first.config.captureForce === true;
         g_production = first.config.mode === "production";
         renderCapBtn();
+        renderActivityStatus();   // reflect leftover force-capture, if any
       }
     }
     async function saveConfig() {
