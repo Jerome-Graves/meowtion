@@ -2,3 +2,13 @@
 # SAME origin as this Python dashboard, so a login cookie is shared between them.
 [server]
 enableStaticServing = true
+
+# Brand the dashboard to match the static pages (css/base.css): white surfaces,
+# lavender accent, dark ink text. Forces light so it never falls back to the dark theme.
+[theme]
+base = "light"
+primaryColor = "#6557f5"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f4f8"
+textColor = "#1b1b2b"
+font = "sans serif"
