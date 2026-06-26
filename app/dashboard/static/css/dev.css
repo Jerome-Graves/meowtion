@@ -192,7 +192,7 @@ body.rec-focus-on { overflow: hidden; }
 .rec-focus-inner { width: 100%; max-width: 520px; display: flex; flex-direction: column; padding: 1.3rem 1.1rem 1.6rem; min-height: 100%; }
 .rec-focus-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .8rem; }
 .rec-focus-title { font-weight: 800; font-size: 1.35rem; letter-spacing: -.01em; }
-.rec-focus-close { background: #fff; border: 1px solid var(--line); border-radius: 50%; width: 42px; height: 42px; font-size: 1.15rem; color: var(--ink); cursor: pointer; }
+.rec-focus-close { display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; background: #fff; border: 1px solid var(--line); border-radius: 50%; width: 42px; height: 42px; font-size: 1.15rem; color: var(--ink); cursor: pointer; }
 .rec-focus-warn { background: #fde8e8; color: var(--bad); border: 1px solid #f5c2c2; border-radius: 12px; padding: .85rem 1rem; font-weight: 600; margin-bottom: .9rem; }
 .rec-focus-warn.hidden { display: none; }
 .rec-focus-status { text-align: center; color: var(--muted); font-weight: 600; margin: .1rem 0 1rem; min-height: 1.4em; }
