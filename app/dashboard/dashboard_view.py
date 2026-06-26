@@ -71,16 +71,19 @@ def render(df, data=None):
         if recent_wx and recent_wx["unusual"]:
             st.caption("🌡 Recently it's been " + ", ".join(recent_wx["unusual"])
                        + " , which can change how much a cat drinks, eats or rests.")
+            
+
+        
+        
     else:
         st.caption("Not enough data yet to compare habits.")
 
     st.divider()
     st.subheader("📊 Activity history")
 
-    # weather over the same window, so you can read the activity against hot/cold/wet days
-    weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
-    if weather_line:
-        st.caption(f"Weather this {span.lower()}:  {weather_line}")
+
+
+
 
     # ===================================================================== #
     # STEP 2 , Pick a time window to zoom into.
@@ -123,7 +126,11 @@ def render(df, data=None):
             use_container_width=True,
         )
 
-
+    # weather over the same window, so you can read the activity against hot/cold/wet days
+    weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
+    if weather_line:
+        st.caption(f"Weather this {span.lower()}:  {weather_line}")
+        
     # ===================================================================== #
     # STEP 4 , Charts across ALL the data, each activity in its own colour.
     # ===================================================================== #
