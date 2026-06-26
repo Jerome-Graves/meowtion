@@ -92,7 +92,7 @@
         <h3>Mode</h3>
         <p class="hint"><b>Training</b> (default): the station records and uploads labelled clips , use the
           toggles below to collect data. <b>Production</b>: the station stops recording and uploading
-          entirely and just relays the collar's on-device eat/drink/purr classification. Switch to
+          entirely and just relays the collar's on-device behaviour classification. Switch to
           Production once your models are trained and flashed.</p>
         <div class="row">
           <label class="switch">
@@ -106,7 +106,7 @@
 
       <div class="card">
         <h3>Actions to recognise</h3>
-        <p class="hint">The behaviours your collar learns , eat, drink, purr, scratch, litter-tray use… anything
+        <p class="hint">The behaviours your collar learns , eat, drink, resting, moving, scratch… anything
           you can capture and tell apart. These fill the label dropdown on each clip, and the trainer learns
           whatever set you define here.</p>
         <div id="actionList" class="row" style="flex-wrap:wrap;gap:.4rem;"></div>
@@ -119,7 +119,7 @@
 
       <div class="card">
         <h3>Train models (cloud)</h3>
-        <p class="hint">Trains the eat/drink/purr models from your labelled clips on the server (no local
+        <p class="hint">Trains the models from your labelled clips on the server (no local
           setup) and stores them on Firebase. Run it after you've collected and labelled a batch.</p>
         <div class="row">
           <button id="trainBtn" class="sm primary" onclick="retrainModels()">Retrain models</button>
@@ -190,7 +190,7 @@
           <button id="delAll" class="sm" title="Delete every clip and its files">Delete all</button>
         </div>
         <p class="hint">Audio clips the station captured at the bowl. Each row shows its label, length and whether
-          it has paired IMU data. Set the action (eat / drink / purr) from the dropdown, or click a row to expand it
+          it has paired IMU data. Set the action from the dropdown, or click a row to expand it
           and load the waveform: drag the start / end markers to cut dead space, Play to preview, then Save trim. The
           trim is a non-destructive window, applied to the audio and the time-aligned IMU together. Delete the clips
           that aren't good for training. Only expanded clips load their audio, so a long list stays fast.</p>
@@ -205,6 +205,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <script src="js/firebase-init.js"></script>
-  <script src="js/dev.js?v=4"></script>
+  <script src="js/dev.js?v=5"></script>
 </body>
 </html>

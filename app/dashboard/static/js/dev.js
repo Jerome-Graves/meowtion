@@ -7,7 +7,7 @@
 
     let g_uid = null;
     const g_demo = new URLSearchParams(location.search).has("demo");   // ?demo=1 => public read-only showcase
-    let g_actions = ["eat", "drink", "purr"];   // user-defined action set (any pet behaviour), from users/<uid>/actions
+    let g_actions = ["eat", "drink", "resting", "moving"];   // default action set; overridden by users/<uid>/actions
     let devicesRef = null, modelsRef = null, actionsRef = null, lastDevices = {}, timer = null, lastClipsSig = "";
     let clipEls = {};   // clip id -> {row}; tracks rows already drawn so renderClips only adds/removes, never rebuilds
 
@@ -492,7 +492,7 @@
       actionsRef = firebase.database().ref("users/" + uid + "/actions");
       actionsRef.on("value", s => {
         const a = s.val();
-        g_actions = (Array.isArray(a) && a.length) ? a : ["eat", "drink", "purr"];
+        g_actions = (Array.isArray(a) && a.length) ? a : ["eat", "drink", "resting", "moving"];
         renderActions();
         renderActivityButtons();
         // refresh clip dropdowns so new actions appear as options

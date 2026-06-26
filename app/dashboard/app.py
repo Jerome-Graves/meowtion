@@ -119,8 +119,8 @@ try:
 except Exception:
     DB_URL = "https://meowtion-app-default-rtdb.europe-west1.firebasedatabase.app"
 
-EVENT_ICON = {"sleep": "😴", "rest": "🛋", "active": "🐾", "walk": "🚶", "play": "🧶",
-              "groom": "🧼", "drink": "💧", "eat": "🍽", "purr": "💜"}
+EVENT_ICON = {"resting": "🛋", "moving": "🐾", "sleep": "😴", "rest": "🛋", "active": "🐾",
+              "walk": "🚶", "play": "🧶", "groom": "🧼", "drink": "💧", "eat": "🍽", "purr": "💜"}
 
 
 def fmt_time(ms):
