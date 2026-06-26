@@ -77,14 +77,10 @@ def render(df, data=None):
     st.divider()
     st.subheader("📊 Activity history")
 
-    # A couple of headline numbers (st.columns + st.metric).
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Events", len(df))
-    col2.metric("Minutes tracked", round(df["event_duration"].sum()))
-    col3.metric("Top activity", df["activity"].value_counts().index[0])
-
-    with st.expander("See the data table"):
-        st.dataframe(df, use_container_width=True)
+    # weather over the same window, so you can read the activity against hot/cold/wet days
+    weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
+    if weather_line:
+        st.caption(f"Weather this {span.lower()}:  {weather_line}")
 
     # ===================================================================== #
     # STEP 2 , Pick a time window to zoom into.
@@ -126,10 +122,7 @@ def render(df, data=None):
                            time_unit=time_unit, time_format=time_format, height=380),
             use_container_width=True,
         )
-        # weather over the same window, so you can read the activity against hot/cold/wet days
-        weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
-        if weather_line:
-            st.caption(f"Weather this {span.lower()}:  {weather_line}")
+
 
     # ===================================================================== #
     # STEP 4 , Charts across ALL the data, each activity in its own colour.
