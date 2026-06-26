@@ -37,6 +37,9 @@ def render(df, data=None):
         st.caption("Charts appear here once the collar has logged some events.")
         return
 
+    # Daily weather (from the station's stored history), used for context below.
+    wdf = mw.weather_dataframe(data)
+
     # ===================================================================== #
     # STEP 1 , HEALTH WATCH , the useful bit.
     #   For each key habit, mw.health_signals compares the last few days to the cat's
@@ -61,6 +64,13 @@ def render(df, data=None):
                 direction = "up" if s["change_pct"] > 0 else "down"
                 st.warning(f"⚠️ **{s['activity']} is {direction} {abs(s['change_pct']):.0f}%** vs your "
                            f"cat's recent normal. Worth keeping an eye on.")
+
+        # Weather context for the recent days , a habit change may just be the weather, not the cat.
+        recent_dates = sorted(df["event_date"].unique())[-3:]
+        recent_wx = mw.window_weather(wdf, recent_dates)
+        if recent_wx and recent_wx["unusual"]:
+            st.caption("🌡 Recently it's been " + ", ".join(recent_wx["unusual"])
+                       + " , which can change how much a cat drinks, eats or rests.")
     else:
         st.caption("Not enough data yet to compare habits.")
 
@@ -105,6 +115,10 @@ def render(df, data=None):
                            temporal=True, time_format=time_format),
             use_container_width=True,
         )
+        # weather over the same window, so you can read the activity against hot/cold/wet days
+        weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
+        if weather_line:
+            st.caption(f"Weather this {span.lower()}:  {weather_line}")
 
     # ===================================================================== #
     # STEP 4 , Charts across ALL the data, each activity in its own colour.
