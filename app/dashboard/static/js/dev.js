@@ -528,6 +528,12 @@
       return n;
     }
     function varietyClass(v) { return v < 34 ? "v-low" : (v < 60 ? "v-mid" : "v-high"); }
+    function varietyLabel(v) { return v < 34 ? "Too similar" : (v < 60 ? "Some variety" : "Good variety"); }
+    function varietyHint(v, lab) {
+      if (v < 34) return "Your '" + lab + "' clips are nearly all the same, so the model may not generalise. Record this action in more situations: different times, places and postures.";
+      if (v < 60) return "Your '" + lab + "' clips have some variety. A few more varied sessions would still help.";
+      return "Your '" + lab + "' clips are well varied across your recordings.";
+    }
 
     // A compact motion fingerprint for a clip: per-axis mean (posture/orientation) and std (intensity).
     function imuFeatures(frames, axes, rate, trimStart, trimEnd) {
@@ -634,22 +640,23 @@
       g_analyseBtn = btn;
       box.appendChild(head);
 
+      if (g_variety) box.appendChild(el("div", "cs-note",
+        "Variety = how different an action's clips are from each other. Aim for ‘Good variety’ by recording each action in varied situations."));
+
       const chips = el("div", "cs-chips");
       const cats = [...g_actions];
       Object.keys(byLabel).forEach(l => { if (!cats.includes(l)) cats.push(l); });   // include stray labels too
       cats.forEach(a => {
         const clips = byLabel[a] || [], n = clips.length, sessions = countSessions(clips);
         const chip = el("span", "cs-chip " + (n >= MIN_PER_CLASS ? "met" : (n > 0 ? "low" : "none")));
-        const top = el("div", "cs-top");
-        top.appendChild(el("span", "cs-lbl", a));
+        chip.appendChild(el("span", "cs-lbl", a));
+        chip.appendChild(el("span", "cs-num", n + " clip" + (n === 1 ? "" : "s") + " · " + plural(sessions, "session")));
         const v = g_variety && g_variety.byLabel[a];
         if (v && v.variety != null) {
-          const vb = el("span", "cs-var " + varietyClass(v.variety), "variety " + v.variety);
-          vb.title = "Motion variety " + v.variety + "/100 (avg clip similarity " + Math.round(v.sim * 100) + "%). Higher = more varied data.";
-          top.appendChild(vb);
+          const vb = el("span", "cs-var " + varietyClass(v.variety), varietyLabel(v.variety));
+          vb.title = varietyHint(v.variety, a);
+          chip.appendChild(vb);
         }
-        chip.appendChild(top);
-        chip.appendChild(el("span", "cs-num", n + " clip" + (n === 1 ? "" : "s") + " · " + plural(sessions, "session")));
         const bar = el("span", "cs-bar"), fill = el("i");
         fill.style.width = Math.min(100, Math.round(n / MIN_PER_CLASS * 100)) + "%";
         bar.appendChild(fill); chip.appendChild(bar);
@@ -657,8 +664,7 @@
       });
       if (unl) {
         const chip = el("span", "cs-chip unl");
-        const top = el("div", "cs-top"); top.appendChild(el("span", "cs-lbl", "unlabelled"));
-        chip.appendChild(top);
+        chip.appendChild(el("span", "cs-lbl", "unlabelled"));
         chip.appendChild(el("span", "cs-num", unl + " clip" + (unl === 1 ? "" : "s")));
         chips.appendChild(chip);
       }

@@ -131,10 +131,10 @@ canvas.wave-imu { height: 46px; }
 .cs-summary { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .76rem; color: var(--muted); margin-bottom: .5rem; }
 .cs-analyse { font-size: .72rem; padding: .3rem .6rem; }
 .cs-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
-.cs-chip { display: inline-flex; flex-direction: column; gap: .2rem; min-width: 124px; padding: .4rem .55rem .45rem; border-radius: 9px; border: 1px solid var(--line); background: #fff; }
-.cs-chip .cs-top { display: flex; align-items: center; gap: .4rem; }
+.cs-note { font-size: .7rem; color: var(--muted); margin: -.15rem 0 .55rem; }
+.cs-chip { display: inline-flex; flex-direction: column; gap: .22rem; min-width: 118px; padding: .4rem .55rem .45rem; border-radius: 9px; border: 1px solid var(--line); background: #fff; }
 .cs-chip .cs-lbl { font-size: .74rem; font-weight: 600; }
-.cs-chip .cs-var { margin-left: auto; font-size: .64rem; font-weight: 700; padding: .05rem .32rem; border-radius: 6px; white-space: nowrap; }
+.cs-chip .cs-var { align-self: flex-start; font-size: .64rem; font-weight: 700; padding: .08rem .42rem; border-radius: 6px; white-space: nowrap; }
 .cs-var.v-low { background: #fde8e8; color: var(--bad); }
 .cs-var.v-mid { background: #fdf3e3; color: var(--amber); }
 .cs-var.v-high { background: #e8f7ee; color: var(--ok); }
