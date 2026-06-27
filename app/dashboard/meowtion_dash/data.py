@@ -7,8 +7,10 @@ import datetime
 import pandas as pd
 
 # Emoji per activity, for the live cards and any labelled chart. Unknown -> a neutral dot.
-EVENT_ICON = {"resting": "🛋", "moving": "🐾", "sleep": "😴", "rest": "🛋", "active": "🐾",
-              "walk": "🚶", "play": "🧶", "groom": "🧼", "drink": "💧", "eat": "🍽", "purr": "💜"}
+EVENT_ICON = {"resting": "🛋", "moving": "🐾", "eating": "🍽", "drinking": "💧",
+              "purring": "💜", "grooming": "🧼",
+              "sleep": "😴", "rest": "🛋", "active": "🐾", "walk": "🚶", "play": "🧶",
+              "groom": "🧼", "drink": "💧", "eat": "🍽", "purr": "💜"}
 
 
 def fmt_time(ms):
@@ -30,8 +32,8 @@ def model_labels(data):
 def iter_cats(data):
     """Yield one record per cat/collar, whether it's nested under a station or STANDALONE (a
     simulated collar needs no station , its data sits directly on the device). Each record:
-        {id, name, events, current, simulated, weather, via}
-    """
+        {id, name, events, current, simulated, weather, via, path}
+    `path` is the cat node under users/<uid>/ (used by fetch_live to read just the live bits)."""
     devices = (data or {}).get("devices", {})
     for dev_id, dev in devices.items():
         if not isinstance(dev, dict):
@@ -47,14 +49,16 @@ def iter_cats(data):
                        "events": cat.get("events") or {},
                        "current": cat.get("current") or {},
                        "simulated": bool(reg.get("simulated") or cat.get("simulated")),
-                       "weather": wx, "via": dev.get("name", "station")}
+                       "weather": wx, "via": dev.get("name", "station"),
+                       "path": f"devices/{dev_id}/cats/{cat_id}"}
         elif dev.get("events") or dev.get("current"):     # standalone collar holding its own data
             yield {"id": dev_id,
                    "name": dev.get("name") or dev_id,
                    "events": dev.get("events") or {},
                    "current": dev.get("current") or {},
                    "simulated": bool(dev.get("simulated")),
-                   "weather": (dev.get("weather") or {}).get("current"), "via": None}
+                   "weather": (dev.get("weather") or {}).get("current"), "via": None,
+                   "path": f"devices/{dev_id}"}
 
 
 def list_cats(data):
@@ -187,9 +191,13 @@ def over_time(df, period, value="event_duration"):
     return df.assign(when=when).groupby(["when", "activity"])[value].sum().reset_index()
 
 
-# Health-relevant habits, most informative first. A cat eating less or drinking more is a classic
-# early warning, so those lead.
-_HEALTH_PRIORITY = ["Eat", "Drink", "Moving", "Resting", "Active", "Walk", "Sleep", "Play"]
+# Health-relevant habits, most informative first. Appetite and thirst changes are classic early
+# warnings, and how much a cat grooms is one of the clearest behavioural health signals (grooming
+# less can mean pain/illness; a lot more can mean stress or skin trouble), so those three lead, then
+# rest (lethargy) and movement. Both the simulated labels (Eating/Drinking/Grooming/Purring) and any
+# real-collar model labels (Eat/Drink/...) are listed so whichever a collar uses gets prioritised.
+_HEALTH_PRIORITY = ["Eating", "Eat", "Drinking", "Drink", "Grooming", "Resting",
+                    "Moving", "Purring", "Active", "Walk", "Sleep", "Play"]
 
 
 def health_signals(df, recent_days=3, baseline_days=14, limit=4):
@@ -205,6 +213,11 @@ def health_signals(df, recent_days=3, baseline_days=14, limit=4):
     watch = [a for a in _HEALTH_PRIORITY if a in present][:limit]
     daily = df.groupby(["event_date", "activity"])["event_duration"].sum().reset_index()
     all_days = sorted(df["event_date"].unique())   # days with any data; missing activity = 0 mins
+    # Events are logged when an action ENDS, so the latest day is usually still in progress and
+    # under-counts (e.g. a long overnight rest hasn't been written yet). Drop it so "recent vs usual"
+    # compares whole days only, instead of reading a partial day as a sudden drop.
+    if len(all_days) > recent_days + 1:
+        all_days = all_days[:-1]
     out = []
     for act in watch:
         sub = daily[daily["activity"] == act]

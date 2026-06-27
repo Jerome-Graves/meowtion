@@ -4,9 +4,12 @@ Gives the demo/owner account a second, fully simulated collar (a STANDALONE devi
 with a realistic ~6-month activity history that keeps growing, so the dashboard's collar switcher,
 history, Health watch and weather context all have rich data to show.
 
-  * Scheduled every 15 minutes: on the first run it backfills ~6 months of events (and the matching
-    daily weather from Open-Meteo's free archive API); every run after, it appends new events up to
-    "now" from a continuous time-of-day timeline, and refreshes the live state.
+  * Scheduled every minute: on the first run it backfills ~6 months of events (and the matching
+    daily weather from Open-Meteo's free archive API); every run after, it commits any action that
+    has FINISHED since the last tick (so each event appears at the end of its action, with the gap
+    to the next varying by activity), and refreshes the live "doing now" state.
+  * Activities: resting, moving, eating, drinking, purring, grooming , weighted by time of day so the
+    pattern matches an average cat (crepuscular: busiest around dawn and dusk, resting in between).
   * simulate_now (HTTP, dev-account token): kick a run immediately instead of waiting for the timer.
 
 Everything is generated; it never touches the real collar. Idempotent: events are keyed by their
@@ -29,7 +32,7 @@ SIM_NAME = "Purrminator"                   # the collar's pun name (change here)
 SIM_STATION = "sim-station-purrminator"    # fixed station device id for the sim
 SIM_CAT = "cat-purrminator"                # fixed collar/cat id
 BACKFILL_DAYS = 182                        # ~6 months
-GEN_VERSION = 2                            # bump to force a clean rebuild when the model changes
+GEN_VERSION = 6                            # bump to force a clean rebuild when the model changes
 DEFAULT_LATLON = (51.5074, -0.1278)        # London, used only if the owner has no stored location
 
 
@@ -50,30 +53,46 @@ def _condition(code, precip):
     return "clear"
 
 
-# Typical duration range in SECONDS per activity. A cat laps water for under a minute, eats for a
-# couple of minutes, plays/moves for several, naps for ~an hour, and sleeps for hours.
+# Typical duration range in SECONDS per non-resting activity. A cat laps water for under a minute,
+# eats for a couple of minutes, grooms/purrs/moves for several. Resting is handled separately in the
+# timeline (long overnight sleep vs short daytime naps), so it isn't listed here.
 _DUR = {
-    "sleep":   (5400, 14400),   # 1.5 , 4 h
-    "resting": (1800, 7200),    # 30 , 120 min
-    "moving":  (120, 900),      # 2 , 15 min
-    "play":    (180, 1200),     # 3 , 20 min
-    "eat":     (60, 300),       # 1 , 5 min
-    "drink":   (15, 75),        # 15 , 75 s
+    "moving":   (180, 900),     # 3 , 15 min
+    "eating":   (120, 360),     # 2 , 6 min
+    "drinking": (20, 90),       # 20 , 90 s
+    "purring":  (180, 720),     # 3 , 12 min
+    "grooming": (300, 1080),    # 5 , 18 min
 }
+
+
+def _rest_duration(rng, hour):
+    """Resting bout length in seconds: long, consolidated sleep overnight; shorter naps by day. This,
+    with the weights below, keeps the daily budget realistic , about 16 h resting (cats sleep a lot),
+    the rest of the day awake. Bouts are kept reasonably long so a 6-month history stays a sane size
+    rather than tens of thousands of micro-events."""
+    if hour >= 22 or hour < 6:
+        return rng.randint(3000, 8400)    # 50 min , 2.3 h overnight
+    return rng.randint(1500, 3300)        # 25 , 55 min daytime nap
 
 
 def _hour_weights(h):
     """How likely the cat is to START each activity in hour `h` (0-23). The cat does a continuous
-    chain of activities; these weights bias what comes next by time of day."""
-    if h < 6:    return {"sleep": 10, "resting": 2}                                  # deep night
-    if h == 6:   return {"sleep": 4, "resting": 3, "eat": 2, "drink": 1, "moving": 1}  # waking
-    if h <= 8:   return {"eat": 3, "drink": 2, "moving": 3, "resting": 3}            # breakfast
-    if h <= 11:  return {"resting": 6, "moving": 2, "drink": 1, "eat": 1}            # morning naps
-    if h <= 13:  return {"resting": 4, "eat": 2, "drink": 1, "moving": 1}            # midday
-    if h <= 16:  return {"resting": 7, "moving": 2, "drink": 1}                      # afternoon
-    if h <= 20:  return {"play": 3, "moving": 4, "eat": 2, "drink": 2, "resting": 3}  # active evening
-    if h <= 22:  return {"resting": 5, "moving": 1, "drink": 1}                      # settling
-    return {"sleep": 6, "resting": 2}                                               # late night
+    chain of activities; these weights bias what comes next by time of day. Cats are crepuscular, so
+    movement and eating peak around dawn and dusk, the middle of the day is drowsy naps + grooming,
+    and overnight is mostly sleep (with brief wakes). Tuned so an average day is about 16 h rest and
+    8 h awake , roughly 4 h grooming, 3 h moving, plus eating/drinking/purring."""
+    if h < 5:    return {"resting": 9, "grooming": 2, "moving": 1}                                            # deep night (brief wakes)
+    if h == 5:   return {"resting": 6, "grooming": 2, "moving": 2, "drinking": 1}                             # pre-dawn stir
+    if h <= 7:   return {"moving": 6, "eating": 3, "drinking": 2, "grooming": 4, "purring": 2, "resting": 1}  # dawn peak
+    if h <= 9:   return {"grooming": 5, "moving": 4, "eating": 2, "drinking": 1, "purring": 2, "resting": 1}  # mid-morning
+    if h <= 11:  return {"resting": 3, "grooming": 4, "moving": 3, "purring": 1, "drinking": 1}               # late morning
+    if h <= 13:  return {"resting": 4, "grooming": 3, "eating": 2, "drinking": 1, "moving": 2}                # midday siesta
+    if h <= 15:  return {"resting": 4, "grooming": 3, "moving": 3, "purring": 1, "drinking": 1}               # afternoon nap
+    if h <= 16:  return {"resting": 2, "grooming": 3, "moving": 4, "drinking": 1, "purring": 1}               # waking up
+    if h <= 20:  return {"moving": 6, "eating": 3, "drinking": 2, "grooming": 4, "purring": 2, "resting": 1}  # dusk peak (most active)
+    if h <= 21:  return {"moving": 3, "grooming": 3, "purring": 2, "eating": 1, "resting": 2}                 # evening
+    if h <= 22:  return {"resting": 5, "grooming": 2, "purring": 1, "drinking": 1, "moving": 1}               # settling
+    return {"resting": 9, "grooming": 1, "moving": 1}                                                         # night
 
 
 def _day_timeline(day, wx):
@@ -89,13 +108,16 @@ def _day_timeline(day, wx):
     while t < day_end:
         w = dict(_hour_weights(t.hour))
         if hot:
-            w["drink"] = w.get("drink", 0) + 3
+            w["drinking"] = w.get("drinking", 0) + 1   # warm day , a bit more time at the bowl
         act = rng.choices(list(w), weights=list(w.values()), k=1)[0]
-        lo, hi = _DUR[act]
-        dur = rng.randint(lo, hi)                 # seconds
-        if act == "drink" and hot:
-            dur += rng.randint(10, 40)            # a bit longer at the bowl when it's hot
-        if act in ("moving", "play") and coldwet:
+        if act == "resting":
+            dur = _rest_duration(rng, t.hour)     # long overnight, short daytime naps
+        else:
+            lo, hi = _DUR[act]
+            dur = rng.randint(lo, hi)             # seconds
+        if act == "drinking" and hot:
+            dur += rng.randint(20, 60)            # and a little longer per drink when it's hot
+        if act == "moving" and coldwet:
             dur = max(60, dur // 2)
         out.append((int(t.timestamp() * 1000), act, dur))
         t += dt.timedelta(seconds=dur)
@@ -103,13 +125,21 @@ def _day_timeline(day, wx):
 
 
 def generate_events(start, now, weather):
-    """All events that START in (start, now], built from each day's continuous timeline.
+    """Timeline events that started after `start` and have already FINISHED by `now` (end <= now),
+    built from each day's continuous timeline. Committing only completed actions is what makes each
+    event appear at the moment its action ends, so new events arrive at naturally varying gaps , a
+    30 s drink lands within the minute, a 3 h rest hours later. The action currently in progress is
+    not logged yet; it's shown as the live state and becomes an event once it ends.
+
     `weather` is {date_iso: {tempC, raining}}. Returns {id, start, durationSec, type}, oldest first."""
     out, day = [], start.date()
+    startms = int(start.timestamp() * 1000)
+    nowms = int(now.timestamp() * 1000)
     while day <= now.date():
         for ms, act, dursec in _day_timeline(day, weather.get(day.isoformat())):
-            when = dt.datetime.fromtimestamp(ms / 1000, tz=dt.timezone.utc)
-            if when <= start or when > now:
+            if ms <= startms:                 # already committed on an earlier run (keyed by start)
+                continue
+            if ms + dursec * 1000 > nowms:    # not finished yet , commit it on a later tick
                 continue
             out.append({"id": str(ms), "start": ms, "durationSec": dursec, "type": act})
         day += dt.timedelta(days=1)
@@ -252,7 +282,10 @@ def run_simulation():
     return len(events), mode
 
 
-@scheduler_fn.on_schedule(schedule="every 15 minutes", region=REGION,
+# Wakes every minute and commits any action that has finished since the last tick, so events land
+# at the end of each action (with the gap between them varying by what the cat just did). A minute
+# of granularity keeps it near-real-time while staying well inside the free invocation tier.
+@scheduler_fn.on_schedule(schedule="every 1 minutes", region=REGION,
                           memory=options.MemoryOption.MB_256, timeout_sec=300)
 def simulate(event: scheduler_fn.ScheduledEvent) -> None:
     run_simulation()

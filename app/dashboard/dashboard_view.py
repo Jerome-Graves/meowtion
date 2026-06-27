@@ -28,6 +28,17 @@ import streamlit as st
 import meowtion_dash as mw
 
 
+# Why a big, lasting change in each habit can matter. This is a prompt to watch and, if it persists,
+# mention to a vet , NOT a diagnosis. Keyed by the activity label as it appears in the data.
+_HEALTH_NOTE = {
+    "Eating":   "appetite changes are one of the clearest early signs something is off",
+    "Drinking": "a lasting rise in drinking can point to kidney, thyroid or diabetes problems",
+    "Grooming": "grooming less can signal pain, illness or weight trouble; much more can mean stress or skin irritation",
+    "Resting":  "a lot more rest than usual can be lethargy worth noting",
+    "Moving":   "moving much less can be a sign of pain or stiffness",
+}
+
+
 def render(df, data=None):
     st.divider()
 
@@ -48,8 +59,8 @@ def render(df, data=None):
     #   delta_color="off" because "up" isn't always good or bad , the warnings below judge.
     # ===================================================================== #
     st.subheader("🩺 Health watch")
-    st.caption("How your cat's key habits compare to their normal. Big, lasting changes in eating "
-               "or drinking are worth raising with your vet.")
+    st.caption("How your cat's key habits , eating, drinking, grooming and rest , compare to their "
+               "normal. Big, lasting changes in any of these are worth raising with your vet.")
 
     signals = mw.health_signals(df)
     if signals:
@@ -58,12 +69,15 @@ def render(df, data=None):
             delta = f"{s['change_pct']:+.0f}% vs usual" if s["change_pct"] is not None else "no baseline yet"
             col.metric(f"{s['activity']}  (min/day)", f"{s['recent']:.0f}", delta=delta, delta_color="off")
 
-        # Flag any habit that has moved a lot versus the cat's baseline.
+        # Flag any habit that has moved a lot versus the cat's baseline, with a plain-language note on
+        # why that particular change can matter.
         for s in signals:
             if s["change_pct"] is not None and abs(s["change_pct"]) >= 30:
                 direction = "up" if s["change_pct"] > 0 else "down"
+                note = _HEALTH_NOTE.get(s["activity"])
+                tail = f" In a cat, {note}." if note else " Worth keeping an eye on."
                 st.warning(f"⚠️ **{s['activity']} is {direction} {abs(s['change_pct']):.0f}%** vs your "
-                           f"cat's recent normal. Worth keeping an eye on.")
+                           f"cat's recent normal.{tail}")
 
         # Weather context for the recent days , a habit change may just be the weather, not the cat.
         recent_dates = sorted(df["event_date"].unique())[-3:]
