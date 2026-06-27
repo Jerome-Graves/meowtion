@@ -130,15 +130,24 @@ training quality (too-similar samples generalise poorly). Each clip row carries 
 the audio, a label dropdown, a \textbf{Motion} badge when time-aligned IMU data is present, its time
 and length, and a delete control. Clicking a clip expands it to a scrubber with the \emph{audio
 waveform and the motion (accelerometer and gyroscope) traces drawn time-aligned beneath it}, plus
-draggable trim handles, so a sample can be auditioned against its movement and tidied before training.
-That expanded audio/motion view is hidden in the read-only demo because training audio is private to
-its owner.
+draggable trim handles, so a sample can be auditioned against its movement and tidied before training
+(\cref{fig:dev-expanded}). This expanded view reads the clip's private audio and motion from Storage,
+so it is shown here from a signed-in account rather than the read-only demo.
 
 \begin{figure}[ht]\centering
   \includegraphics[width=0.74\textwidth]{ui-dev-clips.png}
   \caption{Recorded clips: per-label sample counts toward a minimum, the motion-variety quality check,
            and clips grouped by day and session, each with playback, a label, and a motion indicator.}
   \label{fig:dev-clips}
+\end{figure}
+
+\begin{figure}[ht]\centering
+  \includegraphics[width=0.78\textwidth]{ui-dev-label.png}
+  \caption{A clip expanded for labelling: the audio waveform with the movement (accelerometer X/Y/Z)
+           and rotation (gyroscope X/Y/Z) traces drawn time-aligned beneath it, plus draggable trim
+           handles, a play control, and Save trim. The owner auditions the sound against the motion,
+           confirms the label, and trims to the action before training.}
+  \label{fig:dev-expanded}
 \end{figure}
 
 \paragraph{Train models (cloud) (\cref{fig:dev-train}).} \textbf{Retrain models} triggers the
