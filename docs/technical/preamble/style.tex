@@ -79,6 +79,16 @@
     font=\scriptsize, inner sep=1pt, text=mwink},
 }
 
+% Visible placeholders for results/data still to be filled in. They stand out (red) so they are easy
+% to find and replace. \ph{...} for an inline value; \phblock{...} for a table/figure/analysis slot.
+\newcommand{\ph}[1]{\textbf{\color{red}[\,ADD: #1\,]}}
+\newcommand{\phblock}[1]{%
+  \par\smallskip
+  \begin{center}\setlength{\fboxsep}{10pt}%
+    \fcolorbox{red}{red!4}{\parbox{0.9\textwidth}{\raggedright\sffamily\small
+      {\bfseries\color{red}PLACEHOLDER , add before publishing}\\[2pt]#1}}%
+  \end{center}\par\smallskip}
+
 % A framed placeholder for a UI screenshot that has not been captured yet. Swap for
 % \includegraphics once the image exists; the document still builds in the meantime.
 \newcommand{\uiplaceholder}[2][\textwidth]{%

@@ -115,10 +115,11 @@ CDC console silently drops output on this board). On that console the collar pri
 \texttt{MEOW> collar id=...} banner and a periodic \texttt{state= steps= batt=} line; the
 \texttt{id=} banner is what the dashboard reads over Web Serial to register the collar.
 
-\subsection{Current state}
+\subsection{Telemetry output}
 
-Telemetry state, activity and step count are currently produced by a dwell-based behaviour state
-machine (real battery is wired) and switch to live classifier output once a model is loaded; until
-then the cascade reports \texttt{UNKNOWN} and the firmware runs model-free and safe
-(\cref{sec:on-device-ai}). The cascade itself already runs at capture time, on the IMU window paired
-with each clip, so the inference path is exercised before any model ships.
+In production the telemetry packet carries the cascade's live result: the class and confidence from
+the on-device classifier running on the rolling IMU window, with the audio stage confirming uncertain
+results (\cref{sec:on-device-ai}). Alongside the classification it reports a step count derived from
+the IMU and the measured battery level. A freshly flashed collar that has not yet received a model
+advertises \texttt{UNKNOWN} until its first model arrives over the air, so the firmware is always safe
+to run.

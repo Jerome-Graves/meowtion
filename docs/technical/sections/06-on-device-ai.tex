@@ -17,9 +17,9 @@ two models:
 \begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
   \item The \textbf{IMU model} runs continuously on the motion stream. It is cheap and always on, and
         it carries most of the classification load.
-  \item When the IMU model is \emph{unsure} (its top class falls below a confidence threshold), the
-        short \textbf{audio model} is invoked to confirm. Audio is therefore a deployed disambiguation
-        signal, not merely a training aid.
+  \item When the IMU model is \emph{unsure} (its top class falls below a confidence threshold of
+        \ph{threshold value}), the short \textbf{audio model} is invoked to confirm. Audio is therefore
+        a deployed disambiguation signal, not merely a training aid.
 \end{enumerate}
 
 This keeps average power low, since the audio path runs only when it is needed to break a tie, while
@@ -76,14 +76,26 @@ int8) rather than materialising a float window, \cref{lst:quant}.
 // scale and zero_point are read from the input tensor itself.
 \end{lstlisting}
 
+\subsection{Model architecture}
+
+Each cascade stage is a small 1-D convolutional network trained in the cloud and exported as an int8
+\texttt{.tflite} (\cref{sec:training-pipeline}). The IMU stage runs over a rolling window of motion
+samples (six channels: accelerometer and gyroscope x/y/z); the audio stage runs over one second of
+8\,kHz audio (8000 samples).
+
+\phblock{Per-stage architecture table , for the IMU and audio networks: the input shape (IMU window
+length and sample rate; audio is 8000\,$\times$\,1), the convolutional layers (filter count, kernel
+size, stride), the pooling and dense layers, the output class count, and the total parameter count and
+model size. This is what lets a reader reproduce or assess the networks.}
+
 \subsection{Runtime models and model-free safety}
 
 No model is compiled into the firmware. Each stage loads its \texttt{.tflite} at runtime
-(\texttt{clf\_set\_imu\_model} / \texttt{clf\_set\_audio\_model}), from the dedicated flash partition
-written over the air (\cref{sec:firmware-collar,sec:protocols}). Until a model lands the engine runs
-model-free: the presence queries return false and the cascade returns \texttt{UNKNOWN}, so the
-firmware is safe to run with no model at all and simply advertises a simulated state until a real
-model is installed.
+(\texttt{clf\_set\_imu\_model} / \texttt{clf\_set\_audio\_model}) from the dedicated flash partition,
+delivered over the air (\cref{sec:firmware-collar,sec:protocols}); a re-trained model is therefore
+swapped in without reflashing. The engine is also safe with no model present, the presence queries
+return false and the cascade returns \texttt{UNKNOWN} rather than a wrong answer, which is the state a
+freshly flashed collar is in before its first model arrives.
 
 \subsection{Memory budget}
 
