@@ -1,46 +1,52 @@
 \section{Hardware}
 \label{sec:hardware}
 
-The build is two boards: the collar worn by the cat and the station plugged in at home.
-Both are based on Seeed Studio XIAO modules, chosen for their small footprint, integrated
-radios, and hand-solderable castellated pads.
+The build is two devices: the collar worn by the cat and the station plugged in at home. There is no
+custom PCB. Each device is a Seeed Studio XIAO module in a 3D-printed shell, chosen for the small
+footprint, integrated radios, hand-solderable castellated pads, and, on the collar, on-module
+sensors. The complete parts list, print files and assembly steps live in \texttt{hardware/README.md};
+this section summarises the design and the reasoning behind it.
 
 \subsection{Collar}
 
-The collar is built around the Seeed XIAO nRF52840 Sense. The nRF52840 provides a Bluetooth
-Low Energy radio and enough flash and RAM to run quantised neural-network inference. Critically
-for Meowtion, the Sense variant carries the two sensors the system needs on the module itself:
-a six-axis inertial measurement unit (IMU) and a MEMS microphone, so the collar needs no
-external sensor breakout.
+The collar is built around the Seeed XIAO nRF52840 Sense. The nRF52840 provides a Bluetooth Low
+Energy radio and enough flash and RAM to run quantised neural-network inference on its Cortex-M4F.
+Critically for Meowtion, the \emph{Sense} variant carries both sensors the system needs on the module
+itself, a six-axis IMU (LSM6DS3TR-C) and a PDM MEMS microphone, so the collar needs no external
+sensor breakout and stays small and light.
 
 \begin{table}[ht]
   \centering
-  \caption{Collar components.}
+  \caption{Collar bill of materials (one per cat).}
   \label{tab:collar-bom}
-  \begin{tabularx}{\textwidth}{@{}lX@{}}
+  \begin{tabularx}{\textwidth}{@{}lcX@{}}
     \toprule
-    \textbf{Part} & \textbf{Role} \\
+    \textbf{Part} & \textbf{Qty} & \textbf{Role} \\
     \midrule
-    Seeed XIAO nRF52840 Sense & SoC (BLE), IMU and PDM microphone on-module; runs inference \\
-    LiPo cell                 & Battery power for the wearable \\
-    Enclosure + strap         & 3D-printed housing and collar strap (see \texttt{hardware/}) \\
-    Acoustic membrane         & Protects the microphone port while passing sound \\
+    Seeed XIAO nRF52840 Sense & 1 & SoC (BLE), on-module IMU and PDM microphone; runs inference \\
+    1S LiPo cell, 3.7\,V 100\,mAh, with protection (BMS) & 1 & Powers the wearable; soldered to the
+      BAT pads. A cell with a built-in protection circuit is required \\
+    20\,mm hydrophobic PTFE filter membrane & 1 & Sits over the mic hole: passes sound, keeps water
+      and dust out \\
+    10\,mm quick-release safety collar & 1 & Standard strap; the silicone skin mounts to it \\
+    3D-printed shells + TPU skin & 1 & PETG front and back shells; a flexible TPU skin holds the
+      sealed assembly on the strap \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
-The IMU supplies the motion stream that is always classified; the microphone supplies the
-short audio window used to disambiguate behaviours that look alike by motion but differ by
-sound (\cref{sec:on-device-ai}). The microphone port sits behind an acoustic membrane in the
-housing; correct membrane placement matters for audio quality and is documented in the hardware
-guide.
+The IMU supplies the motion stream that is always classified; the microphone supplies the short audio
+window used to disambiguate behaviours that look alike by motion but differ by sound
+(\cref{sec:on-device-ai}). The microphone port sits behind the PTFE membrane in the front shell;
+correct membrane placement matters for audio quality and water resistance and is documented in the
+hardware guide. The collar runs on its own 1S cell, charged through the XIAO's onboard divider.
 
 \begin{figure}[ht]
   \centering
   \begin{subfigure}{0.48\textwidth}
     \centering
     \includegraphics[width=\linewidth]{exploded.png}
-    \caption{Exploded view of the collar assembly.}
+    \caption{Exploded view: boards drop into the back shells, front covers clip on.}
     \label{fig:exploded}
   \end{subfigure}\hfill
   \begin{subfigure}{0.48\textwidth}
@@ -49,24 +55,34 @@ guide.
     \caption{Assembled internals.}
     \label{fig:internals}
   \end{subfigure}
-  \caption{Collar hardware. Full parts, print files, and assembly steps are in
+  \caption{Collar and station hardware. Full parts, print files, and assembly steps are in
            \texttt{hardware/README.md}.}
   \label{fig:collar-hw}
 \end{figure}
 
 \subsection{Station}
 
-The station is a Seeed XIAO ESP32-S3. The ESP32-S3 has both Wi-Fi and BLE, so a single module
-acts as the BLE central that listens to the collar and the Wi-Fi client that reaches the cloud.
-It is mains-powered over USB, so it can scan and stay online continuously without the power
-constraints of the wearable. The station carries no sensors of its own; its job is to hear the
-collar, capture training clips when asked, and bridge to the internet.
+The station is a Seeed XIAO ESP32-S3. The ESP32-S3 has both Wi-Fi and BLE, so a single module acts as
+the BLE central that listens to the collar and the Wi-Fi client that reaches the cloud. It is
+mains-powered over USB-C, so it can scan and stay online continuously without the power constraints
+of the wearable. The station carries no sensors of its own; its job is to hear the collar, capture
+training clips when asked, relay results to the cloud, and push models to the collar.
+
+\subsection{Enclosure and assembly}
+
+The front shell is shared between the collar and the station; the back shells and the collar's TPU
+skin are per-device. The collar shells are PETG for rigidity and the skin is flexible TPU; the
+station back shell is any rigid filament. The collar is assembled by seating the board and cell in
+the back shell, fitting the PTFE membrane over the mic hole, bonding the shell halves with
+water-resistant glue, and slipping the sealed unit into the TPU skin on a quick-release strap. The
+station is simply seated, glued closed, and plugged in by the bowl. The hardware designs are released
+under CERN-OHL-S v2 (strongly reciprocal open hardware).
 
 \subsection{Why split the system this way}
 
-The collar must be small, light, and run for a useful time on a small cell, which rules out
-Wi-Fi on the wearable (its power draw is incompatible with a collar-sized battery). BLE is
-low-power but short-range and not an internet transport. The fixed, mains-powered station
-resolves both: it gives the collar a cheap always-on BLE peer and a Wi-Fi path to the cloud.
-This division also keeps the privacy boundary clean: the heavy, sensitive processing stays on
-the collar, and only a classification result crosses to the station.
+The collar must be small, light, and run for a useful time on a small cell, which rules out Wi-Fi on
+the wearable: its power draw is incompatible with a collar-sized battery. BLE is low-power but
+short-range and is not an internet transport. The fixed, mains-powered station resolves both
+problems: it gives the collar a cheap always-on BLE peer and a Wi-Fi path to the cloud. The split
+also keeps the privacy boundary clean, as the heavy and sensitive processing (including all audio)
+stays on the collar and only a classification result crosses to the station.

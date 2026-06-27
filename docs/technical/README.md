@@ -47,7 +47,7 @@ docs/technical/
 │   ├── style.tex        brand colours, headings, headers/footers, code listings
 │   └── metadata.tex     title, author, version macros
 ├── frontmatter/
-│   └── titlepage.tex    branded cover page (uses docs/hero-banner.png)
+│   └── titlepage.tex    branded cover page (transparent logo.png + typeset wordmark)
 └── sections/
     ├── 01-introduction.tex
     ├── 02-system-overview.tex

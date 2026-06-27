@@ -2,46 +2,70 @@
 \label{sec:training-pipeline}
 
 Meowtion learns new behaviours through a closed loop that an owner drives entirely from the
-dashboard: capture, label, train, deliver, run. No local toolchain is required.
+dashboard, with no local toolchain: capture, label, train, deliver, run. The loop is what turns the
+collar from a fixed-function sensor into a platform for recognising any behaviour the owner can
+demonstrate.
 
 \subsection{The loop}
 
-\begin{enumerate}[leftmargin=1.5em]
+\begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
   \item \textbf{Define behaviours.} The owner lists the actions to recognise (eat, drink, purr,
-        scratch, litter-tray, and so on) in the dashboard. This set drives both the labelling UI
-        and the trained model's outputs.
-  \item \textbf{Capture.} With a station in training mode, short audio clips and time-aligned
-        motion are recorded while a registered collar is in range, and uploaded to Cloud Storage.
-  \item \textbf{Label.} The owner reviews clips in the dashboard, sets each clip's action, trims
-        dead space, and discards poor examples.
-  \item \textbf{Train.} A Cloud Function trains the model(s) server-side from the labelled clips
-        and writes the results back: the quantised \texttt{.tflite} blobs to Storage and the
-        version and label list to the database.
-  \item \textbf{Deliver.} Each station watches a model-version key. When it changes, the station
+        scratch, litter-tray, and so on) in the dev console. This set drives both the clip-label
+        dropdown and the trained model's outputs.
+  \item \textbf{Capture.} With a station in training mode, paired audio and time-aligned motion are
+        recorded while a registered collar is in range and uploaded to Cloud Storage (Flow~2,
+        \cref{sec:architecture}).
+  \item \textbf{Label.} The owner reviews clips in the dev console, sets each clip's action, trims
+        dead space from the waveform, and discards poor examples.
+  \item \textbf{Train.} The \texttt{train} Cloud Function trains the models server-side from the
+        labelled clips and writes the results back: the quantised \texttt{.tflite} blobs to Storage,
+        and the new version and label list to the database.
+  \item \textbf{Deliver.} Each station watches a model-version key; when it changes the station
         downloads the new \texttt{.tflite} files and pushes them to the collar over the air
         (\cref{sec:protocols}).
-  \item \textbf{Run.} The owner switches the station to production mode; the collar classifies
-        with the new model and the dashboard shows live, named behaviours.
+  \item \textbf{Run.} In production mode the collar classifies with the new model and the dashboard
+        shows live, named behaviours.
 \end{enumerate}
+
+\subsection{The trainer}
+
+Training runs in the \texttt{train} Python Cloud Function, gated by a developer account
+(\cref{sec:cloud-backend}). It reads the account's labelled clips (metadata from the database, audio
+and motion bytes from Storage), and derives the class set directly from the labels present, so the
+network's outputs follow whatever behaviours the owner defined. It then trains the two cascade stages
+independently:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item a small 1-D convolutional network over the motion windows (six IMU channels), and
+  \item a larger 1-D convolutional network over the 8\,kHz audio windows.
+\end{itemize}
+
+Each input is windowed with overlap and normalised exactly as the collar normalises it at inference,
+so the on-device transform and the training transform match (\cref{sec:on-device-ai}). The trained
+Keras models are converted to TensorFlow Lite with full int8 post-training quantisation using a
+representative dataset, so the exported \texttt{.tflite} weights and activations are int8 and the
+input and output tensors carry the scale and zero-point the collar uses to quantise its own inputs.
 
 \subsection{Label-agnostic by design}
 
-The trainer is not hard-coded to a fixed set of actions. It learns whatever label set the owner
-defines, which is what makes Meowtion a platform rather than a fixed-function gadget. The same
-pipeline that recognises eating and drinking can be pointed at any distinguishable behaviour the
-owner can capture and label.
+The trainer is not hard-coded to a fixed set of actions; it learns whatever label set the owner
+defines. This is what makes Meowtion a platform rather than a fixed-function gadget: the same pipeline
+that recognises eating and drinking can be pointed at any distinguishable behaviour the owner can
+capture and label. The class set flows end to end as data, from the dashboard's action list, through
+the trainer, to the index-based on-collar classifier, with names attached only at the edges.
 
 \subsection{Delivery contract}
 
-Training outputs are written to predictable locations so the station can find them without
-coordination: the model blobs land in Storage under the owner's path as
-\texttt{imu\_model.tflite} and \texttt{audio\_model.tflite}, and the new version is mirrored into
-each of that owner's stations' configuration so the station's gate fires. The label list is
-stored alongside so the dashboard can map a class index back to a name (\cref{sec:cloud-backend}).
+Training outputs are written to predictable locations so the station finds them without coordination:
+the model blobs land in Storage as \texttt{models/<uid>/\allowbreak imu\_model.tflite} and
+\texttt{models/<uid>/\allowbreak audio\_model.tflite}, the new version is mirrored into each of the owner's
+stations' configuration so their version gate fires, and the label list is stored in
+\texttt{users/<uid>/models} so the dashboard can map a class index back to a name across label-set
+changes (\cref{sec:cloud-backend}).
 
 \subsection{Known limitation}
 
-A two-class model (for example, eat versus drink only) has no way to represent ``neither'' and
-will confidently assign one of its two labels to an idle cat. The fix is to retrain with an
-explicit idle/other class; this is a data and modelling task, not a firmware change, and is
+A model trained on only two classes (for example, eat versus drink) has no way to represent
+``neither'' and will confidently assign one of its two labels to an idle cat. The fix is to retrain
+with an explicit idle/other class; this is a data and modelling task, not a firmware change, and is
 tracked in \cref{sec:future-work}.

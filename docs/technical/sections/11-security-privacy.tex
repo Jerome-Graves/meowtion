@@ -1,44 +1,52 @@
 \section{Security and privacy}
 \label{sec:security-privacy}
 
-Privacy is a design property of Meowtion, not a setting. The two strongest guarantees come from
-where work happens and how data is scoped.
+Privacy is a design property of Meowtion, not a setting bolted on afterwards. The strongest guarantees
+come from where work happens (on the collar) and how data is scoped (per owner, by enforced rules).
 
 \subsection{Audio never leaves the collar}
 
 The microphone is used only for on-device classification. Audio is processed on the collar and
-discarded; it is never recorded to flash for normal operation and never transmitted in production
-mode. The collar's uplink is a classification result (a class index and a confidence), not a
-sensor stream. The one exception is deliberate and owner-driven: in training mode the owner
-chooses to capture clips to teach a behaviour, and those clips are stored privately to their own
-account.
+discarded; it is never written to flash in normal operation and never transmitted in production mode.
+The collar's uplink is a classification result (a class index and a confidence), not a sensor stream.
+The one exception is deliberate and owner-driven: in training mode the owner chooses to capture clips
+to teach a behaviour, and those clips are stored privately to their own account and are never
+world-readable, even for the public demo.
 
 \subsection{Per-owner isolation}
 
-Every read and write is scoped to the owning account by the database and storage security rules.
-A device authenticates with a scoped, revocable token rather than the owner's password, so a
-compromised or lost device cannot expose credentials and can be revoked without a password
-change. Training clips and home audio are private to the owner and are not world-readable, even
-for the public demo.
+All of an owner's data lives under \texttt{users/<uid>/}, and the database and storage rules scope
+every read and write to the owning account, so owners (and their token-authenticated devices) touch
+only their own data. Isolation is enforced by the backend, not the client. The Storage rules go
+further and deny \emph{all} direct client writes: training clips are written only by the
+\texttt{upload\_clip} function and are readable only by their owning account, and model blobs are
+public-read (so the token-only station can fetch one) but writable only by the trainer.
+
+\subsection{Devices hold tokens, not credentials}
+
+A station authenticates with a scoped, revocable per-device token rather than the owner's password, and
+a collar holds nothing at all. A lost or compromised device therefore cannot expose the owner's
+credentials, and it can be revoked simply by deleting its token from the account, with no password
+change and no effect on the owner's other devices.
 
 \subsection{The demo is read-only by enforcement}
 
-The public demo reads a single designated demo account's data, which the rules make
-world-readable, but that account is write-locked at the backend: the demo cannot change any data
-or trigger any function. The read-only behaviour is enforced by the rules, not merely hidden in
-the interface, so it holds even against a crafted client.
+The public demo reads a single designated demo account's data, which the rules make world-readable, but
+that account is write-locked at the backend: the demo cannot change any data or trigger any function.
+The read-only behaviour is enforced by the rules, not merely hidden in the interface, so it holds even
+against a hand-crafted client.
 
 \subsection{What is and is not a secret}
 
-The Firebase web API key shipped in the static front end is a public client identifier, not a
-secret; security is enforced by Authentication and the rules, not by hiding the key. No
-service-account key is present in the repository, and device Wi-Fi credentials and firmware
-secrets are excluded by \texttt{.gitignore}. Everything required to understand and build the
-system is tracked; only true secrets are not.
+The Firebase web API key shipped in the static front end is a public client identifier, not a secret;
+security is enforced by Authentication and the rules, not by hiding the key. No service-account key is
+present in the repository, and the functions run on their ambient service account. Device Wi-Fi
+credentials and firmware secrets are excluded by \texttt{.gitignore}. Everything required to understand
+and build the system is tracked; only true secrets are not.
 
 \subsection{Owner data rights}
 
 The account page lets an owner export everything stored about their cats and delete their account,
-devices, and data. This supports the access and erasure expectations of data-protection regimes
-such as the UK GDPR; the bundled privacy policy is a starting point and is marked for legal review
-before any public launch.
+devices, and data. This supports the access and erasure expectations of data-protection regimes such as
+the UK GDPR. The bundled privacy policy is a starting point and is marked for legal review before any
+public launch.

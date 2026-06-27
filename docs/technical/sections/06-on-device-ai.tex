@@ -1,84 +1,100 @@
 \section{On-device AI}
 \label{sec:on-device-ai}
 
-All classification happens on the collar, in real time, using TensorFlow Lite Micro
-(TFLM)~\cite{david2021tflm} with the CMSIS-NN kernels~\cite{lai2018cmsisnn} for the
-nRF52840's Cortex-M4F. The models are tiny int8 networks in the spirit of the TinyML
-approach~\cite{warden2019tinyml}.
+All classification happens on the collar, in real time, using TensorFlow Lite
+Micro~\cite{david2021tflm} with the CMSIS-NN kernels~\cite{lai2018cmsisnn} for the nRF52840's
+Cortex-M4F. The models are tiny int8 networks in the spirit of the TinyML
+approach~\cite{warden2019tinyml}: small enough to fit a microcontroller's RAM and run within the
+collar's power budget, yet accurate enough to separate everyday behaviours.
 
 \subsection{Confidence-gated cascade}
 
-Two behaviours can look almost identical to a motion sensor while sounding completely
-different: eating and drinking both involve the head down at a bowl. Rather than force a single
-model to separate them from motion alone, Meowtion runs a confidence-gated cascade of two
-models:
+Two behaviours can look almost identical to a motion sensor while sounding completely different:
+eating and drinking both put the head down at a bowl with similar gross motion. Rather than force a
+single model to separate them from accelerometry alone, Meowtion runs a confidence-gated cascade of
+two models:
 
-\begin{enumerate}[leftmargin=1.5em]
-  \item The \textbf{IMU model} runs continuously on the motion stream. It is cheap and always on.
-  \item When the IMU model is \emph{unsure}, a short \textbf{audio model} is invoked to confirm.
-        Audio is therefore a deployed signal, used to resolve ambiguity, not merely a training
-        aid.
+\begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
+  \item The \textbf{IMU model} runs continuously on the motion stream. It is cheap and always on, and
+        it carries most of the classification load.
+  \item When the IMU model is \emph{unsure} (its top class falls below a confidence threshold), the
+        short \textbf{audio model} is invoked to confirm. Audio is therefore a deployed disambiguation
+        signal, not merely a training aid.
 \end{enumerate}
 
-This keeps average power low (the audio path runs only when needed) while recovering the
-accuracy that motion alone cannot provide.
+This keeps average power low, since the audio path runs only when it is needed to break a tie, while
+recovering accuracy that motion alone cannot provide. The cascade policy lives in plain C
+(\texttt{classifier.c}) and is independent of the inference backend, so the gating logic can be read
+and tuned without touching the TensorFlow Lite Micro code.
 
 \subsection{Matching training and inference}
 
-The single most important correctness property is that the on-device input transform must mirror
-the transform used during training, exactly. A model trained on one representation and fed
-another at inference will produce confident nonsense. Meowtion enforces this on both paths:
+The single most important correctness property is that the on-device input transform must mirror the
+transform used during training, exactly. A model trained on one representation and fed another at
+inference produces confident nonsense. Meowtion enforces the match on both paths:
 
-\begin{itemize}[leftmargin=1.4em]
-  \item \textbf{Motion.} The rolling window is normalised per channel: subtract each channel's
-        mean over time, then divide by the global maximum absolute value (with a small epsilon),
-        and quantise to int8 using the input tensor's own scale and zero-point.
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Motion.} The rolling window is normalised per channel (subtract each channel's mean
+        over the window, divide by the global maximum absolute value with a small epsilon) and
+        quantised to int8 using the input tensor's own scale and zero-point.
   \item \textbf{Audio.} Inference audio is decimated and encoded to match the training
-        representation: 8\,kHz $\mu$-law, produced by the same conversion used to prepare training
-        clips. A mismatch here was an early source of confident misclassification.
+        representation: 8\,kHz $\mu$-law, produced by the same conversion used to prepare the training
+        clips (\cref{sec:protocols}). A mismatch here was an early source of confident
+        misclassification.
 \end{itemize}
 
 To avoid a large floating-point scratch buffer on a RAM-constrained part, the IMU path quantises
-directly from the int16 source in a small number of passes (compute the per-channel mean and the
-global max, then quantise), rather than materialising a float window.
-\Cref{lst:quant} sketches the approach.
+directly from the int16 source in a few passes (per-channel mean, then global max-abs, then write
+int8) rather than materialising a float window, \cref{lst:quant}.
 
 \begin{lstlisting}[language=C,caption={Direct int16-to-int8 quantisation, mirroring training (sketch).},label={lst:quant}]
 // pass 1: per-channel mean over the window
 // pass 2: global max-abs of (sample - channel_mean)
-// pass 3: write int8 = round((x_norm)/scale) + zero_point
+// pass 3: int8 = round( x_norm / scale ) + zero_point,
 //         where x_norm = (sample - channel_mean) / (maxabs + 1e-6)
-// scale and zero_point come from the input tensor itself.
+// scale and zero_point are read from the input tensor itself.
 \end{lstlisting}
+
+\subsection{Runtime models and model-free safety}
+
+No model is compiled into the firmware. Each stage loads its \texttt{.tflite} at runtime
+(\texttt{clf\_set\_imu\_model} / \texttt{clf\_set\_audio\_model}), from the dedicated flash partition
+written over the air (\cref{sec:firmware-collar,sec:protocols}). Until a model lands the engine runs
+model-free: the presence queries return false and the cascade returns \texttt{UNKNOWN}, so the
+firmware is safe to run with no model at all and simply advertises a simulated state until a real
+model is installed.
 
 \subsection{Memory budget}
 
-TFLM uses a fixed tensor arena per model. The arenas are sized to the two networks and are the
-dominant RAM cost of inference:
+TensorFlow Lite Micro uses a fixed, statically allocated tensor arena per model (this firmware uses no
+heap). The arenas dominate the RAM cost of inference and are sized to the two networks. The values in
+\cref{tab:arenas} are the starting budgets; each must be tuned to the real exported model, since an
+undersized arena makes \texttt{AllocateTensors()} fail and the stage report itself absent.
 
 \begin{table}[ht]
   \centering
-  \caption{Tensor arenas.}
+  \caption{Tensor arenas (initial budgets).}
   \label{tab:arenas}
   \begin{tabularx}{\textwidth}{@{}llX@{}}
     \toprule
     \textbf{Model} & \textbf{Arena} & \textbf{Notes} \\
     \midrule
-    IMU (slot 0)   & 16\,KiB & Always-on motion classifier \\
-    Audio (slot 1) & 48\,KiB & Invoked only to confirm an uncertain IMU result \\
+    IMU (slot 0)   & 16\,KiB & Always-on motion classifier, a small temporal conv net \\
+    Audio (slot 1) & 48\,KiB & Larger 1-D conv over 8000 points; invoked only to confirm \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
-Enabling inference initially pushed RAM use to roughly 94\,\%; eliminating the float window
-scratch buffer (quantising directly from int16) brought it back to the low 80s, leaving headroom
-for the BLE stack and the raised main stack.
+Enabling inference initially pushed RAM use to roughly 94\,\%; eliminating the float-window scratch
+buffer (quantising directly from int16) brought it back into the low 80s, leaving headroom for the BLE
+stack and the raised main stack (\cref{sec:firmware-collar}).
 
 \subsection{Operator set}
 
-The op resolver is a fixed \texttt{MicroMutableOpResolver}, so only the operators the models
-actually use are linked. The Keras \texttt{Conv1D} layers are exported as \texttt{CONV\_2D}
-wrapped in \texttt{EXPAND\_DIMS} and \texttt{SQUEEZE}; the missing \texttt{EXPAND\_DIMS} operator was
-the cause of an early ``didn't find op'' load failure, and the resolver now includes it along
-with the pooling, fully-connected, reshape, softmax, and quantise/dequantise operators the
-networks need.
+The op resolver is a fixed \texttt{MicroMutableOpResolver}, so only the operators the models actually
+use are linked into the image. The Keras \texttt{Conv1D} layers export as \texttt{CONV\_2D} wrapped in
+\texttt{EXPAND\_DIMS} and \texttt{SQUEEZE}; the missing \texttt{EXPAND\_DIMS} operator was the cause of
+an early ``didn't find op'' load failure, and the resolver now includes it alongside the pooling,
+fully-connected, reshape, softmax, and quantise/dequantise operators the networks need. Pinning the
+operator set this way keeps the binary small and makes a load failure a clear, diagnosable event
+rather than a silent fallback.

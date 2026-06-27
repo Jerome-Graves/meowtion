@@ -8,6 +8,10 @@
 \definecolor{mwline}{HTML}{E6E7EC}  % hairline rules
 \definecolor{mwcodebg}{HTML}{F4F4F8}
 
+% Let TeX break before long unbreakable monospace tokens (file paths, identifiers) rather than
+% running them into the right margin, instead of forcing an overfull line.
+\setlength{\emergencystretch}{3em}
+
 % ---- Headings: ink titles, lavender numbers ----
 \titleformat{\section}{\Large\bfseries\color{mwink}}{\color{mwlavd}\thesection}{0.6em}{}
 \titleformat{\subsection}{\large\bfseries\color{mwink}}{\color{mwlavd}\thesubsection}{0.6em}{}

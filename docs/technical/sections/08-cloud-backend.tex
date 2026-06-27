@@ -1,56 +1,97 @@
 \section{Cloud backend}
 \label{sec:cloud-backend}
 
-The backend is Firebase. It provides authentication, a Realtime Database for live state and
-history, Cloud Storage for training clips and model blobs, and Python Cloud Functions for
-server-side training. There is no custom server to operate.
+The backend is Firebase~\cite{firebase}. It provides owner authentication, a Realtime Database for live state and
+history, Cloud Storage for training clips and model blobs, and Python Cloud Functions (2nd
+generation) for server-side logic. There is no custom server to operate, and the whole backend is
+self-contained in \texttt{app/firebase/}, deployed with \texttt{firebase deploy} from that folder.
 
-\subsection{Database schema}
+\subsection{Authentication}
 
-State and history live in the Realtime Database, keyed by owner so the security rules can scope
-every read and write to the owning account. \Cref{tab:db} lists the main paths.
+Owners sign in with Firebase Authentication (email/password or Google). The collar and station do
+\emph{not} authenticate as users: a station carries a scoped per-device token, and a collar carries
+nothing (the station relays it). This keeps the credential surface on battery devices to a single
+revocable token (\cref{sec:security-privacy}).
+
+\subsection{Realtime Database schema}
+
+State and history live in the Realtime Database, keyed by owner so the security rules can scope every
+read and write to the owning account. \Cref{tab:db} lists the main paths.
 
 \begin{table}[ht]
   \centering
-  \caption{Realtime Database paths (illustrative).}
+  \caption{Realtime Database paths.}
   \label{tab:db}
   \begin{tabularx}{\textwidth}{@{}lX@{}}
     \toprule
     \textbf{Path} & \textbf{Contents} \\
     \midrule
-    \texttt{users/<uid>/devices/<token>/} & A registered station or collar, by scoped token \\
-    \texttt{.../cats/<catId>/current}     & The cat's live state (version, class, confidence) \\
-    \texttt{.../cats/<catId>/events}      & Discrete activity episodes (carry version + class index) \\
-    \texttt{users/<uid>/models/}          & Current model version and label list for the owner \\
-    \texttt{config/demoOwner}             & UID whose data backs the public read-only demo \\
-    \texttt{config/modelVer}              & Per-station model-version key the station watches \\
-    \texttt{config/devAccounts/<uid>}     & Flags accounts allowed to use the dev/training tools \\
+    \texttt{users/<uid>/devices/<token>}        & A registered station (\texttt{type:station}) with its
+      relayed \texttt{cats/<catId>} subtree, or a registered collar entry \\
+    \texttt{.../cats/<catId>/current}           & The cat's live state (version, class, confidence, steps, battery) \\
+    \texttt{.../cats/<catId>/events}            & Discrete activity events (carry model version + class index) \\
+    \texttt{.../devices/<station>/weather}      & Current and recent local weather for the station's location \\
+    \texttt{users/<uid>/models}                 & Current model version, status, and the label list \\
+    \texttt{users/<uid>/actions}                & The behaviours to recognise (managed from the dev console) \\
+    \texttt{deviceTokens/<token>/owner}         & Maps a device token to its owning account \\
+    \texttt{config/demoOwner}                   & UID whose data backs the public read-only demo \\
+    \texttt{config/devAccounts/<uid>}           & Accounts allowed to use the dev/training tools \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
-Events store the model version and class index rather than a pre-resolved name. The dashboard
-maps the index to a label using the version's label list, so historical events stay correct even
-as the owner changes their behaviour set.
+Events store the model version and class index rather than a pre-resolved name. The dashboard maps the
+index to a label using that version's label list, so historical events stay correct even as the owner
+changes their behaviour set.
 
-\subsection{Storage}
+\subsection{Cloud Storage}
 
-Cloud Storage holds the training clips (audio plus aligned motion) and the trained model blobs.
-Training clips are private to the owner and are deliberately \emph{not} world-readable, even in
-the demo: home audio must never be public. The model blobs are what the station downloads during
-over-the-air delivery.
+Storage holds the training clips (audio plus aligned motion) and the trained model blobs, in an
+owner-scoped layout: clips at \texttt{training/<owner>/\allowbreak <collar>/<ts>.\{wav,imu\}} and models
+at \texttt{models/<uid>/\allowbreak \{imu,audio\}\_model.tflite}. Training clips are private to the owner and are
+deliberately \emph{not} world-readable, even in the demo, because home audio must never be public.
+Model blobs are public-read so the token-only station can fetch one to push to the collar, and are
+written only by the trainer.
 
 \subsection{Cloud Functions}
 
-A Python Cloud Function performs training. It reads the owner's labelled clips, trains the
-model(s) with TensorFlow, writes the quantised \texttt{.tflite} outputs to Storage, records the
-new version and labels in the database, and mirrors the version into each of the owner's stations
-so delivery is triggered (\cref{sec:training-pipeline}). Running training server-side keeps the
-owner's experience to a single button and removes any local setup.
+Two functions provide the only server-side logic. Both run on the function's ambient service account,
+so no service-account key is checked into the repository.
+
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[\texttt{train}] Server-side model training, \texttt{POST} with a developer account's Firebase
+        ID token and gated additionally by \texttt{config/devAccounts/<uid>}. It reads the account's
+        labelled clips, trains the int8 IMU and audio models (\cref{sec:training-pipeline}), uploads
+        them to \texttt{models/<uid>/}, updates \texttt{users/<uid>/models}, and mirrors the new
+        version into each of the owner's station configs to trigger delivery.
+  \item[\texttt{upload\_clip}] Authenticated clip upload for the token-only station. The station has
+        no login, so it cannot satisfy the Storage rules directly; it POSTs the clip bytes here with
+        its device token, the function verifies \texttt{deviceTokens/<token>/owner}, and writes the
+        file as administrator into that owner's Storage area. This lets the Storage rules deny all
+        direct client writes while still letting an authorised station upload.
+\end{description}
+
+\subsection{Demo data simulator}
+
+So that the public demo always presents a populated, believable dashboard, a scheduled Cloud Function
+maintains a fully simulated companion collar (``Purrminator'') on the demo account. It is a standalone
+device that needs no station and is always online. On first run it backfills roughly six months of
+realistic activity history, weighted by time of day so the pattern matches an average cat (crepuscular,
+busy around dawn and dusk, resting overnight), with matching daily weather from a free historical
+feed. Thereafter it wakes on a short schedule and commits each activity as an event at the moment that
+action ends, so new events arrive at naturally varying intervals. The simulator only ever writes the
+demo account's own data and never touches a real collar.
+
+\subsection{Weather context}
+
+Local weather is incorporated so the dashboard can read a habit change against its environment, since a
+warm spell that increases drinking and suppresses appetite should not be mistaken for illness. The
+station polls a keyless forecast feed (Open-Meteo) for its provisioned location and writes current and
+recent weather under its device record; the demo simulator uses the same provider's historical archive
+to backfill weather alongside the simulated activity.
 
 \subsection{Configuration as a trust boundary}
 
-The \texttt{config} subtree is readable by clients but not writable by them; it is maintained
-through the console or an administrator path. This lets the system publish facts the clients need
-(which account backs the demo, the current model version, which accounts are developers) without
-allowing a client to grant itself privileges.
+The \texttt{config} subtree is readable by clients but not writable by them; it is maintained from the
+Firebase console. This lets the system publish facts the clients need (which account backs the demo,
+which accounts are developers) without letting a client grant itself privileges.

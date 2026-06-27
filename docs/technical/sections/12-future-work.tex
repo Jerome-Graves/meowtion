@@ -1,23 +1,26 @@
 \section{Future work}
 \label{sec:future-work}
 
-The system works end to end on real hardware: record, label, train, deliver over the air,
-classify on-device, and display live. The following items are known and planned.
+The system runs end to end on real hardware: record, label, train, deliver over the air, classify
+on-device, and display live. The following items are known and planned, roughly in priority order.
 
 \begin{description}[leftmargin=1.6em,style=nextline]
-  \item[Idle/other class] Retrain with an explicit ``neither'' class so an idle cat is not forced
-        into one of the trained behaviours. This is a data and modelling task
+  \item[Idle/other class] Retrain with an explicit ``neither'' class so an idle cat is not forced into
+        one of the trained behaviours. This is a data and modelling task, not a firmware change
         (\cref{sec:training-pipeline}).
-  \item[Activate the audio confirm stage] The cascade is built for IMU-then-audio confirmation;
-        finish wiring the audio second stage into production so ambiguous motion is resolved by
-        sound on-device (\cref{sec:on-device-ai}).
-  \item[Battery characterisation] Measure real collar runtime per behaviour mix and tune the
-        duty cycle of the audio path against it.
+  \item[Activate the audio confirm stage] The cascade is built for IMU-then-audio confirmation; finish
+        wiring the audio second stage into production so ambiguous motion is resolved by sound
+        on-device (\cref{sec:on-device-ai}).
+  \item[Real classifier in telemetry] Switch the advertised telemetry from the simulated behaviour
+        state machine to live classifier output once a trained model is loaded on the collar
+        (\cref{sec:protocols}).
+  \item[Battery characterisation] Measure real collar runtime across a representative behaviour mix and
+        tune the duty cycle of the audio path against it.
   \item[More behaviours] Extend the captured and labelled set beyond eat/drink/purr to scratching,
-        litter-tray use, grooming, and play.
-  \item[Multi-cat disambiguation] Distinguish multiple cats in one household, currently framed as
-        a single-cat, within-subject problem.
-  \item[Firmware OTA] Today only models are delivered over the air; extend the mechanism to full
-        firmware updates.
+        litter-tray use, grooming, and play, exercising the label-agnostic pipeline at scale.
+  \item[Multi-cat disambiguation] Distinguish multiple cats in one household, currently framed as a
+        single-cat, within-subject problem.
+  \item[Firmware over-the-air] Today only models are delivered over the air; extend the mechanism to
+        full firmware updates.
   \item[Publication] Write up the confidence-gated cascade as a short preprint and a venue paper.
 \end{description}

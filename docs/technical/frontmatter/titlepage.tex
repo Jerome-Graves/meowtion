@@ -1,30 +1,43 @@
-% titlepage.tex - branded cover page using the README hero banner.
+% titlepage.tex - branded cover page.
+% Uses the transparent circular logo (logo.png, rendered from docs/logo.svg) plus a typeset
+% wordmark, so the title sits cleanly on the page with no opaque banner rectangle.
 \begin{titlepage}
   \centering
-  \vspace*{1.5cm}
+  \vspace*{2.1cm}
 
-  \includegraphics[width=0.82\textwidth]{hero-banner.png}\\[2.2cm]
+  \includegraphics[width=3.4cm]{logo.png}\par
+  \vspace{0.95cm}
 
-  {\Huge\bfseries\color{mwink}\doctitle}\\[0.7cm]
-  {\large\color{mwmut}\docsubtitle}\\[2.2cm]
+  {\fontsize{42}{46}\selectfont\bfseries\color{mwink}Meowtion}\par
+  \vspace{0.40cm}
+  {\large\color{mwlavd}\docsubtitle}\par
+  \vspace{0.55cm}
+  {\color{mwlav}\rule{0.42\textwidth}{1pt}}\par
+  \vspace{1.5cm}
 
-  {\large\color{mwink}\docauthor}\\[0.35cm]
-  {\color{mwmut}\docversion\quad\textbullet\quad\docdate}\\[2.0cm]
+  {\large\color{mwink}\docauthor}\par
+  \vspace{0.25cm}
+  {\color{mwmut}\docversion\quad\textbullet\quad\docdate}\par
+  \vspace{1.7cm}
 
   \begin{minipage}{0.82\textwidth}
     \small\color{mwink}
-    \textbf{Abstract.} Meowtion is a smart cat collar that infers a cat's health
-    from changes in its daily habits. A battery-powered collar classifies behaviour
-    (eating, drinking, activity, rest, purring) on the device itself, relays the
-    result over Bluetooth Low Energy to a mains-powered base station, and the station
-    forwards it to the cloud for a live owner-facing dashboard. The behaviour set is
-    not hard-coded: owners define the actions to recognise, label captured clips, and
-    a cloud trainer produces tiny quantised models that are delivered back to the
-    collar over the air. This document is the end-to-end technical reference for the
-    system: hardware, firmware, on-device AI, the training pipeline, the cloud
-    backend, the dashboard, the communication protocols, and the security model.
+    \textbf{Abstract.}\enspace Meowtion is a smart cat collar that infers a cat's health from
+    changes in its daily habits. Cats instinctively hide illness, so the earliest warning is
+    usually a quiet shift in routine, eating less, drinking more, or grooming and moving less,
+    rather than an obvious symptom. A battery-powered collar classifies behaviour on the device
+    itself with a confidence-gated cascade of two quantised neural networks, relays only the
+    result over Bluetooth Low Energy to a mains-powered base station, and the station forwards it
+    to a cloud backend that drives a live, owner-facing dashboard with longitudinal health
+    analytics. The behaviour set is not hard-coded: owners define the actions to recognise, label
+    captured clips, and a cloud trainer produces tiny models that are delivered back to the collar
+    over the air. This document is the end-to-end technical reference for the system, covering the
+    architecture and data flows, the hardware, the firmware on both microcontrollers, the
+    on-device AI, the training pipeline, the cloud backend, the dashboard, the communication
+    protocols, and the security and privacy model.
   \end{minipage}
 
   \vfill
-  {\footnotesize\color{mwmut}\docrepo \quad\textbullet\quad \docdash}\\[0.4cm]
+  {\footnotesize\color{mwmut}\docrepo\quad\textbullet\quad\docdash}\par
+  \vspace{0.6cm}
 \end{titlepage}

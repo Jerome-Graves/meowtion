@@ -3,51 +3,75 @@
 
 \subsection{Motivation}
 
-Cats are evolved to conceal illness. A cat that feels unwell will mask it for as long
-as it can, so by the time a problem is obvious to an owner it is often already advanced.
-The early signal is rarely a dramatic symptom; it is a quiet shift in routine. A cat that
-begins to drink noticeably more, eats less, stops grooming, or sleeps through activity it
-used to enjoy is communicating a change. The difficulty is that no person watches their cat
-continuously, and day-to-day memory is a poor baseline. The change is real but invisible.
+Cats are evolved to conceal illness. A cat that feels unwell will mask it for as long as it can,
+so by the time a problem is obvious to an owner it is often already advanced. The early signal is
+rarely a dramatic symptom; it is a quiet shift in routine. A cat that begins to drink noticeably
+more, eats less, stops grooming, or sleeps through activity it used to enjoy is communicating a
+change. The difficulty is that no person watches their cat continuously, and day-to-day memory is a
+poor baseline. The change is real but invisible.
 
 Meowtion makes that change visible. It observes the behaviours that make up a cat's routine,
-continuously and unobtrusively, and surfaces the trend to the owner. The goal is not to
-diagnose; it is to notice the routine change early enough that the owner can act, rather than
-only seeing the crisis.
+continuously and unobtrusively, and surfaces the trend to the owner. The goal is explicitly
+\emph{not} to diagnose; it is to notice a routine change early enough that the owner can act on it,
+rather than only seeing the crisis. The clinical literature on feline medicine is consistent on the
+point that appetite, thirst, grooming and activity are among the first things to shift when a cat
+becomes unwell, and that these shifts are easy to miss without a continuous, objective baseline.
 
 \subsection{Approach}
 
-The system is a wearable plus a small fixed gateway. A lightweight, battery-powered collar
-carries the sensors and the intelligence: it classifies behaviour on the device itself, in
-real time, and never streams raw sensor data off the cat. It reports only a compact result
-(``eating, high confidence'') over Bluetooth Low Energy (BLE) to a mains-powered base station
-in the home. The station bridges BLE to the internet over Wi-Fi and forwards results to a
-cloud backend, which drives a hosted dashboard where the owner sees their cat's activity and
-trends live.
+The system is a wearable plus a small fixed gateway. A lightweight, battery-powered collar carries
+the sensors and the intelligence: it classifies behaviour on the device itself, in real time, and
+never streams raw sensor data off the cat. It reports only a compact result (for example,
+``eating, high confidence'') over Bluetooth Low Energy (BLE) to a mains-powered base station in the
+home. The station bridges BLE to the internet over Wi-Fi and forwards results to a cloud backend,
+which drives a hosted dashboard where the owner sees their cat's activity and trends live, with the
+longer-run habit changes that matter for health flagged automatically.
 
-Two design commitments shape the whole system:
+\subsection{Design principles}
 
-\begin{itemize}[leftmargin=1.4em]
-  \item \textbf{Privacy by construction.} Classification happens on the collar. The
-        microphone is used only to help recognise behaviour on-device; raw audio is processed
-        and discarded, never recorded or transmitted. Each owner's data is scoped to their own
-        account by the backend's security rules.
-  \item \textbf{Trainable, not fixed-function.} The recognised behaviours are defined by the
-        owner, not baked into firmware. Owners capture and label example clips, a cloud trainer
-        produces tiny models, and those models are delivered back to the collar over the air.
-        Meowtion is a platform for recognising any pet behaviour.
-\end{itemize}
+Four commitments shape the whole system and recur throughout this document.
 
-\subsection{Scope of this document}
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[Privacy by construction.] Classification happens on the collar. The microphone is used only
+        to help recognise behaviour on-device; raw audio is processed and discarded, never recorded
+        or transmitted in normal operation. Each owner's data is scoped to their own account by the
+        backend's security rules (\cref{sec:security-privacy}).
+  \item[Trainable, not fixed-function.] The recognised behaviours are defined by the owner, not
+        baked into firmware. Owners capture and label example clips, a cloud trainer produces tiny
+        models, and those models are delivered back to the collar over the air. Meowtion is a
+        platform for recognising any pet behaviour, not a three-trick gadget
+        (\cref{sec:training-pipeline}).
+  \item[Intelligence at the edge.] Inference runs on a microcontroller on the cat, not in the
+        cloud. This keeps the radio uplink tiny (a classification result, not a sensor stream),
+        keeps average power low enough for a collar-sized battery, and removes the cloud from the
+        sensing loop entirely (\cref{sec:on-device-ai}).
+  \item[Health-first analytics.] The dashboard is built around longitudinal habit tracking and
+        baseline comparison, not just a live read-out, so that a sustained change in a key habit is
+        surfaced as an insight rather than buried in raw events (\cref{sec:dashboard}).
+\end{description}
 
-This document is the complete technical reference for Meowtion as built. It is organised
-bottom-up: the physical hardware (\cref{sec:hardware}), the firmware on each of the two
-microcontrollers (\cref{sec:firmware-collar,sec:firmware-station}), the on-device AI
-(\cref{sec:on-device-ai}), the training pipeline that produces and delivers models
-(\cref{sec:training-pipeline}), the cloud backend (\cref{sec:cloud-backend}), the dashboard
-(\cref{sec:dashboard}), the communication protocols that tie the tiers together
-(\cref{sec:protocols}), and the security and privacy model (\cref{sec:security-privacy}).
+\subsection{Contributions}
+
+Considered as an engineering artefact, Meowtion's notable elements are: a \emph{confidence-gated,
+dual-model cascade} that runs an always-on motion classifier and invokes a short audio classifier
+only to resolve genuinely ambiguous behaviours (eating and drinking look alike to an accelerometer
+but not to a microphone), so audio is a deployed disambiguation signal rather than only a training
+aid; a \emph{label-agnostic} pipeline in which the behaviour set is data-defined end to end, from
+the dashboard's action list through the cloud trainer to the index-based on-collar classifier; an
+\emph{over-the-air model path} that delivers quantised models to a Bluetooth-only wearable through
+the station; and a privacy and multi-tenancy model in which battery devices hold only a scoped,
+revocable token and never the owner's credentials.
+
+\subsection{Scope and structure of this document}
+
+This document is the complete technical reference for Meowtion as built. It is organised so that a
+reader can either follow it top-to-bottom or jump to one tier.
+\Cref{sec:architecture} gives the system-level picture, the component responsibilities, the two
+operating modes, and the end-to-end data flows, and is the right place to start. The detailed
+chapters then proceed bottom-up: the physical hardware (\cref{sec:hardware}); the firmware on each
+of the two microcontrollers (\cref{sec:firmware-collar,sec:firmware-station}); the on-device AI
+(\cref{sec:on-device-ai}); the training pipeline that produces and delivers models
+(\cref{sec:training-pipeline}); the cloud backend (\cref{sec:cloud-backend}); the dashboard
+(\cref{sec:dashboard}); the communication protocols that tie the tiers together
+(\cref{sec:protocols}); and the security and privacy model (\cref{sec:security-privacy}).
 \Cref{sec:future-work} records known limitations and planned work.
-
-\Cref{sec:system-overview} gives the system-level picture first, so the detailed sections that
-follow have a frame to hang on.

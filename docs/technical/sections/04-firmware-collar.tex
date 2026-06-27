@@ -1,85 +1,124 @@
 \section{Collar firmware}
 \label{sec:firmware-collar}
 
-The collar runs on Zephyr via the nRF Connect SDK (NCS v3.3.1), targeting the board
-\texttt{xiao\_ble/nrf52840/sense}. It is a BLE peripheral with a USB CDC ACM console for
-development logging, and it is flashed by drag-and-dropping a UF2 image onto the bootloader
-drive (double-tap RESET to enter the bootloader). The repository build is driven by
-\texttt{build.ps1}.
+The collar runs on Zephyr~\cite{zephyr} via the nRF Connect SDK (NCS v3.3.1), targeting the board
+\texttt{xiao\_ble/nrf52840/sense}. It is a connectable BLE peripheral that senses on the cat,
+advertises a compact telemetry packet, and, when a station connects and subscribes, streams paired
+audio\,+\,IMU clips for training. It never touches Wi-Fi or the internet, which keeps it small and
+low-power and lets it always run on its own battery. The build is driven by \texttt{build.ps1}, which
+locates the local NCS toolchain, runs \texttt{west build -b xiao\_ble}, and copies out the UF2.
 
 \subsection{Responsibilities}
 
-The collar firmware has four jobs that run from the main loop and BLE callbacks:
-
-\begin{enumerate}[leftmargin=1.5em]
-  \item Sample the IMU (and, when needed, the microphone) and run the classifier.
-  \item Advertise the result as BLE telemetry for the station to read (\cref{sec:protocols}).
+The firmware has four jobs, driven from the main loop and BLE callbacks:
+\begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
+  \item Sample the IMU continuously (and the microphone when needed) and run the classifier cascade.
+  \item Advertise the result as an 8-byte BLE telemetry packet for the station to read
+        (\cref{sec:protocols}).
+  \item In training mode, stream paired audio\,+\,IMU frames to a subscribed station for capture.
   \item Receive new models over the air and swap them in safely.
-  \item In training mode, stream sensor data to the station for capture instead of classifying.
 \end{enumerate}
 
 \subsection{Source layout}
 
 \begin{table}[ht]
   \centering
-  \caption{Key collar source files.}
+  \caption{Collar firmware modules (\texttt{firmware/collar/src/}).}
   \label{tab:collar-src}
   \begin{tabularx}{\textwidth}{@{}lX@{}}
     \toprule
-    \textbf{File} & \textbf{Role} \\
+    \textbf{File} & \textbf{Responsibility} \\
     \midrule
-    \texttt{main.c}            & Boot, BLE init, the service loop (model service, then production/sim dispatch) \\
-    \texttt{production.c}      & Rolling IMU window, runs inference, writes telemetry v2 in production mode \\
-    \texttt{ota.c}             & OTA receive state machine; commits models and defers the swap to the main thread \\
-    \texttt{classifier.c}      & Cascade logic with weak hooks for model presence and inference \\
-    \texttt{tflm\_classifier.cpp} & Strong TensorFlow Lite Micro backend overriding the weak hooks \\
+    \texttt{main.c}            & Boot and the telemetry loop; orchestration only \\
+    \texttt{ble.c}             & Advertising, identity, the audio GATT service, notifications \\
+    \texttt{audio.c}           & PDM microphone capture, decimated to 8\,kHz $\mu$-law \\
+    \texttt{audio\_codec.h}    & $\mu$-law codec and the model-input audio representation \\
+    \texttt{streaming.c}       & Decoupled reader/sender threads that assemble and send clip frames \\
+    \texttt{imu.c}             & LSM6DS3TR-C continuous sampler \\
+    \texttt{battery.c}         & 1S LiPo charge state via the onboard divider \\
+    \texttt{classifier.c}      & The confidence-gated cascade policy (IMU first, audio confirms) \\
+    \texttt{tflm\_classifier.cpp} & TensorFlow Lite Micro backend for the cascade \\
+    \texttt{model\_loader.h}   & Runtime model-install API (\texttt{clf\_set\_imu\_model} / \texttt{clf\_set\_audio\_model}) \\
+    \texttt{production.c}      & Rolling IMU window; runs inference and writes real telemetry \\
+    \texttt{ota.c}             & OTA receive state machine; stages models to flash and defers the swap \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
-The classifier is split deliberately. \texttt{classifier.c} defines the cascade with
-\emph{weak} C hooks (model-present queries and inference calls). \texttt{tflm\_classifier.cpp}
-provides \emph{strong} \texttt{extern\ "C"} definitions that override them when the TensorFlow
-Lite Micro backend is compiled in. This keeps the cascade policy in plain C and the heavy C++
-inference cleanly separable.
+The classifier is split deliberately. \texttt{classifier.c} defines the cascade policy in plain C
+with \emph{weak} hooks for model-presence queries and inference calls; \texttt{tflm\_classifier.cpp}
+provides the \emph{strong} \texttt{extern\,"C"} definitions that override them when the TensorFlow
+Lite Micro backend is compiled in. This keeps the policy readable and separable from the heavy C++
+inference, and it means the firmware links and runs even with the backend or any model absent.
 
-\subsection{Flash layout}
+\subsection{Streaming and threading}
 
-Models are not linked into the firmware image; they live in a dedicated flash partition and run
-execute-in-place (XIP), so a new model can be written without reflashing firmware.
+Capturing training data is the collar's most timing-sensitive path: PDM audio arrives in a steady
+stream and must be paired with IMU samples and pushed over BLE without dropping frames. The reader
+and sender are therefore decoupled (\texttt{streaming.c}): one side assembles 100\,ms frames from the
+audio and IMU sources, the other side sends them over the audio characteristic, so a momentarily slow
+radio cannot stall capture. The collar negotiates a large ATT MTU (247 bytes) and uses the 2\,Mbit
+PHY to keep throughput up.
+
+\subsection{Model storage and flash layout}
+
+Models are not linked into the firmware image. They live in a dedicated flash partition so a new model
+can be written over the air without reflashing. The partition map is fixed in \texttt{pm\_static.yml}
+to stop the partition manager from silently regrowing the application region over the model storage:
 
 \begin{table}[ht]
   \centering
-  \caption{Model storage partition.}
+  \caption{Collar flash partitions (\texttt{pm\_static.yml}).}
   \label{tab:flash}
   \begin{tabularx}{\textwidth}{@{}llX@{}}
     \toprule
     \textbf{Partition} & \textbf{Address / size} & \textbf{Contents} \\
     \midrule
-    \texttt{models\_storage} & \texttt{0xAC000}, \texttt{0x40000} (256\,KiB) &
-      Header plus the IMU (slot 0) and audio (slot 1) model blobs, executed in place \\
+    \texttt{app}              & \texttt{0x27000} / \texttt{0x85000} & Application code (fixed size) \\
+    \texttt{models\_storage}  & \texttt{0xAC000} / \texttt{0x40000} (256\,KiB) &
+      Header plus the IMU (slot 0) and audio (slot 1) model blobs \\
+    \texttt{settings\_storage} & \texttt{0xEC000} / \texttt{0x08000} & NVS settings \\
+    \texttt{uf2\_partition}   & \texttt{0xF4000} / \texttt{0x0C000} & UF2 bootloader (unchanged) \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
 \subsection{Build configuration}
 
-Enabling on-device inference required pulling TensorFlow Lite Micro into the NCS workspace (it
-is an optional, excluded west module) and turning on the C++ and TFLM options. The relevant
-\texttt{prj.conf} settings are shown in \cref{lst:prjconf}.
+Enabling on-device inference meant pulling TensorFlow Lite Micro into the NCS workspace (an optional,
+normally-excluded west module) and turning on C++17 and the TFLM and CMSIS-NN options. Two stability
+fixes are baked into the configuration: TFLM's \texttt{AllocateTensors()} and \texttt{Invoke()}
+overflow Zephyr's small default stack, so the main stack is raised; and the model storage uses
+\texttt{stream\_flash} to lazily erase pages during an OTA write.
 
 \begin{lstlisting}[language=C,caption={Inference-related \texttt{prj.conf} settings (collar).},label={lst:prjconf}]
 CONFIG_CPP=y
 CONFIG_STD_CPP17=y
 CONFIG_TENSORFLOW_LITE_MICRO=y
 CONFIG_TENSORFLOW_LITE_MICRO_CMSIS_NN_KERNELS=y
-# AllocateTensors()/Invoke() overflow the default ~2 KiB main stack:
-CONFIG_MAIN_STACK_SIZE=16384
-# stream_flash lazily erases model pages during OTA:
-CONFIG_STREAM_FLASH_ERASE=y
+CONFIG_MAIN_STACK_SIZE=16384      /* AllocateTensors()/Invoke() overflow the ~2 KiB default */
+CONFIG_STREAM_FLASH_ERASE=y       /* lazily erase model pages during OTA */
+CONFIG_BT_L2CAP_TX_MTU=247        /* large MTU for audio streaming + OTA chunks */
+CONFIG_BT_CTLR_PHY_2M=y           /* 2 Mbit PHY for throughput */
 \end{lstlisting}
 
-Two stability fixes are baked into these settings. The TFLM \texttt{AllocateTensors()} and
-\texttt{Invoke()} calls overflow Zephyr's small default stack, so the main stack is raised to
-16\,KiB; and because committing a model touches a lot of stack, the swap is deferred off the
-BLE-RX callback onto the main thread (\cref{sec:protocols}).
+Because committing a model touches a lot of stack, the OTA receive path does not load the model from
+inside the BLE-RX callback. It stages the bytes to flash, then defers the verify-and-swap onto the
+main thread (\cref{sec:protocols}), so a model can be installed without starving the BLE stack.
+
+\subsection{Development console and flashing}
+
+The XIAO nRF52840 has no debug COM port, so flashing is always a UF2 drive-copy: double-tap RESET to
+mount the bootloader drive, then re-run the build script to copy the UF2 across. For development the
+firmware brings up a USB CDC ACM console on the \emph{legacy} USB device stack (the newer NEXT stack's
+CDC console silently drops output on this board). On that console the collar prints a
+\texttt{MEOW> collar id=...} banner and a periodic \texttt{state= steps= batt=} line; the
+\texttt{id=} banner is what the dashboard reads over Web Serial to register the collar.
+
+\subsection{Current state}
+
+Telemetry state, activity and step count are currently produced by a dwell-based behaviour state
+machine (real battery is wired) and switch to live classifier output once a model is loaded; until
+then the cascade reports \texttt{UNKNOWN} and the firmware runs model-free and safe
+(\cref{sec:on-device-ai}). The cascade itself already runs at capture time, on the IMU window paired
+with each clip, so the inference path is exercised before any model ships.
