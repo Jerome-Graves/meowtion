@@ -22,19 +22,20 @@
 
   \begin{minipage}{0.82\textwidth}
     \small\color{mwink}
-    \textbf{Abstract.}\enspace Meowtion is a smart cat collar that infers a cat's health from
-    changes in its daily habits. Cats instinctively hide illness, so the earliest warning is
-    usually a quiet shift in routine, eating less, drinking more, or grooming and moving less,
-    rather than an obvious symptom. A battery-powered collar classifies behaviour on the device
-    itself with a confidence-gated cascade of two quantised neural networks, relays only the
-    result over Bluetooth Low Energy to a mains-powered base station, and the station forwards it
-    to a cloud backend that drives a live, owner-facing dashboard with longitudinal health
-    analytics. The behaviour set is not hard-coded: owners define the actions to recognise, label
-    captured clips, and a cloud trainer produces tiny models that are delivered back to the collar
-    over the air. This document is the end-to-end technical reference for the system, covering the
-    architecture and data flows, the hardware, the firmware on both microcontrollers, the
-    on-device AI, the training pipeline, the cloud backend, the dashboard, the communication
-    protocols, and the security and privacy model.
+    \textbf{Abstract.}\enspace Cats are experts at hiding illness and pain. By the time something
+    looks obviously wrong it is often already advanced, because the first warning is rarely a
+    dramatic symptom; it's a shift in routine: eating a little less, drinking a little more,
+    grooming and moving less than before. No owner can watch for that continuously, and memory
+    makes a poor baseline. Meowtion turns the collar itself into that baseline. A lightweight,
+    battery-powered collar classifies activities on the device in real time with motion and audio
+    capture, using a confidence-gated cascade of two quantised neural networks. A motion model runs
+    continuously, and only when movement alone is ambiguous does a short audio model step in to
+    confirm. Raw audio never leaves the collar; only the result is relayed, over Bluetooth Low
+    Energy through a home base station, to a live dashboard that surfaces the habit changes that
+    matter for health. Critically, the activities are not fixed in firmware: owners define what to
+    recognise, and a cloud trainer delivers new models back to the collar over the air. The outcome
+    is a complete system, demonstrated end to end on real hardware, and a blueprint for private,
+    on-device health monitoring that is a programmable platform, not a single-purpose gadget.
   \end{minipage}
 
   \vfill
