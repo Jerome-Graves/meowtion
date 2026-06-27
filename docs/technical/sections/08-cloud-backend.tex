@@ -13,6 +13,35 @@ Owners sign in with Firebase Authentication (email/password or Google). The coll
 nothing (the station relays it). This keeps the credential surface on battery devices to a single
 revocable token (\cref{sec:security-privacy}).
 
+\subsection{Backend data flow}
+
+\Cref{fig:backend-flow} shows how the tiers exchange data in normal operation. The dashboard reads the
+database, both a small per-cat live read and a cached history read (\cref{sec:dashboard}); the station
+writes telemetry and events to the database and uploads training clips to Storage through the
+\texttt{upload\_clip} function; and the station relays the collar and delivers models to it over BLE.
+Clients never write Storage directly (\cref{sec:security-privacy}). The training path that produces
+those models is shown separately in \cref{fig:training-flow}.
+
+\begin{figure}[ht]
+  \centering
+  \resizebox{0.92\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=13mm and 32mm, every node/.style={font=\footnotesize}]
+    \node[mwnode] (dash) {Dashboard};
+    \node[mwnode, below=14mm of dash] (station) {Station};
+    \node[mwnode, below=14mm of station] (collar) {Collar};
+    \node[mwnode, fill=mwlav!8, right=of dash] (rtdb) {Realtime Database\\\scriptsize current, events, models, config};
+    \node[mwnode, fill=mwlav!8, right=of station] (store) {Cloud Storage\\\scriptsize clips, models};
+    \draw[mwedge] (dash) -- node[above,text=mwmut]{read (live + history)} (rtdb);
+    \draw[mwedge] (station) -- node[above,pos=0.55,text=mwmut]{telemetry, events} (rtdb);
+    \draw[mwedge] (station) -- node[below,text=mwmut]{clips (via \texttt{upload\_clip}); download models} (store);
+    \draw[mwedge] (collar) -- node[left,text=mwmut]{BLE relay / OTA} (station);
+  \end{tikzpicture}}
+  \caption{Backend data flow in normal operation. The dashboard reads the database; the station writes
+           live state and events and uploads clips; the collar is relayed and updated through the
+           station.}
+  \label{fig:backend-flow}
+\end{figure}
+
 \subsection{Realtime Database schema}
 
 State and history live in the Realtime Database, keyed by owner so the security rules can scope every

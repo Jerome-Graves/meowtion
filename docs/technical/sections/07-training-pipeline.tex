@@ -45,6 +45,33 @@ so the on-device transform and the training transform match (\cref{sec:on-device
 Keras models are converted to TensorFlow Lite with full int8 post-training quantisation using a
 representative dataset, so the exported \texttt{.tflite} weights and activations are int8 and the
 input and output tensors carry the scale and zero-point the collar uses to quantise its own inputs.
+\Cref{fig:training-flow} shows the whole path, from the training trigger to the model running on the
+collar.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}[node distance=12mm, every node/.style={font=\footnotesize}]
+    \node[mwterm] (dev) {Dev console: ``Train''};
+    \node[mwflow, below=of dev, text width=6cm, align=left] (train)
+      {\texttt{train()}: reads labelled clips (RTDB labels + Storage \texttt{wav}/\texttt{imu}); trains int8 IMU + audio models};
+    \node[mwnode, fill=mwlav!8, below=15mm of train, xshift=-30mm, text width=3cm] (store)
+      {Storage\\\texttt{models/<uid>/\allowbreak *.tflite}};
+    \node[mwnode, fill=mwlav!8, below=15mm of train, xshift=30mm, text width=3cm] (rtdb)
+      {Realtime DB\\\texttt{models}: version + labels};
+    \node[mwflow, below=38mm of train] (station) {Station};
+    \node[mwterm, below=12mm of station] (collar) {Collar: verify CRC, load model};
+    \draw[mwedge] (dev) -- node[right,text=mwmut]{POST (dev token)} (train);
+    \draw[mwedge] (train) -- (store);
+    \draw[mwedge] (train) -- (rtdb);
+    \draw[mwedge] (store) -- node[left,text=mwmut,pos=0.4]{download} (station);
+    \draw[mwedge] (rtdb) -- node[right,text=mwmut,pos=0.4]{version bump} (station);
+    \draw[mwedge] (station) -- node[right,text=mwmut]{OTA (BLE, CRC)} (collar);
+  \end{tikzpicture}
+  \caption{Training and over-the-air model delivery. \texttt{train()} reads the labelled clips, writes
+           the quantised models to Storage and the new version and labels to the database, and the
+           station detects the version bump, downloads the models, and pushes them to the collar.}
+  \label{fig:training-flow}
+\end{figure}
 
 \subsection{Label-agnostic by design}
 
