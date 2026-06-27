@@ -25,7 +25,28 @@ two models:
 This keeps average power low, since the audio path runs only when it is needed to break a tie, while
 recovering accuracy that motion alone cannot provide. The cascade policy lives in plain C
 (\texttt{classifier.c}) and is independent of the inference backend, so the gating logic can be read
-and tuned without touching the TensorFlow Lite Micro code.
+and tuned without touching the TensorFlow Lite Micro code. \Cref{fig:cascade} shows the decision flow.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}[node distance=8mm and 16mm]
+    \node[mwterm] (win) {IMU window};
+    \node[mwflow, below=of win] (imu) {IMU model};
+    \node[mwdecision, below=of imu] (q) {top class\\confident?};
+    \node[mwterm, below=of q] (out1) {Report class\\+ confidence};
+    \node[mwflow, right=of q] (aud) {Audio model};
+    \node[mwterm, below=of aud] (out2) {Report\\confirmed class};
+    \draw[mwedge] (win) -- (imu);
+    \draw[mwedge] (imu) -- (q);
+    \draw[mwedge] (q) -- node[left,font=\scriptsize,text=mwmut]{yes} (out1);
+    \draw[mwedge] (q) -- node[above,font=\scriptsize,text=mwmut]{no} (aud);
+    \draw[mwedge] (aud) -- (out2);
+  \end{tikzpicture}
+  \caption{The confidence-gated cascade. The IMU model runs on every window; the audio model is
+           invoked only when the IMU model's top class is below the confidence threshold. With no
+           model loaded the cascade returns \texttt{UNKNOWN}.}
+  \label{fig:cascade}
+\end{figure}
 
 \subsection{Matching training and inference}
 

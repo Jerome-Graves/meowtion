@@ -1,0 +1,101 @@
+\section{Evaluation and validation}
+\label{sec:evaluation}
+
+This section reports the extent to which the system has been validated. It separates what has been
+\emph{verified on real hardware}, what has been \emph{build- or smoke-verified}, and what has
+\emph{not yet been measured}, and it sets out the methodology for the measurements that remain. The
+intent is to be precise about the system's maturity rather than to imply results that have not been
+collected.
+
+\subsection{Validation status}
+
+The full pipeline, record a behaviour, label it, train models in the cloud, deliver them over the air,
+classify on the collar, and display the result, has been exercised end to end on real hardware: the
+collar reports an on-device class on its serial console and the relayed result reaches the dashboard.
+\Cref{tab:validation} summarises the status of each capability.
+
+\begin{table}[ht]
+  \centering
+  \caption{Validation status by capability.}
+  \label{tab:validation}
+  \begin{tabularx}{\textwidth}{@{}X >{\raggedright\arraybackslash}p{5.2cm}@{}}
+    \toprule
+    \textbf{Capability} & \textbf{Status} \\
+    \midrule
+    On-device cascade inference (IMU stage)      & Verified on hardware \\
+    Record\,$\to$\,label\,$\to$\,train\,$\to$\,OTA\,$\to$\,detect loop & Verified on hardware, end to end \\
+    Over-the-air model delivery                  & Verified on hardware \\
+    Collar firmware build (NCS v3.3.1)           & Build-verified \\
+    Station firmware build (ESP-IDF)             & Build-verified \\
+    Dashboard application                        & Smoke-verified (Streamlit app-test runs clean) \\
+    Audio confirmation stage of the cascade      & Implemented; not yet active in production (IMU-only) \\
+    Telemetry state / activity / steps           & Simulated until a model is loaded; real classifier output thereafter \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Resource footprint}
+
+The collar is the binding resource constraint, and the firmware is built and reported against it. The
+tensor arenas are statically allocated and are the dominant RAM cost of inference; the audio window
+buffer and the BLE stack make up most of the rest. Enabling inference initially pushed RAM into the
+mid-90\,\% range; eliminating the float-window scratch buffer (quantising directly from int16,
+\cref{sec:on-device-ai}) brought it down into the low-to-mid 80\,\% band of the 256\,KiB part, which is
+where the current build sits. Flash use is well under half the application partition.
+
+\begin{table}[ht]
+  \centering
+  \caption{Collar resource budget (the constraining device).}
+  \label{tab:footprint}
+  \begin{tabularx}{\textwidth}{@{}llX@{}}
+    \toprule
+    \textbf{Resource} & \textbf{Budget} & \textbf{Notes} \\
+    \midrule
+    RAM (total)      & 256\,KiB & Low-to-mid 80\,\% utilisation with inference enabled \\
+    IMU tensor arena & 16\,KiB  & Always-on motion stage (starting budget) \\
+    Audio tensor arena & 48\,KiB & Confirmation stage (starting budget) \\
+    Model storage    & 256\,KiB flash & Two OTA slots, executed in place (\cref{sec:firmware-collar}) \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{What is not yet measured}
+
+The system has been validated for \emph{function}, not yet for \emph{performance}. The following
+metrics are not reported here because they have not been collected on a representative dataset or over
+a representative runtime; they are listed with the method by which each should be obtained, so the gap
+is explicit and the measurements are reproducible.
+
+\begin{table}[ht]
+  \centering
+  \caption{Pending measurements and the method for each.}
+  \label{tab:pending}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Metric} & \textbf{Method} \\
+    \midrule
+    Classification accuracy & Hold-out split of the labelled clips; report overall accuracy and a
+      per-class confusion matrix for each cascade stage. \\
+    Cascade benefit & Compare IMU-only accuracy with the gated IMU+audio cascade on the ambiguous
+      eat/drink pair; report how often, and how correctly, the audio stage fires. \\
+    Inference latency & Time \texttt{clf\_classify} on-device across many windows; report mean and
+      worst case for each stage. \\
+    Battery life & Run the collar to cutoff under a representative behaviour mix; report hours, and
+      the sensitivity to the audio-stage duty cycle. \\
+    Power draw & Bench-measure current at the cell in each state (idle, IMU inference, audio inference,
+      streaming, OTA). \\
+    OTA transfer time & Time a full model push over BLE; report bytes/s and total time per slot. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Threats to validity}
+
+Three caveats bound the current results. First, the behaviour data used so far is limited, so reported
+function does not yet imply field accuracy; a two-class model in particular will confidently label an
+idle cat as one of its two classes until an explicit idle/other class is added
+(\cref{sec:future-work}). Second, the demo dashboard is populated partly by a simulator
+(\cref{sec:cloud-backend}), which is realistic but synthetic and must not be read as measured
+performance. Third, validation to date is single-cat and within-subject; multi-cat households are out
+of current scope. These are tracked as future work and do not affect the parts marked verified in
+\cref{tab:validation}.

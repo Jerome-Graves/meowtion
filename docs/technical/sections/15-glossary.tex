@@ -1,0 +1,27 @@
+\section{Glossary}
+\label{sec:glossary}
+
+\begin{description}[leftmargin=6.5em,style=nextline,font=\normalfont\ttfamily]
+  \item[ATT/GATT] Attribute Protocol / Generic Attribute Profile: the BLE layers that define
+        characteristics and services.
+  \item[BLE] Bluetooth Low Energy: the collar's only radio.
+  \item[BMS] Battery Management System: the protection circuit on the LiPo cell.
+  \item[CMSIS-NN] ARM's optimised neural-network kernels for Cortex-M cores.
+  \item[CRC] Cyclic Redundancy Check; CRC-32/IEEE is used to verify an OTA model transfer.
+  \item[ESP-IDF] Espressif IoT Development Framework: the station's SDK.
+  \item[IMU] Inertial Measurement Unit: the collar's six-axis accelerometer + gyroscope.
+  \item[JWT] JSON Web Token: the Firebase ID token format used for owner authentication.
+  \item[MTU] Maximum Transmission Unit: the negotiated BLE payload size (247 bytes here).
+  \item[NCS] nRF Connect SDK: the Nordic distribution of Zephyr used for the collar.
+  \item[NVS] Non-Volatile Storage: the station's flash key/value store for provisioned credentials.
+  \item[OTA] Over The Air: delivery of a trained model to the collar over BLE.
+  \item[PDM] Pulse-Density Modulation: the collar microphone's output format.
+  \item[PHY] Physical layer; the collar uses BLE's 2\,Mbit PHY for throughput.
+  \item[RSSI] Received Signal Strength Indication: used as the station's capture range gate.
+  \item[RTDB] (Firebase) Realtime Database: the live state and history store.
+  \item[SoC] System on Chip: the nRF52840 and ESP32-S3 modules.
+  \item[TFLM] TensorFlow Lite Micro: the on-device inference runtime.
+  \item[UF2] USB Flashing Format: the drag-and-drop image format for flashing the collar.
+  \item[XIP] Execute In Place: running a model directly from flash without copying it to RAM.
+  \item[$\mu$-law] G.711 8-bit logarithmic audio companding, halving the BLE audio payload.
+\end{description}

@@ -30,6 +30,38 @@ token into a same-origin cookie, and the Python dashboard reads that cookie to i
   \end{tabularx}
 \end{table}
 
+\subsection{User experience and navigation}
+
+The product is built around a single hub, the static front door. From it the owner signs in to the
+dashboard, opens the developer console (if their account is enabled for it), or enters the read-only
+demo; logging out returns there. \Cref{fig:pageflow} shows the navigation. A cohesive visual style, a
+white canvas with lavender accents and collapsible cards, is shared across every surface.
+
+\begin{figure}[ht]
+  \centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=7mm and 24mm]
+    \node[mwterm] (front) {Front door\\\footnotesize account.html};
+    \node[mwnode, right=of front, yshift=13mm] (dash) {Dashboard\\\footnotesize app.py};
+    \node[mwnode, right=of front] (dev) {Dev console\\\footnotesize dev.html};
+    \node[mwnode, right=of front, yshift=-13mm] (demo) {Read-only demo};
+    \draw[mwedge] (front) -- node[above,font=\scriptsize,text=mwmut]{sign in / log out} (dash);
+    \draw[mwedge] (front) -- node[above,font=\scriptsize,text=mwmut]{dev account} (dev);
+    \draw[mwedge] (front) -- node[below,font=\scriptsize,text=mwmut]{view demo} (demo);
+  \end{tikzpicture}%
+  }
+  \caption{Dashboard page flow. The static front door is the hub for sign-in, the developer console,
+           and the read-only demo.}
+  \label{fig:pageflow}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \uiplaceholder{Dashboard --- live current-state card and Health watch}
+  \caption{The signed-in dashboard: the live current-state card and the Health watch.}
+  \label{fig:ui-dash}
+\end{figure}
+
 \subsection{Login and session}
 
 The owner logs in once on the front door with Firebase Auth; it writes the ID token into a same-origin
@@ -72,6 +104,14 @@ alarm. A drill-down lets the viewer choose whether the x-axis spans a day, a wee
 which specific window to show, and the activity charts are stacked by behaviour and rendered on a
 transparent background so they sit on the page's brand canvas.
 
+\begin{figure}[ht]
+  \centering
+  \uiplaceholder{Activity history --- day/week/month drill-down, stacked by behaviour}
+  \caption{The history view: the day/week/month drill-down and per-behaviour stacked charts, with
+           weather context.}
+  \label{fig:ui-history}
+\end{figure}
+
 \subsection{Developer console}
 
 \texttt{dev.html} is visible only to developer accounts and is the data-collection and training
@@ -80,6 +120,14 @@ Training/Production mode switch; the editable list of actions to recognise; the 
 with waveform trimming; dataset statistics and a motion-variety measure to gauge whether a class has
 enough varied examples; and the button that triggers cloud training. It also offers a full-screen,
 phone-style capture view with large tappable action buttons for live labelling at the bowl.
+
+\begin{figure}[ht]
+  \centering
+  \uiplaceholder{Developer console --- capture status, action list, clip review, training}
+  \caption{The developer console: live capture status, the editable action list, labelled-clip review
+           with waveform trimming, and the cloud-training control.}
+  \label{fig:ui-dev}
+\end{figure}
 
 \subsection{Read-only demo}
 

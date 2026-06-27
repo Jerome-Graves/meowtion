@@ -72,4 +72,20 @@
   },
   mwedge/.style={-{Stealth[length=2.5mm]}, draw=mwlavd, line width=0.8pt},
   mwpill/.style={draw=mwlav, fill=mwlav!12, rounded corners=10pt, text=mwlavd, font=\footnotesize, inner sep=4pt},
+  % flowchart elements
+  mwflow/.style={mwnode, minimum width=2.7cm, font=\footnotesize},
+  mwterm/.style={mwnode, fill=mwlav!12, draw=mwlav, minimum width=2.4cm, font=\footnotesize},
+  mwdecision/.style={draw=mwlav, fill=mwlav!10, diamond, aspect=1.7, align=center,
+    font=\scriptsize, inner sep=1pt, text=mwink},
 }
+
+% A framed placeholder for a UI screenshot that has not been captured yet. Swap for
+% \includegraphics once the image exists; the document still builds in the meantime.
+\newcommand{\uiplaceholder}[2][\textwidth]{%
+  \begin{tikzpicture}
+    \node[draw=mwlavd, dashed, fill=mwlav!6, rounded corners=5pt, minimum width=#1,
+          minimum height=4.4cm, align=center, inner sep=10pt]
+      {{\color{mwlavd}\bfseries\small Screenshot placeholder}\\[3pt]
+       {\color{mwink}\small #2}\\[6pt]
+       {\color{mwmut}\footnotesize swap for \texttt{\textbackslash includegraphics} once captured}};
+  \end{tikzpicture}}

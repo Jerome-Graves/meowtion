@@ -1,0 +1,51 @@
+\section{Data-model reference}
+\label{sec:appendix-schema}
+
+A consolidated reference for the cloud data model introduced in \cref{sec:cloud-backend}: the Realtime
+Database tree, the Cloud Storage layout, and the request format of the two Cloud Functions.
+
+\subsection{Realtime Database tree}
+
+\begin{lstlisting}[numbers=none,caption={Realtime Database layout (owner-scoped).},label={lst:rtdb}]
+users/<uid>/
+  devices/
+    <stationToken>/            type: "station"
+      cats/<catId>/
+        current                { ver, cls, conf, steps, battery, ts }
+        events/<startMs>        { start, durationSec, type | cls, ver }
+      weather/                  { current, history }
+      config/                   { modelVer, mode, captureForce, ... }
+      seen/<collarId>           unregistered collars heard nearby
+    <collarId>/                 type: "collar"  (registry entry; name, simulated)
+  models/                       { version, status, labels[], results }
+  actions/                      behaviours to recognise (dev console)
+  profile/                      { consent, location }
+deviceTokens/<token>/owner      maps a device token to its owning account
+config/
+  demoOwner                     uid backing the public read-only demo
+  devAccounts/<uid>             accounts allowed to use the dev/training tools
+\end{lstlisting}
+
+Events store the model \texttt{version} and class \texttt{cls} index rather than a resolved name; the
+dashboard maps the index to a label through that version's \texttt{labels} list, so history stays
+correct across label-set changes.
+
+\subsection{Cloud Storage layout}
+
+\begin{lstlisting}[numbers=none,caption={Cloud Storage layout.},label={lst:storage}]
+training/<owner>/<collar>/<ts>.wav    training-clip audio   (private to owner; no client writes)
+training/<owner>/<collar>/<ts>.imu    time-aligned motion   (private to owner)
+models/<uid>/imu_model.tflite         trained IMU model     (public-read; written by train only)
+models/<uid>/audio_model.tflite       trained audio model   (public-read; written by train only)
+\end{lstlisting}
+
+\subsection{Cloud Function requests}
+
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[\texttt{train}] \texttt{POST} with header \texttt{Authorization: Bearer <Firebase ID token>}
+        of a developer account. Trains from the account's labelled clips; returns the new version and
+        label set. Gated additionally by \texttt{config/devAccounts/<uid>}.
+  \item[\texttt{upload\_clip}] \texttt{POST} the raw clip bytes with the station's device token. The
+        function resolves \texttt{deviceTokens/<token>/owner} and writes the file as administrator
+        into that owner's Storage area. No Firebase login is involved.
+\end{description}

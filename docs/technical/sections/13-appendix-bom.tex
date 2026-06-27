@@ -1,0 +1,56 @@
+\section{Bill of materials}
+\label{sec:appendix-bom}
+
+The complete parts list for one collar and one station, plus the tools and print files. There is no
+custom PCB; each device is a Seeed XIAO module in a 3D-printed shell. Source of truth:
+\texttt{hardware/README.md}.
+
+\begin{table}[ht]
+  \centering
+  \caption{Collar parts (one per cat).}
+  \label{tab:bom-collar}
+  \begin{tabularx}{\textwidth}{@{}lcX@{}}
+    \toprule
+    \textbf{Part} & \textbf{Qty} & \textbf{Notes} \\
+    \midrule
+    Seeed XIAO nRF52840 Sense & 1 & SoC with BLE; on-module IMU + PDM microphone; runs inference \\
+    1S LiPo cell, 3.7\,V 100\,mAh, with protection (BMS) & 1 & Soldered to the BAT pads; protected cell required \\
+    20\,mm hydrophobic PTFE filter membrane & 1 & Over the mic hole; passes sound, blocks water/dust \\
+    10\,mm quick-release safety collar & 1 & Standard strap; the TPU skin mounts to it \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+  \centering
+  \caption{Station parts (one per spot).}
+  \label{tab:bom-station}
+  \begin{tabularx}{\textwidth}{@{}lcX@{}}
+    \toprule
+    \textbf{Part} & \textbf{Qty} & \textbf{Notes} \\
+    \midrule
+    Seeed XIAO ESP32-S3 & 1 & BLE central + Wi-Fi gateway \\
+    USB-C cable + 5\,V supply & 1 & Mains-powered; no battery \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+  \centering
+  \caption{Tools, consumables, and 3D-print files.}
+  \label{tab:bom-tools}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Item} & \textbf{Notes} \\
+    \midrule
+    USB-C cable                 & Flash and set up both boards \\
+    Filament                    & PETG for the rigid shells, flexible TPU for the collar skin \\
+    Water-resistant glue        & Bonds the shell halves and seals against splashes \\
+    FDM 3D printer              & A standard 0.4\,mm nozzle is sufficient \\
+    \texttt{front-shell.stl}    & Shared by collar and station (PETG) \\
+    \texttt{collar-back-shell.stl} & Collar (PETG) \\
+    \texttt{collar-silicone-skin.stl} & Collar (flexible TPU) \\
+    \texttt{station-back-shell.stl} & Station (any rigid filament) \\
+    \bottomrule
+  \end{tabularx}
+\end{table}

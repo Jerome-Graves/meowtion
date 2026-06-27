@@ -1,0 +1,82 @@
+\section{Requirements and design constraints}
+\label{sec:requirements}
+
+This section states the requirements the system was designed to meet and the constraints that shaped
+the design, so the chapters that follow can be read as the response to them. The final column of each
+table points to the section where the requirement is addressed.
+
+\subsection{Functional requirements}
+
+\begin{table}[ht]
+  \centering
+  \caption{Functional requirements.}
+  \label{tab:fr}
+  \begin{tabularx}{\textwidth}{@{}l X l@{}}
+    \toprule
+    \textbf{ID} & \textbf{Requirement} & \textbf{Addressed in} \\
+    \midrule
+    FR-1 & Recognise a cat's everyday behaviours (eating, drinking, activity, rest, grooming) from a
+           collar-worn sensor. & \cref{sec:on-device-ai} \\
+    FR-2 & Perform classification on the wearable itself, in real time, without streaming raw sensor
+           data off the cat. & \cref{sec:on-device-ai} \\
+    FR-3 & Let the owner define the behaviour set; do not hard-code it in firmware. &
+           \cref{sec:training-pipeline} \\
+    FR-4 & Provide a closed training loop (capture, label, train, deploy) driven entirely from the
+           dashboard, with no local toolchain. & \cref{sec:training-pipeline} \\
+    FR-5 & Deliver trained models to the collar over the air, with no firmware reflash. &
+           \cref{sec:firmware-station,sec:protocols} \\
+    FR-6 & Present the owner a live view and a longitudinal history with health-oriented analytics. &
+           \cref{sec:dashboard} \\
+    FR-7 & Support multiple owners, each seeing only their own cats and devices. &
+           \cref{sec:cloud-backend} \\
+    FR-8 & Offer a public, read-only way to explore the product without an account. &
+           \cref{sec:dashboard} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Non-functional requirements}
+
+\begin{table}[ht]
+  \centering
+  \caption{Non-functional requirements and quality attributes.}
+  \label{tab:nfr}
+  \begin{tabularx}{\textwidth}{@{}l X l@{}}
+    \toprule
+    \textbf{ID} & \textbf{Requirement} & \textbf{Addressed in} \\
+    \midrule
+    NFR-1 & \textbf{Power.} The collar must run for a useful time on a collar-sized cell, which
+            precludes Wi-Fi on the wearable and bounds the duty cycle of the audio path. &
+            \cref{sec:hardware,sec:on-device-ai} \\
+    NFR-2 & \textbf{Footprint.} Inference must fit the microcontroller's RAM alongside the BLE stack. &
+            \cref{sec:on-device-ai} \\
+    NFR-3 & \textbf{Privacy.} Raw audio must never leave the collar in normal operation; data must be
+            scoped per owner. & \cref{sec:security-privacy} \\
+    NFR-4 & \textbf{Credential safety.} Battery devices must not hold the owner's password; device
+            authorisation must be revocable. & \cref{sec:security-privacy} \\
+    NFR-5 & \textbf{Reproducibility.} A third party must be able to build and run the system from the
+            repository without contacting the authors. & \cref{sec:cloud-backend} \\
+    NFR-6 & \textbf{Openness.} Hardware designs and code are released under open licences. &
+            \cref{sec:hardware} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Constraints}
+
+\begin{description}[leftmargin=1.6em,style=nextline]
+  \item[Radio.] The collar is Bluetooth Low Energy only; BLE is low-power but short-range and is not
+        an internet transport, so a mains-powered station is required as the gateway
+        (\cref{sec:architecture}).
+  \item[Compute.] On-device inference runs on a Cortex-M4F with a few hundred kilobytes of RAM and no
+        operating-system heap budget to spare, so models are int8 and arenas are statically sized
+        (\cref{sec:on-device-ai}).
+  \item[Connectivity.] The station is provisioned with credentials but never logs in as a user; it
+        authenticates to the cloud with a single revocable token (\cref{sec:firmware-station}).
+  \item[Hosting.] The dashboard is hosted on a managed Python platform (Streamlit Community Cloud),
+        which does not expose server-side cookies, shaping how the session is read
+        (\cref{sec:dashboard}).
+\end{description}
+
+These requirements and constraints are referenced again in \cref{sec:evaluation}, which reports the
+extent to which each is currently met.
