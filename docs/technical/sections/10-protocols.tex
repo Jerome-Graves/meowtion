@@ -103,7 +103,29 @@ inside the BLE callback. Committing a model is stack-heavy, and doing it in the 
 crash-looped the device; the actual swap is deferred to a service call on the main thread's larger
 stack (\cref{sec:firmware-collar}). That split, together with the raised main stack, is what made OTA
 reliable on hardware. A persisted slot magic marks a slot that holds a valid committed model, so the
-collar can tell an empty slot from a written one across a reboot.
+collar can tell an empty slot from a written one across a reboot. \Cref{fig:ota-seq} shows the
+message exchange.
+
+\begin{figure}[ht]\centering
+  \resizebox{0.94\textwidth}{!}{%
+  \begin{tikzpicture}[font=\footnotesize]
+    \node[mwterm] (s) at (0,0) {Station (client)};
+    \node[mwterm] (c) at (8,0) {Collar (server)};
+    \draw[draw=mwline,line width=0.6pt] (s) -- (0,-6);
+    \draw[draw=mwline,line width=0.6pt] (c) -- (8,-6);
+    \draw[mwedge] (0,-1.0) -- node[above,font=\scriptsize]{\texttt{BEGIN} (slot, total\_len, crc32)} (8,-1.0);
+    \draw[mwedge] (8,-1.9) -- node[above,font=\scriptsize]{\texttt{READY} (slot erased)} (0,-1.9);
+    \draw[mwedge] (0,-2.8) -- node[above,font=\scriptsize]{\texttt{DATA} chunk (write-with-response)} (8,-2.8);
+    \node[font=\scriptsize,text=mwmut] at (4,-3.3) {(repeated for every chunk)};
+    \draw[mwedge] (0,-4.2) -- node[above,font=\scriptsize]{\texttt{END}} (8,-4.2);
+    \draw[mwedge] (8,-5.1) -- node[above,font=\scriptsize]{\texttt{OK} (CRC verified, model loaded)} (0,-5.1);
+  \end{tikzpicture}}
+  \caption{OTA model-push message sequence on the OTA service. The station writes \texttt{BEGIN},
+           streams the model in write-with-response \texttt{DATA} chunks, then writes \texttt{END}; the
+           collar erases the slot, receives the bytes, verifies the CRC, loads the model, and
+           acknowledges on the status characteristic.}
+  \label{fig:ota-seq}
+\end{figure}
 
 \subsection{Cloud transport}
 

@@ -27,6 +27,32 @@ demonstrate.
         shows live, named behaviours.
 \end{enumerate}
 
+\Cref{fig:capture-flow} shows how the training \emph{data} moves through the system during the capture
+and label steps; \cref{fig:training-flow} (below) shows how the trained \emph{model} moves back out.
+
+\begin{figure}[ht]\centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=12mm and 18mm, every node/.style={font=\footnotesize}]
+    \node[mwnode] (collar) {Collar};
+    \node[mwnode, right=of collar] (station) {Station};
+    \node[mwnode, right=of station] (upl) {\texttt{upload\_clip()}};
+    \node[mwnode, fill=mwlav!8, right=of upl] (store) {Storage\\\scriptsize training clips};
+    \node[mwnode, fill=mwlav!8, below=15mm of station] (rtdb) {Realtime DB\\\scriptsize clip metadata};
+    \node[mwnode, below=15mm of upl] (dev) {Dev console\\\scriptsize label $\cdot$ playback};
+    \draw[mwedge] (collar) -- node[above,text=mwmut,font=\scriptsize]{BLE clip frames} (station);
+    \draw[mwedge] (station) -- node[above,text=mwmut,font=\scriptsize]{POST (token)} (upl);
+    \draw[mwedge] (upl) -- node[above,text=mwmut,font=\scriptsize]{write (admin)} (store);
+    \draw[mwedge] (station) -- node[left,text=mwmut,font=\scriptsize]{metadata} (rtdb);
+    \draw[mwedge] (rtdb) -- node[above,text=mwmut,font=\scriptsize]{read} (dev);
+    \draw[mwedge] (store) -- node[right,text=mwmut,font=\scriptsize]{audio + IMU} (dev);
+  \end{tikzpicture}}
+  \caption{Training-data transport. The collar streams paired audio\,+\,IMU clip frames to the station,
+           which slices them into clips and uploads the bytes through \texttt{upload\_clip} to Storage
+           and the clip metadata to the database; the dev console reads both to play back, label, and
+           train on them.}
+  \label{fig:capture-flow}
+\end{figure}
+
 \subsection{The trainer}
 
 Training runs in the \texttt{train} Python Cloud Function, gated by a developer account

@@ -27,7 +27,28 @@ public-read (so the token-only station can fetch one) but writable only by the t
 A station authenticates with a scoped, revocable per-device token rather than the owner's password, and
 a collar holds nothing at all. A lost or compromised device therefore cannot expose the owner's
 credentials, and it can be revoked simply by deleting its token from the account, with no password
-change and no effect on the owner's other devices.
+change and no effect on the owner's other devices. \Cref{fig:token} traces the token's lifecycle.
+
+\begin{figure}[ht]\centering
+  \begin{tikzpicture}[node distance=10mm and 14mm, every node/.style={font=\footnotesize}]
+    \node[mwterm] (mint) {Dashboard mints token T\\\scriptsize records \texttt{deviceTokens/T/owner}};
+    \node[mwflow, below=of mint, text width=6.6cm, align=left] (store)
+      {Station stores T in NVS and presents it on every cloud request (no login)};
+    \node[mwflow, below=15mm of store, xshift=-26mm, text width=4cm, align=left] (rules)
+      {Database rules: T maps to the owner, so writes to that owner's subtree are allowed};
+    \node[mwflow, below=15mm of store, xshift=26mm, text width=4cm, align=left] (upl)
+      {\texttt{upload\_clip} verifies T's owner and writes the clip as admin};
+    \node[mwterm, below=38mm of store] (revoke) {Revoke: delete the token; all its access is denied};
+    \draw[mwedge] (mint) -- (store);
+    \draw[mwedge] (store) -- (rules);
+    \draw[mwedge] (store) -- (upl);
+    \draw[mwedge] (rules) -- (revoke);
+    \draw[mwedge] (upl) -- (revoke);
+  \end{tikzpicture}
+  \caption{Credential-token lifecycle. A device is minted a scoped token that maps to its owner; the
+           token authorises database writes and clip uploads, and deleting it revokes the device.}
+  \label{fig:token}
+\end{figure}
 
 \subsection{The demo is read-only by enforcement}
 

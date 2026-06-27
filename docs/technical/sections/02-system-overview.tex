@@ -105,6 +105,23 @@ The steady state of a deployed system.
         the new event into the history and health analytics (\cref{sec:dashboard}).
 \end{enumerate}
 
+\begin{figure}[ht]\centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=18mm, every node/.style={font=\footnotesize}]
+    \node[mwnode] (collar) {Collar\\\scriptsize classify on-device};
+    \node[mwnode, right=of collar] (station) {Station\\\scriptsize map class\,$\to$\,label};
+    \node[mwnode, fill=mwlav!8, right=of station] (rtdb) {Realtime DB\\\scriptsize current + events};
+    \node[mwnode, right=of rtdb] (dash) {Dashboard\\\scriptsize live + history};
+    \draw[mwedge] (collar) -- node[above,text=mwmut,font=\scriptsize]{telemetry AD (BLE)} (station);
+    \draw[mwedge] (station) -- node[above,text=mwmut,font=\scriptsize]{HTTPS (token)} (rtdb);
+    \draw[mwedge] (rtdb) -- node[above,text=mwmut,font=\scriptsize]{read} (dash);
+  \end{tikzpicture}}
+  \caption{Flow~1, live monitoring. The collar advertises an 8-byte telemetry packet; the station
+           maps the class index to a label and writes the live state and events to the database, which
+           the dashboard reads.}
+  \label{fig:live-flow}
+\end{figure}
+
 \paragraph{Flow 2 --- Training capture.}
 How labelled data is collected to teach a behaviour.
 \begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
@@ -135,6 +152,24 @@ How a station and collar are registered to an owner, performed once per device.
         a device on the account and is relayed by the station. Deleting the token revokes the
         device.
 \end{enumerate}
+
+\begin{figure}[ht]\centering
+  \begin{tikzpicture}[node distance=9mm, every node/.style={font=\footnotesize}]
+    \node[mwterm] (a) {Owner signs in};
+    \node[mwflow, below=of a, text width=7.2cm, align=left] (b)
+      {Connect the station over USB (Web Serial). The dashboard mints a random token, records
+       \texttt{deviceTokens/\allowbreak <token>/owner} and a station device entry};
+    \node[mwflow, below=of b, text width=7.2cm, align=left] (c)
+      {Provision the station over USB: Wi-Fi credentials, the owner id, and the token (stored in NVS)};
+    \node[mwflow, below=of c, text width=7.2cm, align=left] (d)
+      {Station comes online, syncs time, scans, and publishes unregistered collars it hears (\texttt{seen})};
+    \node[mwterm, below=of d] (e) {Owner registers a heard collar (one tap)};
+    \draw[mwedge] (a) -- (b); \draw[mwedge] (b) -- (c); \draw[mwedge] (c) -- (d); \draw[mwedge] (d) -- (e);
+  \end{tikzpicture}
+  \caption{Flow~3, connecting devices. A station is paired over USB and provisioned with a scoped
+           token; once online it surfaces nearby collars, which the owner registers with one tap.}
+  \label{fig:onboarding}
+\end{figure}
 
 \paragraph{Flow 4 --- Model training and over-the-air delivery.}
 How labelled clips become a model running on the collar.
