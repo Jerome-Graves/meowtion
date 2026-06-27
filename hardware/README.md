@@ -75,4 +75,4 @@ Flash both boards and register them, see [`../firmware/`](../firmware/) and [`..
 ## License
 The hardware designs and 3D-print files in this directory are licensed under
 [CERN-OHL-S v2](LICENSE) (strongly reciprocal). The repository's code is [MIT](../LICENSE).
-Copyright (c) 2026 Jerome Graves.
+Copyright (c) 2026 Jerome Graves and Rose Delcour-Min.

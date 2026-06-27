@@ -104,4 +104,4 @@ API key is a public client identifier (safe to ship); no service-account key is 
 - **Hardware** (the designs and 3D-print files in [`hardware/`](hardware/)):
   [CERN-OHL-S v2](hardware/LICENSE), the strongly-reciprocal open-hardware licence.
 
-Copyright (c) 2026 Jerome Graves.
+Copyright (c) 2026 Jerome Graves and Rose Delcour-Min.
