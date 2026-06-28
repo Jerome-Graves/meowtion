@@ -27,7 +27,10 @@ public-read (so the token-only station can fetch one) but writable only by the t
 A station authenticates with a scoped, revocable per-device token rather than the owner's password, and
 a collar holds nothing at all. A lost or compromised device therefore cannot expose the owner's
 credentials, and it can be revoked simply by deleting its token from the account, with no password
-change and no effect on the owner's other devices. \Cref{fig:token} traces the token's lifecycle.
+change and no effect on the owner's other devices. The token is carried in an \texttt{Authorization}
+header rather than a URL or query string, so it stays out of request logs, and the rules let an account
+claim only an unclaimed token or one it already owns, so a known token cannot be re-pointed to another
+account. \Cref{fig:token} traces the token's lifecycle.
 
 \begin{figure}[ht]\centering
   \begin{tikzpicture}[node distance=10mm and 14mm, every node/.style={font=\footnotesize}]
