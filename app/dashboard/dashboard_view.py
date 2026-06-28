@@ -24,23 +24,12 @@ Ready-made helpers (import meowtion_dash as mw):
     mw.bar(frame, x, y, title)                  # single-colour bars
 """
 import streamlit as st
-
+import pandas as pd
 import meowtion_dash as mw
-
-
-# Why a big, lasting change in each habit can matter. This is a prompt to watch and, if it persists,
-# mention to a vet , NOT a diagnosis. Keyed by the activity label as it appears in the data.
-_HEALTH_NOTE = {
-    "Eating":   "appetite changes are one of the clearest early signs something is off",
-    "Drinking": "a lasting rise in drinking can point to kidney, thyroid or diabetes problems",
-    "Grooming": "grooming less can signal pain, illness or weight trouble; much more can mean stress or skin irritation",
-    "Resting":  "a lot more rest than usual can be lethargy worth noting",
-    "Moving":   "moving much less can be a sign of pain or stiffness",
-}
+import datetime
 
 
 def render(df, data=None):
-    st.divider()
 
     # If the collar hasn't logged anything yet, `df` is empty , show a note and stop.
     if df.empty:
@@ -59,8 +48,8 @@ def render(df, data=None):
     #   delta_color="off" because "up" isn't always good or bad , the warnings below judge.
     # ===================================================================== #
     st.subheader("🩺 Health watch")
-    st.caption("How your cat's key habits , eating, drinking, grooming and rest , compare to their "
-               "normal. Big, lasting changes in any of these are worth raising with your vet.")
+    st.caption("How your cat's key habits compare to their normal. Big, lasting changes in eating "
+               "or drinking are worth raising with your vet.")
 
     signals = mw.health_signals(df)
     if signals:
@@ -69,15 +58,12 @@ def render(df, data=None):
             delta = f"{s['change_pct']:+.0f}% vs usual" if s["change_pct"] is not None else "no baseline yet"
             col.metric(f"{s['activity']}  (min/day)", f"{s['recent']:.0f}", delta=delta, delta_color="off")
 
-        # Flag any habit that has moved a lot versus the cat's baseline, with a plain-language note on
-        # why that particular change can matter.
+        # Flag any habit that has moved a lot versus the cat's baseline.
         for s in signals:
             if s["change_pct"] is not None and abs(s["change_pct"]) >= 30:
                 direction = "up" if s["change_pct"] > 0 else "down"
-                note = _HEALTH_NOTE.get(s["activity"])
-                tail = f" In a cat, {note}." if note else " Worth keeping an eye on."
                 st.warning(f"⚠️ **{s['activity']} is {direction} {abs(s['change_pct']):.0f}%** vs your "
-                           f"cat's recent normal.{tail}")
+                           f"cat's recent normal. Worth keeping an eye on.")
 
         # Weather context for the recent days , a habit change may just be the weather, not the cat.
         recent_dates = sorted(df["event_date"].unique())[-3:]
@@ -85,54 +71,158 @@ def render(df, data=None):
         if recent_wx and recent_wx["unusual"]:
             st.caption("🌡 Recently it's been " + ", ".join(recent_wx["unusual"])
                        + " , which can change how much a cat drinks, eats or rests.")
-            
-
-        
-        
     else:
         st.caption("Not enough data yet to compare habits.")
 
     st.divider()
     st.subheader("📊 Activity history")
 
-
-
-
-
     # ===================================================================== #
-    # STEP 2 , Pick a time window to zoom into.
-    #   st.radio chooses the SPAN of the x-axis (a Day / Week / Month); st.selectbox
-    #   chooses WHICH one. The options come from a helper.
+    # STEP 2 , Pick a time window via calendar selection.
+    #   Replaces the old radio buttons and selectboxes with an inline calendar picker.
+    #   We create a temporary series for clean Python date object filtering.
     # ===================================================================== #
-    st.write("### Filter activities by time period")
-    span = st.radio("Time period:", ["Day", "Week", "Month"], horizontal=True)
-    windows = mw.period_options(df, span)        # [(label, key), ...], newest first
-    chosen_label = st.selectbox(span, [label for label, key in windows])
-    chosen_key = dict(windows)[chosen_label]
+    
+    today = datetime.date.today()
+    pure_dates = pd.to_datetime(df["event_date"]).dt.date
+
+    date_range = st.date_input(
+        label="📅 Select Date or Range",
+        value=(today, today),
+        min_value=pure_dates.min(),
+        max_value=pure_dates.max()
+    )
+
+    # Determine whether a range or a single date was chosen, and configure the time span
+    if isinstance(date_range, tuple) and len(date_range) == 2 and date_range[0] != date_range[1]:
+        start_date, end_date = date_range
+        window = df[(pure_dates >= start_date) & (pure_dates <= end_date)].copy()
+        span = "Week" if (end_date - start_date).days <= 7 else "Month"
+    elif isinstance(date_range, tuple) and len(date_range) == 1 or date_range[0] == date_range[1]:
+        start_date = date_range[0]
+        window = df[pure_dates == start_date].copy()
+        span = "Day"
+    elif isinstance(date_range, pd.Timestamp) or hasattr(date_range, 'year'):
+        # Fallback handle if Streamlit returns a single bare date object instead of a tuple
+        start_date = date_range
+        window = df[pure_dates == start_date].copy()
+        span = "Day"
+    else:
+        window = df.copy()
+        span = "Month"
 
     # Sleep and Resting dominate the minutes, so the small habits (eat, drink) are tiny slivers.
     # Deselecting the big ones here is how you see those small events.
+    st.write("### Filter activities")
+    
+    LEGEND_COLORS = {
+        "Eating": "#2ca02c",      # Legend Green
+        "Drinking": "#1f77b4",    # Legend Blue
+        "Resting": "#ff7f0e",  # Legend Orange
+        "Moving": "#9467bd",   # Legend Purple
+        "Grooming": "#e377c2"  # Legend Pink
+    }    
     acts = sorted(df["activity"].unique())
-    shown = st.multiselect("Activities (hide Sleep / Resting to see the small ones)",
-                           acts, default=acts)
+    shown = []
+
+# Create columns to place the buttons side by side
+    cols = st.columns(len(acts))
+
+    for col, activity in zip(cols, acts):
+        with col:
+            # assign a unique memory key for this activity even if it doesnn't exist yet
+            # we set the default state to True (active/on)
+            state_key = f"btn_state_{activity}"
+            if state_key not in st.session_state:
+                st.session_state[state_key] = True
+                
+            #Choose the visual icon based on the active state
+            # Active gets a bright checkmark, turned off gets a grey circle
+            if st.session_state[state_key]:
+                label_prefix = ""
+                bg_colour = LEGEND_COLORS.get(activity, "#1f77b4")
+                text_colour = "#FFFFFF"
+                border_colour = bg_colour
+            else:
+                label_prefix = ""
+                bg_colour = "#F0FAF6"
+                text_colour = "#000000"
+                border_colour = "#E0EF52"
+            
+            button_label = f"{label_prefix} {activity}"
+            button_key = f"btn_click_{activity}" 
+            
+            button_label = activity
+            # We use a clean lowercase string key for the CSS class mapping layout
+            clean_id = activity.lower()
+            button_key = f"btn-{clean_id}" 
+
+            
+            
+
+            st.html(f"""
+                <style>
+                .st-key-btn-{clean_id} button {{
+                    background-color: {bg_colour} !important;
+                    color: {text_colour} !important;
+                    border: 1px solid {border_colour} !important;
+                    transition: background-color 0.2s ease, opacity 0.2s ease;
+                }}
+                .st-key-btn-{clean_id} button:hover {{
+                    opacity: 0.85 !important;
+                    background-color: {bg_colour} !important;
+                    color: {text_colour} !important;
+                }}
+                </style>
+            """)
+
+
+             # Use the legend color for activ
+            # Render the button, if clicked, flip the true/false switch in memory
+            if st.button(button_label, key=button_key, use_container_width=True):
+                st.session_state[state_key] = not st.session_state[state_key]
+                st.rerun() # refresh the page instantly to update the icons and chart
+
+            # If the toggle state is True, pass this activity into the chart filter
+            if st.session_state[state_key]:
+                shown.append(activity)
+
+
 
     # ===================================================================== #
     # STEP 3 , Keep the rows in that window (and chosen activities), then chart them STACKED BY
-    #   ACTIVITY. Binning the x-axis to the hour (Day) or date (Week/Month) gives one fat bar per
-    #   bucket with one label, instead of thin bars and a label repeated at every tick.
+    #   ACTIVITY. If span is "Day", it processes the data at hourly steps instead of daily blocks.
     # ===================================================================== #
-    window = mw.filter_to_window(df, span, chosen_key)
     window = mw.filter_by_activity(window, shown) if shown else window.iloc[0:0]
+    
     if window.empty:
         st.info("Nothing to show , pick another window or add activities.")
     else:
-        frame = mw.over_time(window, span)
         if span == "Day":
+            # --- HOURLY VIEW STRATEGY ---
+            # Safe: Cleanly combine string date and string start_time ("HH:MM")
+            combined_datetime = window["event_date"].astype(str) + " " + window["start_time"].astype(str)
+            window["when"] = pd.to_datetime(combined_datetime)
+            
+            # Group by hourly intervals and activity type
+            frame = window.groupby([pd.Grouper(key="when", freq="h"), "activity"])["event_duration"].sum().reset_index()
+            
             unit, time_unit, time_format = "hour", "yearmonthdatehours", "%H:%M"
-        elif span == "Week":
-            unit, time_unit, time_format = "day", "yearmonthdate", "%a %d"
+            chosen_label = start_date.strftime("%B %d, %Y")
         else:
-            unit, time_unit, time_format = "day", "yearmonthdate", "%d"
+            # --- DAILY VIEW STRATEGY ---
+            frame = mw.over_time(window, span)
+            if span == "Week":
+                unit, time_unit, time_format = "day", "yearmonthdate", "%a %d"
+            else:
+                unit, time_unit, time_format = "day", "yearmonthdate", "%d"
+            
+            # Handle label ranges for printing strings cleanly
+            if isinstance(date_range, tuple) and len(date_range) == 2:
+                chosen_label = f"{date_range[0].strftime('%b %d')} - {date_range[1].strftime('%b %d, %Y')}"
+            else:
+                chosen_label = "Selected Window"
+
         st.write(f"**Minutes per {unit}, by activity** , {chosen_label}")
         st.altair_chart(
             mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
@@ -141,36 +231,11 @@ def render(df, data=None):
         )
 
     # weather over the same window, so you can read the activity against hot/cold/wet days
-    weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
-    if weather_line:
-        st.caption(f"Weather this {span.lower()}:  {weather_line}")
+    if not window.empty:
+        weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
+        if weather_line:
+            st.caption(f"Weather this period:  {weather_line}")
         
     # ===================================================================== #
-    # STEP 4 , Charts across ALL the data, each activity in its own colour.
-    # ===================================================================== #
-    st.write("### All activity")
-
-    minutes_per_activity = df.groupby("activity")["event_duration"].sum().reset_index()
-    st.write("**Total minutes per activity**")
-    st.altair_chart(
-        mw.stacked_bar(minutes_per_activity, "activity", "event_duration", "activity", "minutes",
-                       legend=False),
-        use_container_width=True,
-    )
-
-    times_per_activity = df["activity"].value_counts().reset_index()
-    times_per_activity.columns = ["activity", "count"]
-    st.write("**How often each activity happened**")
-    st.altair_chart(
-        mw.stacked_bar(times_per_activity, "activity", "count", "activity", "events",
-                       legend=False),
-        use_container_width=True,
-    )
-
-    # ===================================================================== #
-    # STEP 5 , YOUR TURN. Add a chart below.
-    #   `df` is everything; the mw.filter_* helpers give you a slice. For example:
-    #
-    #       weekend = mw.filter_by_weekday(df, ["Saturday", "Sunday"])
-    #       st.bar_chart(weekend, x="event_weekday_name", y="event_duration", color="activity")
+    # STEP 4 , Recent activity for troubleshooting.
     # ===================================================================== #
