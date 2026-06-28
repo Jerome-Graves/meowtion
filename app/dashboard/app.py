@@ -7,7 +7,8 @@ package, and the editable analytics dashboard is `dashboard_view.py`.
   TEAMMATES: you want dashboard_view.py , not this file.
 
 Flow:
-    theme  ->  sign-in  ->  collar switcher  ->  live cards  ->  activity-history dashboard
+    theme  ->  sign-in  ->  collar switcher  ->  current activity  ->  health watch +
+    activity history  ->  recent activity
 """
 import streamlit as st
 
@@ -30,11 +31,14 @@ selected = cats[0][0] if cats else None
 if len(cats) > 1:
     selected = st.radio("Collar", [name for name, _ in cats], horizontal=True)
 
-# Live, auto-refreshing "current state" cards for the selected collar.
-mw.live_view(uid, token, only_cat=selected)
+# Current-activity card (live) , top, right under the switcher.
+mw.live_view(uid, token, only_cat=selected, part="current")
 
-# Activity-history dashboard (the part teammates edit), scoped to the selected collar.
+# Activity-history dashboard (the part teammates edit): health watch + history charts.
 df = mw.activity_dataframe(data, mw.model_labels(data))
 if selected is not None:
     df = df[df["cat"] == selected]
 dashboard_view.render(df, data)
+
+# Recent-activity list (live) , bottom.
+mw.live_view(uid, token, only_cat=selected, part="recent")

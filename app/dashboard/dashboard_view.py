@@ -87,7 +87,7 @@ def render(df, data=None):
     pure_dates = pd.to_datetime(df["event_date"]).dt.date
 
     date_range = st.date_input(
-        label="📅 Select Date or Range",
+        label="📅 Select a date or date range",
         value=(today, today),
         min_value=pure_dates.min(),
         max_value=pure_dates.max()
@@ -113,8 +113,6 @@ def render(df, data=None):
 
     # Sleep and Resting dominate the minutes, so the small habits (eat, drink) are tiny slivers.
     # Deselecting the big ones here is how you see those small events.
-    st.write("### Filter activities")
-    
     LEGEND_COLORS = {
         "Eating": "#2ca02c",      # Legend Green
         "Drinking": "#1f77b4",    # Legend Blue
@@ -223,10 +221,9 @@ def render(df, data=None):
             else:
                 chosen_label = "Selected Window"
 
-        st.write(f"**Minutes per {unit}, by activity** , {chosen_label}")
         st.altair_chart(
             mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
-                           time_unit=time_unit, time_format=time_format, height=380),
+                           time_unit=time_unit, time_format=time_format, height=380, legend=False),
             use_container_width=True,
         )
 
