@@ -32,10 +32,10 @@ produces those models appears separately in \cref{fig:training-flow}.
     \node[mwnode, below=14mm of station] (collar) {Collar};
     \node[mwnode, fill=mwlav!8, right=of dash] (rtdb) {Realtime Database\\\scriptsize current, events, models, config};
     \node[mwnode, fill=mwlav!8, right=of station] (store) {Cloud Storage\\\scriptsize clips, models};
-    \draw[mwedge] (dash) -- node[above,text=mwmut]{read (live + history)} (rtdb);
+    \draw[mwedge] (rtdb) -- node[above,text=mwmut]{read (live + history)} (dash);
     \draw[mwedge] (station) -- node[above,pos=0.55,text=mwmut]{telemetry, events} (rtdb);
-    \draw[mwedge] (station) -- node[below,text=mwmut]{clips (via \texttt{upload\_clip}); download models} (store);
-    \draw[mwedge] (collar) -- node[left,text=mwmut]{BLE relay / OTA} (station);
+    \draw[mwbiedge] (station) -- node[below,align=center,xshift=-5mm,text=mwmut]{clips (via \texttt{upload\_clip});\\download models} (store);
+    \draw[mwbiedge] (collar) -- node[left,text=mwmut]{BLE relay / OTA} (station);
   \end{tikzpicture}}
   \caption{Backend data flow in normal operation. The dashboard reads the database; the station writes
            live state and events and uploads clips; the collar is relayed and updated through the

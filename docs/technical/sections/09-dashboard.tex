@@ -46,7 +46,7 @@ white canvas with lavender accents and collapsible cards, runs across every surf
     \node[mwnode, right=of front, yshift=13mm] (dash) {Dashboard\\\footnotesize app.py};
     \node[mwnode, right=of front] (dev) {Dev console\\\footnotesize dev.html};
     \node[mwnode, right=of front, yshift=-13mm] (demo) {Read-only demo};
-    \draw[mwedge] (front) -- node[above,font=\scriptsize,text=mwmut]{sign in / log out} (dash);
+    \draw[mwbiedge] (front) -- node[above,font=\scriptsize,text=mwmut]{sign in / log out} (dash);
     \draw[mwedge] (front) -- node[above,font=\scriptsize,text=mwmut]{dev account} (dev);
     \draw[mwedge] (front) -- node[below,font=\scriptsize,text=mwmut]{view demo} (demo);
   \end{tikzpicture}%

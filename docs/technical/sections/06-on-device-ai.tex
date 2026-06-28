@@ -18,7 +18,7 @@ models:
   \item The \textbf{IMU model} runs continuously on the motion stream. It is cheap and always on, and
         it carries most of the classification load.
   \item When the IMU model is \emph{unsure} (its top class falls below a confidence threshold of
-        \ph{threshold value}), the short \textbf{audio model} is invoked to confirm. Audio is therefore
+        0.75), the short \textbf{audio model} is invoked to confirm. Audio is therefore
         a deployed disambiguation signal, not merely a training aid.
 \end{enumerate}
 
@@ -83,10 +83,50 @@ Each cascade stage is a small 1-D convolutional network trained in the cloud and
 samples (six channels: accelerometer and gyroscope x/y/z); the audio stage runs over one second of
 8\,kHz audio (8000 samples).
 
-\phblock{Per-stage architecture table , for the IMU and audio networks: the input shape (IMU window
-length and sample rate; audio is 8000\,$\times$\,1), the convolutional layers (filter count, kernel
-size, stride), the pooling and dense layers, the output class count, and the total parameter count and
-model size. This is what lets a reader reproduce or assess the networks.}
+Both stages are the small 1-D CNNs defined in the training pipeline (\cref{sec:training-pipeline}).
+Every convolution uses \texttt{same} padding and ReLU; with a stride $s$ the output length is
+$\lceil L/s \rceil$. The classifier head has $N$ outputs, where $N$ is the number of action classes
+discovered from the labelled data, so the head and the totals scale with $N$. The exported int8
+model sizes are reported in \cref{tab:footprint}.
+
+\begin{table}[ht]
+  \centering
+  \caption{Per-stage network architecture. \texttt{k}\,$=$\,kernel size, \texttt{s}\,$=$\,stride;
+           $N$ is the action-class count (discovered from the data). Parameter counts are for the
+           trained float model; export quantises weights to int8.}
+  \label{tab:arch}
+  \small
+  \begin{tabular}{@{}lllr@{}}
+    \toprule
+    \textbf{Stage} & \textbf{Layer} & \textbf{Output} & \textbf{Params} \\
+    \midrule
+    IMU
+      & Input                          & $104\times6$  & 0 \\
+      & Conv1D 16, k5, s1, ReLU        & $104\times16$ & 496 \\
+      & MaxPool1D 2                    & $52\times16$  & 0 \\
+      & Conv1D 32, k5, s1, ReLU        & $52\times32$  & 2\,592 \\
+      & MaxPool1D 2                    & $26\times32$  & 0 \\
+      & Conv1D 64, k3, s1, ReLU        & $26\times64$  & 6\,208 \\
+      & GlobalAvgPool1D                & $64$          & 0 \\
+      & Dense 32, ReLU (Dropout 0.3)   & $32$          & 2\,080 \\
+      & Dense $N$, Softmax             & $N$           & $33N$ \\
+    \cmidrule(l){2-4}
+      & \textbf{Total}                 &               & $11\,376 + 33N$ \\
+    \midrule
+    Audio
+      & Input                          & $8000\times1$ & 0 \\
+      & Conv1D 8, k9, s4, ReLU         & $2000\times8$ & 80 \\
+      & Conv1D 16, k9, s4, ReLU        & $500\times16$ & 1\,168 \\
+      & Conv1D 32, k5, s2, ReLU        & $250\times32$ & 2\,592 \\
+      & Conv1D 32, k3, s2, ReLU        & $125\times32$ & 3\,104 \\
+      & GlobalAvgPool1D                & $32$          & 0 \\
+      & Dense 32, ReLU (Dropout 0.3)   & $32$          & 1\,056 \\
+      & Dense $N$, Softmax             & $N$           & $33N$ \\
+    \cmidrule(l){2-4}
+      & \textbf{Total}                 &               & $8\,000 + 33N$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Runtime models and model-free safety}
 
