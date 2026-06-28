@@ -28,7 +28,9 @@ config/
 
 Events store the model \texttt{version} and class \texttt{cls} index rather than a resolved name; the
 dashboard maps the index to a label through that version's \texttt{labels} list, so history stays
-correct across label-set changes.
+correct across label-set changes. Low-power rest spans from the activity gate are logged the same way
+but carry \texttt{type:\,"rest"} instead of a model class, so the timeline accounts for the resting
+period rather than leaving a gap (\cref{sec:firmware-collar}).
 
 \subsection{Cloud Storage layout}
 

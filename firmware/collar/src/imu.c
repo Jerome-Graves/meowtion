@@ -6,6 +6,7 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/regulator.h>
 #include <zephyr/logging/log.h>
+#include <math.h>
 
 LOG_MODULE_REGISTER(imu, LOG_LEVEL_INF);
 
@@ -90,6 +91,32 @@ size_t imu_drain(int16_t *dst, size_t max_vals)
 	for (size_t i = 0; i < n; i++) dst[i] = ring[(r_tail + i) & (RING_CAP - 1)];
 	r_tail += n;
 	return n;
+}
+
+void imu_set_lowpower(bool low)
+{
+	if (!g_ready) return;
+	/* Lower both ODRs for the rest watch (accel + gyro), restore IMU_RATE_HZ for classification.
+	 * 12 maps to the LSM6DS3TR-C's 12.5 Hz step; the driver rounds to the nearest supported rate. */
+	int hz = low ? 12 : IMU_RATE_HZ;
+	struct sensor_value odr = { .val1 = hz, .val2 = 0 };
+	(void)sensor_attr_set(imu_dev, SENSOR_CHAN_ACCEL_XYZ, SENSOR_ATTR_SAMPLING_FREQUENCY, &odr);
+	(void)sensor_attr_set(imu_dev, SENSOR_CHAN_GYRO_XYZ,  SENSOR_ATTR_SAMPLING_FREQUENCY, &odr);
+}
+
+uint32_t imu_motion_mg(void)
+{
+	if (!g_ready) return 0;
+	struct sensor_value acc[3];
+	if (sensor_sample_fetch(imu_dev) != 0) return 0;
+	if (sensor_channel_get(imu_dev, SENSOR_CHAN_ACCEL_XYZ, acc) != 0) return 0;
+	double mg[3];
+	for (int i = 0; i < 3; i++)
+		mg[i] = sensor_value_to_double(&acc[i]) * 1000.0 / G_TO_MS2;   /* milli-g */
+	double mag = sqrt(mg[0] * mg[0] + mg[1] * mg[1] + mg[2] * mg[2]);
+	double dev = mag - 1000.0;                                         /* deviation from 1 g */
+	if (dev < 0.0) dev = -dev;
+	return (uint32_t)dev;
 }
 
 static void imu_thread(void *a, void *b, void *c)

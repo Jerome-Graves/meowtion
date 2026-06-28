@@ -72,14 +72,28 @@ BT_GATT_SERVICE_DEFINE(meow_audio_svc,
     BT_GATT_CCC(audio_ccc_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 );
 
-static const struct bt_le_adv_param adv_param = BT_LE_ADV_PARAM_INIT(
+/* Fast interval for active use; slow (~1 s) for low-power rest. Both connectable + identity so the
+ * collar stays reachable for capture/OTA and the station keeps relaying it. */
+static const struct bt_le_adv_param adv_param_fast = BT_LE_ADV_PARAM_INIT(
     BT_LE_ADV_OPT_CONN | BT_LE_ADV_OPT_USE_IDENTITY,   /* connectable, keep the identity address */
     BT_GAP_ADV_FAST_INT_MIN_2, BT_GAP_ADV_FAST_INT_MAX_2, NULL);
+static const struct bt_le_adv_param adv_param_slow = BT_LE_ADV_PARAM_INIT(
+    BT_LE_ADV_OPT_CONN | BT_LE_ADV_OPT_USE_IDENTITY,
+    BT_GAP_ADV_SLOW_INT_MIN, BT_GAP_ADV_SLOW_INT_MAX, NULL);   /* ~1 s: far less radio while resting */
+static const struct bt_le_adv_param *g_adv = &adv_param_fast;
 
 void ble_start_adv(void)
 {
-    int err = bt_le_adv_start(&adv_param, ad, ARRAY_SIZE(ad), NULL, 0);
+    int err = bt_le_adv_start(g_adv, ad, ARRAY_SIZE(ad), NULL, 0);
     if (err && err != -EALREADY) LOG_ERR("adv start failed (%d)", err);   /* -EALREADY = already on */
+}
+
+void ble_set_adv_slow(bool slow)
+{
+    g_adv = slow ? &adv_param_slow : &adv_param_fast;
+    if (g_conn) return;                 /* advertising is off while connected; resumes on disconnect */
+    (void)bt_le_adv_stop();             /* restart so the new interval takes effect */
+    ble_start_adv();
 }
 
 void ble_update_adv(void)

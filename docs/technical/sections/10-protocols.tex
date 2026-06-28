@@ -25,7 +25,7 @@ simulated behaviour state machine, version~2 is real on-device classification.
     \midrule
     0--1 & company id   & \texttt{0xFFFF} (test/development identifier) \\
     2    & version      & \texttt{1} = simulated state, \texttt{2} = real on-device classification \\
-    3    & state\,/\,class & v1: state (0 sleep \dots 5 groom); v2: predicted class index (\texttt{0xFF} = unknown) \\
+    3    & state\,/\,class & v1: state (0 sleep \dots 5 groom); v2: predicted class index (\texttt{0xFE} = low-power rest, \texttt{0xFF} = unknown) \\
     4    & activity\,/\,confidence & v1: activity level 0--100; v2: confidence 0--100 \\
     5--6 & steps        & step count, \texttt{uint16}, little-endian \\
     7    & battery      & battery level 0--100 \\
@@ -35,7 +35,9 @@ simulated behaviour state machine, version~2 is real on-device classification.
 
 Because the class is an index, not a name, the station and dashboard resolve it through the running
 model version's label list, which keeps history correct across label-set changes
-(\cref{sec:cloud-backend}).
+(\cref{sec:cloud-backend}). The reserved class \texttt{0xFE} marks low-power rest: the rules-based
+activity gate advertises it while the collar sleeps, and the station records the span as a single
+rest episode (\cref{sec:firmware-collar}).
 
 \subsection{Audio clip-streaming frame}
 

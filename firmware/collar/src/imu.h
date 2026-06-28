@@ -23,3 +23,13 @@ void imu_stream_stop(void);    /* stop sampling */
 /* Copy up to max_vals int16 out of the ring into dst (kept a multiple of IMU_AXES so whole samples
  * are never split). Returns the number of int16 copied. */
 size_t imu_drain(int16_t *dst, size_t max_vals);
+
+/* Low-power rest support (rules-based activity gate, see activity.h).
+ * imu_set_lowpower(true) drops the IMU to a low-power watch ODR (~12.5 Hz); false restores the
+ * IMU_RATE_HZ sampling rate used for classification. Call with the stream stopped. */
+void imu_set_lowpower(bool low);
+
+/* One-shot accelerometer read for the motion watch while the 104 Hz stream is stopped. Returns the
+ * magnitude of (acceleration - 1 g) in milli-g, a motion-energy proxy; 0 on a read error or before
+ * imu_init(). */
+uint32_t imu_motion_mg(void);

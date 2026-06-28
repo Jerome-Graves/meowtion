@@ -42,6 +42,7 @@
 #include "battery.h"
 #include "imu.h"
 #include "classifier.h"
+#include "activity.h"
 #include "production.h"
 #include "ota.h"
 
@@ -91,6 +92,57 @@ static void update_telemetry_sim(void)
     mfg[7] = g_battery;
 }
 
+/* Telemetry class byte (version=2 packet) meaning "collar is in low-power rest". Distinct from a
+ * model class index (0..N-1) and from 0xFF=UNKNOWN; the station maps it to a "rest" episode so the
+ * whole dormant span becomes one rest event. */
+#define TELEM_REST  0xFE
+
+/* Cascade TIER 0 , low-power rest. Entered from the production branch once the rules-based activity
+ * gate (activity.c) sees sustained stillness. Stops the 104 Hz stream + inference, drops the IMU to
+ * a low-power watch ODR, slows the radio, and advertises a REST beacon so the station opens a rest
+ * episode. Polls the IMU slowly for motion; on motion it restores active operation and returns, and
+ * the next production cycle re-advertises a real class so the station closes the rest episode (the
+ * rest event covering the dormant span). Leaves early if a central connects or a capture starts so
+ * the normal loop can service it. */
+static void enter_low_power_rest(void)
+{
+    LOG_INF("activity: still >= %us , entering low-power rest", ACT_REST_HOLDOFF_S);
+
+    production_yield();              /* stop the 104 Hz stream + drop the inference window */
+    imu_set_lowpower(true);         /* low-power watch ODR */
+    ble_set_adv_slow(true);         /* slow the radio */
+
+    /* Advertise the REST beacon (version=2, class=REST) so the station logs the rest episode. */
+    uint8_t *mfg = ble_mfg_data();
+    mfg[2] = 2;
+    mfg[3] = TELEM_REST;
+    mfg[4] = 0;
+    mfg[7] = read_battery();
+    if (!ble_is_connected()) { ble_start_adv(); ble_update_adv(); }
+
+    const int64_t t0 = k_uptime_get();
+    int64_t last_beacon = t0;
+    while (1) {
+        if (ble_is_connected() || ble_streaming_enabled()) break;   /* let the main loop service it */
+        if (imu_motion_mg() >= ACT_WAKE_MG) break;                  /* motion , wake */
+        int64_t now = k_uptime_get();
+        if (now - last_beacon >= 12000) {       /* refresh < the station's 30 s stale window */
+            mfg[7] = read_battery();
+            ble_start_adv();
+            ble_update_adv();
+            last_beacon = now;
+        }
+        k_sleep(K_MSEC(500));                   /* SoC idles between polls */
+    }
+
+    LOG_INF("activity: motion , waking after %llus rest",
+            (unsigned long long)((k_uptime_get() - t0) / 1000));
+    imu_set_lowpower(false);        /* restore the classification sampling rate */
+    ble_set_adv_slow(false);        /* restore the fast advertising interval */
+    activity_reset();
+    /* the next loop iteration restarts production (imu_stream_start) and resumes classification. */
+}
+
 int main(void)
 {
     /* Bring up USB so the CDC ACM console (the COM port) works, then wait up to ~3 s for a
@@ -133,6 +185,12 @@ int main(void)
          * still runs at capture time in streaming.c on the IMU window paired with each audio clip. */
         if (production_active()) {
             production_update_telemetry();
+            /* Cascade tier 0: if the cat has been still past the hold-off, drop to low-power rest
+             * until motion returns. This is the main battery lever , no 104 Hz sampling, no
+             * inference, and a slow radio while the cat is resting. */
+            if (activity_should_rest(production_peak_mg(), 2)) {
+                enter_low_power_rest();
+            }
         } else {
             production_yield();          /* release our IMU ownership so capture/re-entry is clean */
             update_telemetry_sim();

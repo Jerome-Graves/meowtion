@@ -45,6 +45,7 @@ static int16_t g_drain[WIN_VALS];
 
 static bool     g_imu_started;      /* did WE start the IMU (production), vs the capture path */
 static uint16_t g_steps;            /* mirror of the telemetry step count, accrued from motion */
+static uint32_t g_peak_mg;          /* peak |accel|-1g (mg) this cycle, for the activity gate */
 
 /* simple step detection: count accel-magnitude crossings above a threshold, with a refractory gap
  * so one stride isn't counted many times. Tuned loosely , this is a motion-activity proxy, not a
@@ -56,6 +57,23 @@ bool production_active(void)
 {
     /* PRODUCTION: a trained IMU model is linked AND we are not in a capture/training stream. */
     return clf_imu_model_present() && !ble_streaming_enabled();
+}
+
+uint32_t production_peak_mg(void) { return g_peak_mg; }
+
+/* Peak accel-magnitude deviation from 1 g (mg) over freshly-drained frames. The activity gate uses
+ * this to decide active vs still. Tracks the max squared magnitude then takes one sqrt at the end. */
+static void update_peak_mg(const int16_t *src, size_t n)
+{
+    uint32_t max2 = 0;
+    for (size_t i = 0; i + IMU_AXES <= n; i += IMU_AXES) {
+        int32_t ax = src[i], ay = src[i + 1], az = src[i + 2];   /* milli-g */
+        uint32_t mag2 = (uint32_t)(ax * ax + ay * ay + az * az);
+        if (mag2 > max2) max2 = mag2;
+    }
+    if (n < IMU_AXES) { g_peak_mg = 0; return; }                  /* no samples this cycle */
+    double dev = sqrt((double)max2) - 1000.0;
+    g_peak_mg = (uint32_t)(dev < 0.0 ? -dev : dev);
 }
 
 /* Slide `n` int16 (whole frames) from src into the end of the rolling window, dropping the oldest. */
@@ -116,6 +134,7 @@ void production_update_telemetry(void)
     /* 2. Drain everything available since last cycle and slide it into the rolling window. */
     size_t got = imu_drain(g_drain, WIN_VALS);
     accrue_steps(g_drain, got);
+    update_peak_mg(g_drain, got);       /* motion-energy proxy for the rules-based activity gate */
     window_push(g_drain, got);
 
     /* 3. Present the latest 104 frames. If we don't yet have a full window (just entered production),
