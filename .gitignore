@@ -35,6 +35,7 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+.pytest_cache/
 
 # ---- Node / web tooling ----
 node_modules/

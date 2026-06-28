@@ -1,0 +1,4 @@
+# Dev / test tooling only. Each component's runtime dependencies (pandas, numpy, streamlit,
+# firebase-functions, ...) live in that component's own requirements file; this is just the
+# test runner used across the repo. See TESTING.md.
+pytest>=8
