@@ -49,10 +49,16 @@ def ref(path):
 
 
 # ======================== upload_clip (station, device-token auth) ========================
+MAX_CLIP_BYTES = 4 * 1024 * 1024   # reject oversized uploads; a real clip is far smaller
+
+
 @https_fn.on_request(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=120,
                      cors=options.CorsOptions(cors_origins=["*"], cors_methods=["post", "options"]))
 def upload_clip(req: https_fn.Request) -> https_fn.Response:
-    token = req.args.get("token", "")
+    # Prefer the bearer token from the Authorization header; fall back to the legacy ?token= query
+    # arg so an un-updated station still works. The header keeps the token out of URLs and logs.
+    auth = req.headers.get("Authorization", "")
+    token = auth[7:].strip() if auth[:7].lower() == "bearer " else req.args.get("token", "")
     collar = req.args.get("collar", "")
     ts = req.args.get("ts", "")
     ext = req.args.get("ext", "wav")
@@ -65,6 +71,8 @@ def upload_clip(req: https_fn.Request) -> https_fn.Response:
     data = req.get_data()
     if not data:
         return https_fn.Response("empty body", status=400)
+    if len(data) > MAX_CLIP_BYTES:
+        return https_fn.Response("clip too large", status=413)
     ctype = "audio/wav" if ext == "wav" else "application/octet-stream"
     path = f"training/{owner}/{collar}/{ts}.{ext}"
     storage.bucket().blob(path).upload_from_string(data, content_type=ctype)

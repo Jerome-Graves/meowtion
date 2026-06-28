@@ -6,6 +6,7 @@ Trust comes from the database rules, not this code: a real token reads only its 
 demo account is world-readable but write-locked, so the demo is genuinely read-only.
 """
 import base64
+import html
 import json
 import time
 
@@ -38,7 +39,7 @@ def _signed_in_header(claims):
     uid = claims.get("user_id") or claims.get("sub")
     # Streamlit auto-linkifies a bare "name@domain" into a mailto: link; a zero-width space after
     # the "@" breaks that pattern (invisible) while the email still reads normally.
-    email = str(claims.get("email", uid)).replace("@", "@​")   # ZWSP stops mailto auto-link
+    email = html.escape(str(claims.get("email", uid))).replace("@", "@​")   # escape + ZWSP stops mailto auto-link
     btn = ("display:inline-flex;align-items:center;justify-content:center;padding:0.4rem 0.85rem;"
            "border:1px solid rgba(128,128,128,0.4);border-radius:0.5rem;background:transparent;"
            "color:inherit;text-decoration:none;font-weight:400;white-space:nowrap;")

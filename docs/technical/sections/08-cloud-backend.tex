@@ -121,6 +121,7 @@ alongside the simulated activity.
 
 \subsection{Configuration trust boundary}
 
-The \texttt{config} subtree is readable by clients but not writable by them, and is maintained from the
-Firebase console. The system can thus publish facts the clients need (which account backs the demo,
-which accounts are developers) without letting a client grant itself privileges.
+The \texttt{config} subtree is never client-writable and is maintained from the Firebase console.
+Reads are scoped to just what a client needs: \texttt{config/demoOwner} is public (it backs the demo)
+and a signed-in user may read only their own \texttt{config/devAccounts/<uid>} flag, so the developer
+list cannot be enumerated and a client still cannot grant itself privileges.

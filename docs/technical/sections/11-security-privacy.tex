@@ -62,8 +62,9 @@ against a hand-crafted client.
 The Firebase web API key shipped in the static front end is a public client identifier, not a secret;
 security is enforced by Authentication and the rules, not by hiding the key. No service-account key is
 present in the repository, and the functions run on their ambient service account. Device Wi-Fi
-credentials and firmware secrets are excluded by \texttt{.gitignore}. Everything required to understand
-and build the system is tracked; only true secrets are not.
+credentials are entered at runtime and never committed, and \texttt{.gitignore} guards against any
+local secret file. Everything required to understand and build the system is tracked; only true
+secrets are not.
 
 \subsection{Owner data rights}
 

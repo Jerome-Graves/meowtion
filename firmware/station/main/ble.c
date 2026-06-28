@@ -754,9 +754,9 @@ static void do_upload(clipbuf_t *b)
 
     /* WAV first. The function validates g_token, stores the bytes and returns the storage path. */
     static char url[320], reply[256], wav_path[160];
-    snprintf(url, sizeof url, "%s?token=%s&collar=%s&ts=%lld&ext=wav",
-             UPLOAD_CLIP_URL, g_token, g_cap_id, (long long)ts);
-    int status = http_post_bin(url, b->wav, WAV_HDR + b->pcm_len, "audio/wav", reply, sizeof reply);
+    snprintf(url, sizeof url, "%s?collar=%s&ts=%lld&ext=wav",
+             UPLOAD_CLIP_URL, g_cap_id, (long long)ts);
+    int status = http_post_bin(url, b->wav, WAV_HDR + b->pcm_len, "audio/wav", g_token, reply, sizeof reply);
     bool have_wav = (status == 200) && parse_upload_path(reply, wav_path, sizeof wav_path);
     ESP_LOGI(TAG, "upload %s status=%d (%u B) path=%s",
              g_cap_id, status, (unsigned)(WAV_HDR + b->pcm_len), have_wav ? wav_path : "?");
@@ -765,9 +765,9 @@ static void do_upload(clipbuf_t *b)
     char imu_path[160];
     bool have_imu = false;
     if (b->imu_len > 0) {
-        snprintf(url, sizeof url, "%s?token=%s&collar=%s&ts=%lld&ext=imu",
-                 UPLOAD_CLIP_URL, g_token, g_cap_id, (long long)ts);
-        int imu_status = http_post_bin(url, b->imu, b->imu_len, "application/octet-stream", reply, sizeof reply);
+        snprintf(url, sizeof url, "%s?collar=%s&ts=%lld&ext=imu",
+                 UPLOAD_CLIP_URL, g_cap_id, (long long)ts);
+        int imu_status = http_post_bin(url, b->imu, b->imu_len, "application/octet-stream", g_token, reply, sizeof reply);
         have_imu = (imu_status == 200) && parse_upload_path(reply, imu_path, sizeof imu_path);
         ESP_LOGI(TAG, "imu upload status=%d (%u B) path=%s",
                  imu_status, (unsigned)b->imu_len, have_imu ? imu_path : "?");

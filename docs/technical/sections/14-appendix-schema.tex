@@ -47,7 +47,8 @@ models/<uid>/audio_model.tflite       trained audio model   (public-read; writte
   \item[\texttt{train}] \texttt{POST} with header \texttt{Authorization: Bearer <Firebase ID token>}
         of a developer account. Trains from the account's labelled clips; returns the new version and
         label set. Gated additionally by \texttt{config/devAccounts/<uid>}.
-  \item[\texttt{upload\_clip}] \texttt{POST} the raw clip bytes with the station's device token. The
-        function resolves \texttt{deviceTokens/<token>/owner} and writes the file as administrator
-        into that owner's Storage area. No Firebase login is involved.
+  \item[\texttt{upload\_clip}] \texttt{POST} the raw clip bytes with header
+        \texttt{Authorization: Bearer <device token>} (kept out of the URL/query string). The function
+        resolves \texttt{deviceTokens/<token>/owner} and writes the file as administrator into that
+        owner's Storage area. No Firebase login is involved.
 \end{description}

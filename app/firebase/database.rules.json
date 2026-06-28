@@ -1,8 +1,11 @@
 {
   "rules": {
     "config": {
-      ".read": true,
-      ".write": false
+      ".write": false,
+      "demoOwner": { ".read": true },
+      "devAccounts": {
+        "$uid": { ".read": "auth != null && auth.uid === $uid" }
+      }
     },
     "users": {
       "$uid": {
@@ -19,7 +22,7 @@
     "deviceTokens": {
       "$token": {
         ".read":  "auth != null && data.child('owner').val() === auth.uid",
-        ".write": "auth != null && (newData.child('owner').val() === auth.uid || data.child('owner').val() === auth.uid)"
+        ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid) || data.child('owner').val() === auth.uid)"
       }
     }
   }
