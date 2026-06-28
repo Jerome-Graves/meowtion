@@ -59,10 +59,11 @@ Four commitments shape the whole system and recur throughout this document.
 
 \subsection{Contributions}
 
-As an engineering artefact, Meowtion's notable elements are: a \emph{confidence-gated, dual-model
-cascade} that runs an always-on motion classifier and invokes a short audio classifier only to
-resolve ambiguous behaviours, so audio is a deployed disambiguation signal rather than only a
-training aid (\cref{sec:on-device-ai}); a \emph{label-agnostic} pipeline in which the behaviour set
+As an engineering artefact, Meowtion's notable elements are: a \emph{three-tier, confidence-gated
+cascade} in which a rules-based activity gate rests the collar in low power while the cat is still, a
+motion classifier runs while it is active, and a short audio classifier is invoked only to resolve
+ambiguous behaviours, so audio is a deployed disambiguation signal rather than only a training aid
+and power tracks how active the cat actually is (\cref{sec:on-device-ai}); a \emph{label-agnostic} pipeline in which the behaviour set
 is data-defined end to end, from the dashboard's action list through the cloud trainer to the
 index-based on-collar classifier; an \emph{over-the-air model path} that delivers quantised models to
 a Bluetooth-only wearable through the station; and a privacy and multi-tenancy model in which battery

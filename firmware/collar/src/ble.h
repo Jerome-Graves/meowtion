@@ -24,6 +24,11 @@ void ble_start_adv(void);
 /* Refresh the advertised manufacturer AD data after the telemetry bytes change. */
 void ble_update_adv(void);
 
+/* Switch the advertising interval: slow (true) for low-power rest, fast (false) for active use.
+ * Restarts the advert with the chosen interval; a no-op on the radio while connected (advertising
+ * is off then, and the next ble_start_adv picks up the current interval). */
+void ble_set_adv_slow(bool slow);
+
 /* True while a central is connected (advertising auto-stops while connected). */
 bool ble_is_connected(void);
 

@@ -51,8 +51,9 @@ many of the engineering choices that follow.
     \textbf{ID} & \textbf{Requirement} & \textbf{Addressed in} \\
     \midrule
     NFR-1 & \textbf{Power.} The collar must run for a useful time on a collar-sized cell, which
-            precludes Wi-Fi on the wearable and bounds the duty cycle of the audio path. &
-            \cref{sec:hardware,sec:on-device-ai} \\
+            precludes Wi-Fi on the wearable, bounds the duty cycle of the audio path, and is met
+            chiefly by the rules-based activity gate that rests the collar between bouts of motion. &
+            \cref{sec:hardware,sec:on-device-ai,sec:firmware-collar} \\
     NFR-2 & \textbf{Footprint.} Inference must fit the microcontroller's RAM alongside the BLE stack. &
             \cref{sec:on-device-ai} \\
     NFR-3 & \textbf{Privacy.} Raw audio must never leave the collar in normal operation; data must be

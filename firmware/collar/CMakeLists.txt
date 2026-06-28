@@ -9,6 +9,7 @@ target_sources(app PRIVATE
     src/streaming.c
     src/battery.c
     src/classifier.c
+    src/activity.c              # rules-based activity gate (cascade tier 0): low-power rest gating
     src/production.c            # production mode: real on-device classification -> telemetry
     src/imu.c
     src/ota.c                   # Phase-3 OTA model delivery: BLE -> flash slots -> XIP load

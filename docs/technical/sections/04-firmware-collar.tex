@@ -13,7 +13,8 @@ and battery-only. \texttt{build.ps1} drives the build: it locates the local NCS 
 
 The firmware has four jobs, driven from the main loop and BLE callbacks:
 \begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
-  \item Sample the IMU continuously (and the microphone when needed) and run the classifier cascade.
+  \item Run the rules-based activity gate: while the cat is active, sample the IMU and run the
+        classifier cascade; on sustained stillness drop to low-power rest until motion returns.
   \item Advertise the result as an 8-byte BLE telemetry packet for the station to read
         (\cref{sec:protocols}).
   \item In training mode, stream paired audio\,+\,IMU frames to a subscribed station for capture.
@@ -40,6 +41,7 @@ The firmware has four jobs, driven from the main loop and BLE callbacks:
     \texttt{imu.c}             & LSM6DS3TR-C continuous sampler \\
     \texttt{battery.c}         & 1S LiPo charge state via the onboard divider \\
     \texttt{classifier.c}      & The confidence-gated cascade policy (IMU first, audio confirms) \\
+    \texttt{activity.c}        & The rules-based activity gate (cascade tier 0): still-timer that drives low-power rest \\
     \texttt{tflm\_classifier.cpp} & TensorFlow Lite Micro backend for the cascade \\
     \texttt{model\_loader.h}   & Runtime model-install API (\texttt{clf\_set\_imu\_model} / \texttt{clf\_set\_audio\_model}) \\
     \texttt{production.c}      & Rolling IMU window; runs inference and writes real telemetry \\
@@ -62,6 +64,25 @@ are therefore decoupled (\texttt{streaming.c}): one side assembles 100\,ms frame
 IMU sources, the other sends them over the audio characteristic, so a momentarily slow radio cannot
 stall capture. The collar negotiates a large ATT MTU (247 bytes) and uses the 2\,Mbit PHY for
 throughput.
+
+\subsection{Activity gating and low-power rest}
+
+The collar's power budget (NFR-1) is set by how much it senses, not by how fast it can classify, and a
+cat is at rest for most of the day. A rules-based activity gate (\texttt{activity.c}), the first tier
+of the cascade (\cref{sec:on-device-ai}), turns that idleness into battery life. Each production cycle
+it takes a motion-energy proxy, the peak deviation of acceleration from 1\,g over the cycle's samples,
+and runs a still-timer: once motion stays below a small threshold for a hold-off window (about a
+minute), the collar enters \emph{low-power rest}.
+
+In rest, the 104\,Hz sampling thread and all inference stop, the IMU drops to a low-power watch rate
+(about 12.5\,Hz), and advertising slows to roughly a one-second interval; the main thread polls the
+accelerometer slowly and the SoC idles between polls. A motion event above a wake threshold ends rest:
+the IMU and advertising return to their active rates and the cascade resumes. Because the station logs
+an episode whenever the collar's reported state changes, the collar advertises a dedicated
+\texttt{REST} state byte while resting, so the entire dormant span is recorded as a single
+\emph{rest} event covering exactly the period of low-to-no motion
+(\cref{sec:protocols,sec:cloud-backend}). The thresholds and hold-off are constants in
+\texttt{activity.h}, tuned against the measured power budget (\cref{sec:evaluation}).
 
 \subsection{Model storage and flash layout}
 
@@ -122,5 +143,7 @@ Serial to register the collar.
 In production the telemetry packet carries the cascade's live result: class and confidence from the
 on-device classifier on the rolling IMU window, with the audio stage confirming uncertain results
 (\cref{sec:on-device-ai}). It also reports an IMU-derived step count and the measured battery level.
+While the activity gate holds the collar in low-power rest it advertises a dedicated \texttt{REST}
+state instead, which the station records as a rest episode (\cref{sec:protocols}).
 A freshly flashed collar advertises \texttt{UNKNOWN} until its first model arrives over the air, so
 the firmware is always safe to run.

@@ -48,9 +48,9 @@ dominant RAM cost of inference; the audio window buffer and the BLE stack make u
     \toprule
     \textbf{Resource} & \textbf{Value} & \textbf{Notes} \\
     \midrule
-    RAM (static)     & 222\,KiB of 256\,KiB & Static \texttt{data+bss} with inference enabled (86.6\%); includes both tensor arenas. 226\,931\,B \\
-    Flash (image)    & 305\,KiB           & Application image (\texttt{text+data}), excluding the model partition. 312\,411\,B \\
-    IMU tensor arena & 16\,KiB            & Always-on motion stage \\
+    RAM (static)     & 222\,KiB of 256\,KiB & Static \texttt{data+bss} with inference enabled (86.6\%); includes both tensor arenas. 226\,956\,B \\
+    Flash (image)    & 306\,KiB           & Application image (\texttt{text+data}), excluding the model partition. 313\,836\,B \\
+    IMU tensor arena & 16\,KiB            & Motion stage (runs while active) \\
     Audio tensor arena & 48\,KiB          & Confirmation stage \\
     Model storage    & 256\,KiB flash     & Two OTA slots; the interpreter reads model weights directly
                                             from this partition, with only the arena in RAM \\
@@ -68,11 +68,17 @@ added cost when the audio stage fires.}
 
 \subsection{Power and battery life}
 
-Power is the defining constraint on the wearable (NFR-1), so the duty cycle of the always-on IMU path
-and the occasional audio path is what sets runtime on the 100\,mAh cell.
+Power is the defining constraint on the wearable (NFR-1). The dominant lever is the rules-based
+activity gate (\cref{sec:on-device-ai,sec:firmware-collar}): a resting cat puts the collar into
+low-power rest, where the 104\,Hz sampling and inference stop, the IMU drops to a low-power watch, and
+the radio slows, so average current tracks how active the cat actually is instead of running flat out
+all day. The remaining draw is set by the active duty cycle of the IMU path and the occasional audio
+path on the 100\,mAh cell.
 
-\phblock{Per-state current-draw table , idle, IMU inference, audio inference, clip streaming, and OTA ,
-measured at the cell, with the resulting projected battery life under a representative behaviour mix.}
+\phblock{Per-state current-draw table , low-power rest, active idle, IMU inference, audio inference,
+clip streaming, and OTA , measured at the cell, with the resulting projected battery life under a
+representative behaviour mix (e.g. 16\,h rest / 8\,h active). Report the rest-vs-active current ratio,
+since the activity gate's benefit is that ratio times the fraction of the day the cat spends resting.}
 
 \subsection{Over-the-air update}
 

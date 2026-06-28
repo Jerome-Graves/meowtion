@@ -39,6 +39,18 @@ static const char *TAG = "meowtion-ble";
 /* collar behaviour states, indexed by the collar packet's state byte (0..5) */
 static const char *STATES[] = { "sleep", "rest", "active", "walk", "play", "groom" };
 
+/* The collar sets this state/class byte while in low-power rest (cascade tier 0). It is distinct
+ * from a model class index (0..N-1) and from 0xFF=UNKNOWN, so a rest span becomes its own episode. */
+#define COLLAR_STATE_REST 0xFE
+
+/* Human label for a state/class byte: low-power rest, unknown, else the behaviour name. */
+static const char *state_name(uint8_t s)
+{
+    if (s == COLLAR_STATE_REST) return "rest";
+    if (s == 0xFF)              return "unknown";
+    return STATES[s % 6];
+}
+
 /* registered-collar allow-list (the "2 devices" gate); populated by ble_fetch_allow() below */
 #define MAX_ALLOW 8
 static char g_allow[MAX_ALLOW][16];
@@ -342,7 +354,6 @@ void ble_relay(void)
             ESP_LOGW(TAG, "collar %s stale, dropped", snap.id);
             continue;
         }
-        int st = snap.state % 6;
         char base[24], body[224], suffix[40];
         snprintf(base, sizeof base, "/cats/%s", snap.id);
 
@@ -352,7 +363,7 @@ void ble_relay(void)
          * meaningful when ver=2. `state` (the human-readable label) is kept for the v1 dashboard. */
         snprintf(body, sizeof body,
                  "{\"ts\":%lld,\"state\":\"%s\",\"steps\":%u,\"battery\":%d,\"ver\":%u,\"cls\":%u,\"conf\":%u}",
-                 (long long)now, STATES[st], (unsigned)snap.steps, snap.battery,
+                 (long long)now, state_name(snap.state), (unsigned)snap.steps, snap.battery,
                  (unsigned)snap.ver, (unsigned)snap.state, (unsigned)snap.activity);
         snprintf(suffix, sizeof suffix, "%s/current", base);
         dev_write(HTTP_METHOD_PUT, suffix, body);
@@ -371,7 +382,7 @@ void ble_relay(void)
              * name (via cls) instead of the simulated state name; `type` is kept for the v1 path. */
             snprintf(body, sizeof body,
                      "{\"type\":\"%s\",\"start\":%lld,\"durationSec\":%d,\"ver\":%u,\"cls\":%u}",
-                     STATES[snap.cur_state % 6], (long long)snap.state_start, dur,
+                     state_name(snap.cur_state), (long long)snap.state_start, dur,
                      (unsigned)snap.ver, (unsigned)snap.cur_state);
             snprintf(suffix, sizeof suffix, "%s/events", base);
             dev_write(HTTP_METHOD_POST, suffix, body);
@@ -380,7 +391,7 @@ void ble_relay(void)
             g_collars[i].state_start = now;
             xSemaphoreGive(g_collar_mtx);
         }
-        ESP_LOGI(TAG, "relay %s %s steps=%u batt=%d", snap.id, STATES[st], (unsigned)snap.steps, snap.battery);
+        ESP_LOGI(TAG, "relay %s %s steps=%u batt=%d", snap.id, state_name(snap.state), (unsigned)snap.steps, snap.battery);
     }
 }
 

@@ -7,44 +7,60 @@ Cortex-M4F. The models are tiny int8 networks in the spirit of TinyML~\cite{ward
 enough to fit a microcontroller's RAM and run within the collar's power budget, yet accurate enough to
 separate everyday behaviours.
 
-\subsection{Confidence-gated cascade}
+\subsection{Three-tier cascade}
 
-Two behaviours can look almost identical to a motion sensor while sounding completely different:
-eating and drinking both put the head down at a bowl with similar gross motion. Rather than force one
-model to separate them from accelerometry alone, Meowtion runs a confidence-gated cascade of two
-models:
+Inference cost rises sharply across the cascade, so Meowtion gates each tier behind a cheaper one and
+pays for the next only when the cheaper tier cannot answer. Three tiers run in front of every reported
+behaviour:
 
 \begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
-  \item The \textbf{IMU model} runs continuously on the motion stream. It is cheap and always on, and
-        it carries most of the classification load.
-  \item When the IMU model is \emph{unsure} (its top class falls below a confidence threshold of
-        0.75), the short \textbf{audio model} is invoked to confirm. Audio is therefore
-        a deployed disambiguation signal, not merely a training aid.
+  \item \textbf{Rules-based activity gate} (no model). A cheap motion-energy rule on the raw IMU
+        stream decides \emph{active} vs \emph{resting}. Most of a cat's day is rest, and classifying
+        stillness 50 times a second drains the cell for no information, so sustained low motion drops
+        the collar into low-power rest: the 104\,Hz sampling and inference stop, the IMU falls back to
+        a low-power motion watch, and the radio slows. Motion ends rest, and the whole dormant span is
+        reported as a single \emph{rest} episode (\cref{sec:firmware-collar}). This gate is the
+        dominant battery lever (\cref{sec:evaluation}).
+  \item \textbf{IMU model} (model-based). While the cat is active, the int8 motion model runs on every
+        window. It is cheap and carries most of the classification load.
+  \item \textbf{Audio model} (model-based). When the IMU model is \emph{unsure} (its top class falls
+        below a confidence threshold of 0.75), the short audio model is invoked to confirm. Audio is
+        therefore a deployed disambiguation signal, not merely a training aid.
 \end{enumerate}
 
-This keeps average power low, since the audio path runs only to break a tie, while recovering accuracy
-that motion alone cannot provide. The cascade policy lives in plain C (\texttt{classifier.c}) and is
-independent of the inference backend, so the gating logic can be read and tuned without touching the
-TensorFlow Lite Micro code. \Cref{fig:cascade} shows the decision flow.
+The audio tier earns its keep on one hard case: eating and drinking look almost identical to a motion
+sensor (head down at a bowl, similar gross motion) but sound completely different. The cascade keeps
+average power low at both ends , the rules-based gate suppresses all sensing and inference while the
+cat rests, and the audio path runs only to break a tie , while still recovering accuracy that motion
+alone cannot provide. The policy lives in plain C, independent of the inference backend: the
+rules-based gate in \texttt{activity.c}, and the model-tier gating in \texttt{classifier.c}.
+\Cref{fig:cascade} shows the decision flow.
 
 \begin{figure}[ht]
   \centering
-  \begin{tikzpicture}[node distance=8mm and 16mm]
-    \node[mwterm] (win) {IMU window};
-    \node[mwflow, below=of win] (imu) {IMU model};
+  \begin{tikzpicture}[node distance=8mm and 14mm]
+    \node[mwterm] (win) {IMU stream};
+    \node[mwdecision, below=of win] (act) {moving?};
+    \node[mwflow, left=of act, text width=2.3cm] (rest) {Low-power rest\\\scriptsize rest event on wake};
+    \node[mwflow, below=of act] (imu) {IMU model};
     \node[mwdecision, below=of imu] (q) {top class\\confident?};
     \node[mwterm, below=of q] (out1) {Report class\\+ confidence};
     \node[mwflow, right=of q] (aud) {Audio model};
     \node[mwterm, below=of aud] (out2) {Report\\confirmed class};
-    \draw[mwedge] (win) -- (imu);
+    \draw[mwedge] (win) -- (act);
+    \draw[mwedge] (act) -- node[above,font=\scriptsize,text=mwmut]{no} (rest);
+    \draw[mwedge] (act) -- node[right,font=\scriptsize,text=mwmut]{yes} (imu);
+    \draw[mwedge] (rest.north) to[bend left=40] node[above,font=\scriptsize,text=mwmut]{motion} (win.west);
     \draw[mwedge] (imu) -- (q);
     \draw[mwedge] (q) -- node[left,font=\scriptsize,text=mwmut]{yes} (out1);
     \draw[mwedge] (q) -- node[above,font=\scriptsize,text=mwmut]{no} (aud);
     \draw[mwedge] (aud) -- (out2);
   \end{tikzpicture}
-  \caption{The confidence-gated cascade. The IMU model runs on every window; the audio model is
-           invoked only when the IMU model's top class is below the confidence threshold. With no
-           model loaded the cascade returns \texttt{UNKNOWN}.}
+  \caption{The three-tier cascade. The rules-based activity gate runs first: while the cat is still
+           the collar rests in low power and the dormant span is logged as one rest event; on motion
+           the IMU model runs on every window, and the audio model is invoked only when the IMU
+           model's top class is below the confidence threshold. With no model loaded the model tiers
+           return \texttt{UNKNOWN}.}
   \label{fig:cascade}
 \end{figure}
 
@@ -78,7 +94,7 @@ int8) rather than materialising a float window (\cref{lst:quant}).
 
 \subsection{Model architecture}
 
-Each cascade stage is a small 1-D convolutional network trained in the cloud and exported as an int8
+Each model stage is a small 1-D convolutional network trained in the cloud and exported as an int8
 \texttt{.tflite} (\cref{sec:training-pipeline}). The IMU stage runs over a rolling window of motion
 samples (six channels: accelerometer and gyroscope x/y/z); the audio stage runs over one second of
 8\,kHz audio (8000 samples).
@@ -152,7 +168,7 @@ undersized arena makes \texttt{AllocateTensors()} fail and the stage report itse
     \toprule
     \textbf{Model} & \textbf{Arena} & \textbf{Notes} \\
     \midrule
-    IMU (slot 0)   & 16\,KiB & Always-on motion classifier, a small temporal conv net \\
+    IMU (slot 0)   & 16\,KiB & Motion classifier (runs while active), a small temporal conv net \\
     Audio (slot 1) & 48\,KiB & Larger 1-D conv over 8000 points; invoked only to confirm \\
     \bottomrule
   \end{tabularx}
