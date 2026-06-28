@@ -23,8 +23,36 @@ fixed-function sensor into a platform for recognising any behaviour the owner ca
         downloads the new \texttt{.tflite} files and pushes them to the collar over the air via the
         BEGIN/DATA/END/CRC sequence (\cref{sec:protocols}).
   \item \textbf{Run.} In production mode the collar classifies with the new model and the dashboard
-        shows live, named behaviours.
+        shows live, named behaviours. Observing those results, the owner captures more clips or adds
+        behaviours and retrains, closing the loop: the collar's own data improves the model it runs
+        (\cref{fig:training-loop}).
 \end{enumerate}
+
+\begin{figure}[ht]\centering
+  \resizebox{0.66\textwidth}{!}{%
+  \begin{tikzpicture}[every node/.style={font=\footnotesize}]
+    \def\R{3.6}
+    \node[mwflow] (define)  at (90:\R)   {\textbf{1.} Define\\behaviours};
+    \node[mwflow] (capture) at (30:\R)   {\textbf{2.} Capture};
+    \node[mwflow] (label)   at (-30:\R)  {\textbf{3.} Label};
+    \node[mwflow] (train)   at (-90:\R)  {\textbf{4.} Train};
+    \node[mwflow] (deliver) at (-150:\R) {\textbf{5.} Deliver\\{\scriptsize(OTA push)}};
+    \node[mwflow] (run)     at (150:\R)  {\textbf{6.} Run};
+    \node[align=center, text=mwmut, font=\itshape] at (0,0)
+      {owner-driven loop\\[2pt]the collar supplies the data\\\emph{and} runs the model};
+    \draw[mwedge] (define)  -- (capture);
+    \draw[mwedge] (capture) -- (label);
+    \draw[mwedge] (label)   -- (train);
+    \draw[mwedge] (train)   -- (deliver);
+    \draw[mwedge] (deliver) -- (run);
+    \draw[mwedge] (run) -- node[midway, above left=-2pt, text=mwlavd, font=\bfseries\scriptsize]{iterate} (define);
+  \end{tikzpicture}}
+  \caption{The training pipeline closes into a loop. The same collar that captures the labelled data
+           (steps 2--3) also runs the model trained from it (step 6); observing the live results, the
+           owner refines or adds behaviours and retrains, so each pass improves the next. The loop is
+           owner-driven (human-in-the-loop), not autonomous.}
+  \label{fig:training-loop}
+\end{figure}
 
 \Cref{fig:capture-flow} shows how the training \emph{data} moves through the system during the capture
 and label steps; \cref{fig:training-flow} (below) shows how the trained \emph{model} moves back out.

@@ -30,8 +30,8 @@ infrastructure; everything at the collar is shaped by power and radio budget.
     \node[mwnode, left=of dash] (owner) {Owner};
 
     \draw[mwedge] (cat) -- node[above,font=\scriptsize,text=mwmut]{sensing} (collar);
-    \draw[mwedge] (collar) -- node[above,font=\scriptsize,text=mwmut]{BLE} (station);
-    \draw[mwedge] (station) -- node[above,font=\scriptsize,text=mwmut]{Wi-Fi\,/\,HTTPS} (cloud);
+    \draw[mwbiedge] (collar) -- node[above,font=\scriptsize,text=mwmut]{BLE} (station);
+    \draw[mwbiedge] (station) -- node[above,font=\scriptsize,text=mwmut]{Wi-Fi\,/\,HTTPS} (cloud);
     \draw[mwedge] (cloud.south) |- (dash.east);
     \draw[mwedge] (dash) -- (owner);
   \end{tikzpicture}%

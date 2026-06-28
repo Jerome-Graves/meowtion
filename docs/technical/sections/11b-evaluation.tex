@@ -48,14 +48,14 @@ dominant RAM cost of inference; the audio window buffer and the BLE stack make u
     \toprule
     \textbf{Resource} & \textbf{Value} & \textbf{Notes} \\
     \midrule
-    RAM (static)     & \ph{KB} of 256\,KB & From the build's linker map, with inference enabled \\
-    Flash (image)    & \ph{KB}            & Application image, excluding the model partition \\
+    RAM (static)     & 222\,KiB of 256\,KiB & Static \texttt{data+bss} with inference enabled (86.6\%); includes both tensor arenas. 226\,931\,B \\
+    Flash (image)    & 305\,KiB           & Application image (\texttt{text+data}), excluding the model partition. 312\,411\,B \\
     IMU tensor arena & 16\,KiB            & Always-on motion stage \\
     Audio tensor arena & 48\,KiB          & Confirmation stage \\
     Model storage    & 256\,KiB flash     & Two OTA slots; the interpreter reads model weights directly
                                             from this partition, with only the arena in RAM \\
-    IMU model size   & \ph{KB}            & Exported \texttt{.tflite} (shown in the dev console) \\
-    Audio model size & \ph{KB}            & Exported \texttt{.tflite} \\
+    IMU model size   & 23.1\,KiB          & Exported int8 \texttt{.tflite}; 23\,616\,B, loaded into slot~0 from flash at boot \\
+    Audio model size & 19.2\,KiB          & Exported int8 \texttt{.tflite}; 19\,640\,B, loaded into slot~1 from flash at boot \\
     \bottomrule
   \end{tabularx}
 \end{table}
