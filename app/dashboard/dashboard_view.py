@@ -104,8 +104,8 @@ def render(df, data=None):
     #   st.radio chooses the SPAN of the x-axis (a Day / Week / Month); st.selectbox
     #   chooses WHICH one. The options come from a helper.
     # ===================================================================== #
-    st.write("### Zoom in")
-    span = st.radio("X-axis spans a", ["Day", "Week", "Month"], horizontal=True)
+    st.write("### Filter activities by time period")
+    span = st.radio("Time period:", ["Day", "Week", "Month"], horizontal=True)
     windows = mw.period_options(df, span)        # [(label, key), ...], newest first
     chosen_label = st.selectbox(span, [label for label, key in windows])
     chosen_key = dict(windows)[chosen_label]
