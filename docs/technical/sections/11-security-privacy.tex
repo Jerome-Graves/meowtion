@@ -4,7 +4,7 @@
 Privacy is a design property of Meowtion, not a setting bolted on afterwards. The strongest guarantees
 come from where work happens (on the collar) and how data is scoped (per owner, by enforced rules).
 
-\subsection{Audio never leaves the collar}
+\subsection{On-device audio}
 
 The microphone is used only for on-device classification. Audio is processed on the collar and
 discarded; it is never written to flash in normal operation and never transmitted in production mode.
@@ -22,21 +22,42 @@ further and deny \emph{all} direct client writes: training clips are written onl
 \texttt{upload\_clip} function and are readable only by their owning account, and model blobs are
 public-read (so the token-only station can fetch one) but writable only by the trainer.
 
-\subsection{Devices hold tokens, not credentials}
+\subsection{Device tokens, not credentials}
 
 A station authenticates with a scoped, revocable per-device token rather than the owner's password, and
 a collar holds nothing at all. A lost or compromised device therefore cannot expose the owner's
 credentials, and it can be revoked simply by deleting its token from the account, with no password
-change and no effect on the owner's other devices.
+change and no effect on the owner's other devices. \Cref{fig:token} traces the token's lifecycle.
 
-\subsection{The demo is read-only by enforcement}
+\begin{figure}[ht]\centering
+  \begin{tikzpicture}[node distance=10mm and 14mm, every node/.style={font=\footnotesize}]
+    \node[mwterm] (mint) {Dashboard mints token T\\\scriptsize records \texttt{deviceTokens/T/owner}};
+    \node[mwflow, below=of mint, text width=6.6cm, align=left] (store)
+      {Station stores T in NVS and presents it on every cloud request (no login)};
+    \node[mwflow, below=15mm of store, xshift=-26mm, text width=4cm, align=left] (rules)
+      {Database rules: T maps to the owner, so writes to that owner's subtree are allowed};
+    \node[mwflow, below=15mm of store, xshift=26mm, text width=4cm, align=left] (upl)
+      {\texttt{upload\_clip} verifies T's owner and writes the clip as admin};
+    \node[mwterm, below=38mm of store] (revoke) {Revoke: delete the token; all its access is denied};
+    \draw[mwedge] (mint) -- (store);
+    \draw[mwedge] (store) -- (rules);
+    \draw[mwedge] (store) -- (upl);
+    \draw[mwedge] (rules) -- (revoke);
+    \draw[mwedge] (upl) -- (revoke);
+  \end{tikzpicture}
+  \caption{Credential-token lifecycle. A device is minted a scoped token that maps to its owner; the
+           token authorises database writes and clip uploads, and deleting it revokes the device.}
+  \label{fig:token}
+\end{figure}
+
+\subsection{Enforced read-only demo}
 
 The public demo reads a single designated demo account's data, which the rules make world-readable, but
 that account is write-locked at the backend: the demo cannot change any data or trigger any function.
 The read-only behaviour is enforced by the rules, not merely hidden in the interface, so it holds even
 against a hand-crafted client.
 
-\subsection{What is and is not a secret}
+\subsection{Secret handling}
 
 The Firebase web API key shipped in the static front end is a public client identifier, not a secret;
 security is enforced by Authentication and the rules, not by hiding the key. No service-account key is

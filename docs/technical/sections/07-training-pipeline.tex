@@ -1,12 +1,11 @@
 \section{Training pipeline}
 \label{sec:training-pipeline}
 
-Meowtion learns new behaviours through a closed loop that an owner drives entirely from the
-dashboard, with no local toolchain: capture, label, train, deliver, run. The loop is what turns the
-collar from a fixed-function sensor into a platform for recognising any behaviour the owner can
-demonstrate.
+Meowtion learns new behaviours through a closed loop the owner drives entirely from the dashboard,
+with no local toolchain: capture, label, train, deliver, run. The loop turns the collar from a
+fixed-function sensor into a platform for recognising any behaviour the owner can demonstrate.
 
-\subsection{The loop}
+\subsection{Closed loop}
 
 \begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
   \item \textbf{Define behaviours.} The owner lists the actions to recognise (eat, drink, purr,
@@ -18,22 +17,49 @@ demonstrate.
   \item \textbf{Label.} The owner reviews clips in the dev console, sets each clip's action, trims
         dead space from the waveform, and discards poor examples.
   \item \textbf{Train.} The \texttt{train} Cloud Function trains the models server-side from the
-        labelled clips and writes the results back: the quantised \texttt{.tflite} blobs to Storage,
-        and the new version and label list to the database.
+        labelled clips and writes the results back: the quantised \texttt{.tflite} blobs to Cloud
+        Storage, and the new version and label list to the Realtime Database.
   \item \textbf{Deliver.} Each station watches a model-version key; when it changes the station
-        downloads the new \texttt{.tflite} files and pushes them to the collar over the air
-        (\cref{sec:protocols}).
+        downloads the new \texttt{.tflite} files and pushes them to the collar over the air via the
+        BEGIN/DATA/END/CRC sequence (\cref{sec:protocols}).
   \item \textbf{Run.} In production mode the collar classifies with the new model and the dashboard
         shows live, named behaviours.
 \end{enumerate}
 
+\Cref{fig:capture-flow} shows how the training \emph{data} moves through the system during the capture
+and label steps; \cref{fig:training-flow} (below) shows how the trained \emph{model} moves back out.
+
+\begin{figure}[ht]\centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[node distance=12mm and 18mm, every node/.style={font=\footnotesize}]
+    \node[mwnode] (collar) {Collar};
+    \node[mwnode, right=of collar] (station) {Station};
+    \node[mwnode, right=of station] (upl) {\texttt{upload\_clip()}};
+    \node[mwnode, fill=mwlav!8, right=of upl] (store) {Storage\\\scriptsize training clips};
+    \node[mwnode, fill=mwlav!8, below=15mm of station] (rtdb) {Realtime DB\\\scriptsize clip metadata};
+    \node[mwnode, below=15mm of upl] (dev) {Dev console\\\scriptsize label $\cdot$ playback};
+    \draw[mwedge] (collar) -- node[above,text=mwmut,font=\scriptsize]{BLE clip frames} (station);
+    \draw[mwedge] (station) -- node[above,text=mwmut,font=\scriptsize]{POST (token)} (upl);
+    \draw[mwedge] (upl) -- node[above,text=mwmut,font=\scriptsize]{write (admin)} (store);
+    \draw[mwedge] (station) -- node[left,text=mwmut,font=\scriptsize]{metadata} (rtdb);
+    \draw[mwedge] (rtdb) -- node[above,text=mwmut,font=\scriptsize]{read} (dev);
+    \draw[mwedge] (store) -- node[right,text=mwmut,font=\scriptsize]{audio + IMU} (dev);
+  \end{tikzpicture}}
+  \caption{Training-data transport. The collar streams paired audio\,+\,IMU clip frames to the station,
+           which slices them into clips and uploads the bytes through \texttt{upload\_clip} to Storage
+           and the clip metadata to the database; the dev console reads both to play back, label, and
+           train on them.}
+  \label{fig:capture-flow}
+\end{figure}
+
 \subsection{The trainer}
 
-Training runs in the \texttt{train} Python Cloud Function, gated by a developer account
-(\cref{sec:cloud-backend}). It reads the account's labelled clips (metadata from the database, audio
-and motion bytes from Storage), and derives the class set directly from the labels present, so the
-network's outputs follow whatever behaviours the owner defined. It then trains the two cascade stages
-independently:
+Training runs in the \texttt{train} Python Cloud Function, currently gated to developer accounts to
+keep cloud costs down during development rather than as an inherent limit (\cref{sec:cloud-backend}).
+It reads the account's labelled clips (metadata from the Realtime
+Database, audio and motion bytes from Cloud Storage) and derives the class set directly from the
+labels present, so the network's outputs follow whatever behaviours the owner defined. It then trains
+the two cascade stages independently:
 
 \begin{itemize}[leftmargin=1.5em]
   \item a small 1-D convolutional network over the motion windows (six IMU channels), and
@@ -41,12 +67,11 @@ independently:
 \end{itemize}
 
 Each input is windowed with overlap and normalised exactly as the collar normalises it at inference,
-so the on-device transform and the training transform match (\cref{sec:on-device-ai}). The trained
-Keras models are converted to TensorFlow Lite with full int8 post-training quantisation using a
-representative dataset, so the exported \texttt{.tflite} weights and activations are int8 and the
-input and output tensors carry the scale and zero-point the collar uses to quantise its own inputs.
-\Cref{fig:training-flow} shows the whole path, from the training trigger to the model running on the
-collar.
+so the on-device and training transforms match (\cref{sec:on-device-ai}). The trained Keras models are
+converted to TensorFlow Lite with full int8 post-training quantisation using a representative dataset,
+so the exported \texttt{.tflite} weights and activations are int8 and the input and output tensors
+carry the scale and zero-point the collar uses to quantise its own inputs. \Cref{fig:training-flow}
+shows the whole path, from the training trigger to the model running on the collar.
 
 \begin{figure}[ht]
   \centering
@@ -76,15 +101,15 @@ collar.
 \subsection{Label-agnostic by design}
 
 The trainer is not hard-coded to a fixed set of actions; it learns whatever label set the owner
-defines. This is what makes Meowtion a platform rather than a fixed-function gadget: the same pipeline
-that recognises eating and drinking can be pointed at any distinguishable behaviour the owner can
-capture and label. The class set flows end to end as data, from the dashboard's action list, through
-the trainer, to the index-based on-collar classifier, with names attached only at the edges.
+defines. This makes Meowtion a platform rather than a fixed-function gadget: the same pipeline that
+recognises eating and drinking can be pointed at any distinguishable behaviour the owner can capture
+and label. The class set flows end to end as data, from the dashboard's action list, through the
+trainer, to the index-based on-collar classifier, with names attached only at the edges.
 
 \subsection{Delivery contract}
 
 Training outputs are written to predictable locations so the station finds them without coordination:
-the model blobs land in Storage as \texttt{models/<uid>/\allowbreak imu\_model.tflite} and
+the model blobs land in Cloud Storage as \texttt{models/<uid>/\allowbreak imu\_model.tflite} and
 \texttt{models/<uid>/\allowbreak audio\_model.tflite}, the new version is mirrored into each of the owner's
 stations' configuration so their version gate fires, and the label list is stored in
 \texttt{users/<uid>/models} so the dashboard can map a class index back to a name across label-set
@@ -92,7 +117,7 @@ changes (\cref{sec:cloud-backend}).
 
 \subsection{Known limitation}
 
-A model trained on only two classes (for example, eat versus drink) has no way to represent
-``neither'' and will confidently assign one of its two labels to an idle cat. The fix is to retrain
-with an explicit idle/other class; this is a data and modelling task, not a firmware change, and is
-tracked in \cref{sec:future-work}.
+A model trained on only two classes (for example, eat versus drink) cannot represent ``neither'' and
+will confidently assign one of its two labels to an idle cat. The fix is to retrain with an explicit
+idle/other class; this is a data and modelling task, not a firmware change, and is tracked in
+\cref{sec:future-work}.

@@ -1,12 +1,13 @@
 \section{Dashboard}
 \label{sec:dashboard}
 
-The owner-facing application is a Streamlit~\cite{streamlit} dashboard backed by a small set of static pages for the
-parts that need the Firebase web SDK directly (sign-in, account and device management, the
-developer/training console, and the privacy policy). It is hosted on Streamlit Community Cloud and
+The owner-facing application is a dashboard built with Streamlit~\cite{streamlit} (a Python framework
+for data web apps), backed by a small set of static
+pages for the parts that need the Firebase web SDK directly (sign-in, account and device management,
+the developer/training console, and the privacy policy). It is hosted on Streamlit Community Cloud and
 deploys automatically from the repository's main branch.
 
-\subsection{A hybrid front end}
+\subsection{Hybrid front end}
 
 Device registration needs the browser's Web Serial API, which cannot run in Streamlit's Python or its
 sandboxed component iframes, and authentication is easiest with the Firebase web SDK in the browser.
@@ -30,12 +31,12 @@ token into a same-origin cookie, and the Python dashboard reads that cookie to i
   \end{tabularx}
 \end{table}
 
-\subsection{User experience and navigation}
+\subsection{Navigation}
 
 The product is built around a single hub, the static front door. From it the owner signs in to the
 dashboard, opens the developer console (if their account is enabled for it), or enters the read-only
-demo; logging out returns there. \Cref{fig:pageflow} shows the navigation. A cohesive visual style, a
-white canvas with lavender accents and collapsible cards, is shared across every surface.
+demo; logging out returns there. \Cref{fig:pageflow} shows the navigation. A shared visual style, a
+white canvas with lavender accents and collapsible cards, runs across every surface.
 
 \begin{figure}[ht]
   \centering
@@ -65,45 +66,45 @@ white canvas with lavender accents and collapsible cards, is shared across every
 
 \subsection{Login and session}
 
-The owner logs in once on the front door with Firebase Auth; it writes the ID token into a same-origin
-cookie (\texttt{mtoken}). \texttt{app.py} reads that cookie client-side with the
+The owner logs in once on the front door with Firebase Auth, which writes the ID token into a
+same-origin cookie (\texttt{mtoken}). \texttt{app.py} reads that cookie client-side with the
 \texttt{extra-streamlit-components} cookie manager rather than the server-side cookie API, because
 Streamlit Community Cloud does not expose browser cookies to the server. Logged-out visitors get a
-sign-in gate and never see the dashboard; logging out navigates to the front door, signs out of
+sign-in gate and never see the dashboard. Logging out navigates to the front door, signs out of
 Firebase, and clears the cookie. No token is ever placed in a URL. A separate flag cookie marks the
 public read-only demo.
 
 \subsection{Code structure}
 
-\texttt{app.py} is a thin entry point that only wires the pieces in order (theme, sign-in, live cards,
+\texttt{app.py} is a thin entry point that wires the pieces in order (theme, sign-in, live cards,
 analytics). Everything else is split into a \texttt{meowtion\_dash} package so the analytics view can
 be edited without touching login or data-formatting code: \texttt{theme} (page config and brand
 header), \texttt{auth} (cookie/JWT to \texttt{(uid, token, is\_demo)}), \texttt{firebase} (cached
-database reads), \texttt{data} (the clean activity DataFrame and filter helpers), \texttt{charts}
+RTDB reads), \texttt{data} (the clean activity DataFrame and filter helpers), \texttt{charts}
 (branded Altair charts), \texttt{live} (the live current-state cards), and \texttt{weather}. The
-editable analytics live in \texttt{dashboard\_view.py}, which is handed a ready, one-row-per-event
+editable analytics live in \texttt{dashboard\_view.py}, which receives a ready, one-row-per-event
 pandas DataFrame and never sees a cookie or raw Firebase JSON.
 
 \subsection{Live view versus history}
 
-The two reads have very different needs, and are split accordingly. The live current-state card
+The two reads have very different needs and are split accordingly. The live current-state card
 refreshes every few seconds but needs only each cat's \texttt{current} record and its most recent
 events, so it issues a small per-cat read. The full activity history (potentially months of events) is
-fetched on a longer cache interval and reused across refreshes. Separating the two keeps the
-fast-refreshing live card from re-downloading the whole history on every tick, which keeps the page
-light and the backend bandwidth low.
+fetched on a longer cache interval and reused across refreshes. This keeps the fast-refreshing live
+card from re-downloading the whole history on every tick, holding the page light and backend bandwidth
+low.
 
 \subsection{Health analytics}
 
 The analytics view is built around health, not just a live read-out. A \emph{health watch} compares
 each key habit (eating, drinking, grooming, resting) over recent days against the cat's own longer-run
 baseline, and flags a sustained change with a plain-language, vet-oriented note rather than a
-diagnosis. Two design choices keep it honest: it compares whole days only, since events are logged
-when an action ends and the current day is always partial; and it pairs a flagged change with local
+diagnosis. Two design choices keep it honest. It compares whole days only, since events are logged
+when an action ends and the current day is always partial. And it pairs a flagged change with local
 weather context, so a warm-spell rise in drinking is presented with its likely cause rather than as an
-alarm. A drill-down lets the viewer choose whether the x-axis spans a day, a week, or a month and then
-which specific window to show, and the activity charts are stacked by behaviour and rendered on a
-transparent background so they sit on the page's brand canvas.
+alarm. A drill-down lets the viewer set the x-axis to a day, a week, or a month and then pick the
+window to show. The activity charts are stacked by behaviour and rendered on a transparent background
+so they sit on the page's brand canvas.
 
 \begin{figure}[ht]
   \centering
@@ -120,7 +121,7 @@ control panel: live per-station capture status (signal, recording state, collar 
 Training/Production mode switch; the editable list of actions to recognise; the labelled-clip review
 with waveform trimming; dataset statistics and a motion-variety measure to gauge whether a class has
 enough varied examples; and the button that triggers cloud training. It also offers a full-screen,
-phone-style capture view with large tappable action buttons for live labelling at the bowl.
+phone-style capture view with large action buttons for live labelling at the bowl.
 
 \begin{figure}[ht]
   \centering
@@ -134,6 +135,6 @@ phone-style capture view with large tappable action buttons for live labelling a
 
 A public demo lets anyone explore a populated product without an account. It reads the designated demo
 owner's data, which the security rules make world-readable, but every write control and function
-trigger is disabled and the dev console is available only in a read-only variant. The demo is genuinely
-read-only because it is enforced by the backend rules, not merely hidden in the interface
+trigger is disabled and the dev console is available only in a read-only variant. The demo is read-only
+because the backend rules enforce it, not because the interface hides the controls
 (\cref{sec:security-privacy}).
