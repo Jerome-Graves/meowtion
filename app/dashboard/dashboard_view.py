@@ -221,11 +221,16 @@ def render(df, data=None):
             else:
                 chosen_label = "Selected Window"
 
-        st.altair_chart(
-            mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
-                           time_unit=time_unit, time_format=time_format, height=380, legend=False),
-            use_container_width=True,
-        )
+        # Skip the chart when the window has nothing to plot. Handing Vega an empty (or all-zero)
+        # dataset makes it warn "Infinite extent for field ..." and renders a blank axis.
+        if frame.empty or frame["event_duration"].fillna(0).sum() == 0:
+            st.info("No activity logged in this window.")
+        else:
+            st.altair_chart(
+                mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
+                               time_unit=time_unit, time_format=time_format, height=380, legend=False),
+                use_container_width=True,
+            )
 
     # weather over the same window, so you can read the activity against hot/cold/wet days
     if not window.empty:
