@@ -1,26 +1,27 @@
 \section{Cloud backend}
 \label{sec:cloud-backend}
 
-The backend is Firebase~\cite{firebase}. It provides owner authentication, a Realtime Database for live state and
-history, Cloud Storage for training clips and model blobs, and Python Cloud Functions (2nd
-generation) for server-side logic. There is no custom server to operate, and the whole backend is
-self-contained in \texttt{app/firebase/}, deployed with \texttt{firebase deploy} from that folder.
+The backend is Firebase~\cite{firebase}, Google's hosted backend platform (sign-in, database, file
+storage, and serverless functions). It provides owner authentication, a Realtime Database (RTDB)
+for live state and history, Cloud Storage for training clips and model blobs, and Python Cloud
+Functions (2nd generation) for server-side logic. There is no custom server to operate. The whole
+backend lives in \texttt{app/firebase/} and deploys with \texttt{firebase deploy} from that folder.
 
 \subsection{Authentication}
 
 Owners sign in with Firebase Authentication (email/password or Google). The collar and station do
 \emph{not} authenticate as users: a station carries a scoped per-device token, and a collar carries
-nothing (the station relays it). This keeps the credential surface on battery devices to a single
-revocable token (\cref{sec:security-privacy}).
+nothing (the station relays it). The credential surface on battery devices is thus a single revocable
+token (\cref{sec:security-privacy}).
 
 \subsection{Backend data flow}
 
 \Cref{fig:backend-flow} shows how the tiers exchange data in normal operation. The dashboard reads the
-database, both a small per-cat live read and a cached history read (\cref{sec:dashboard}); the station
-writes telemetry and events to the database and uploads training clips to Storage through the
-\texttt{upload\_clip} function; and the station relays the collar and delivers models to it over BLE.
-Clients never write Storage directly (\cref{sec:security-privacy}). The training path that produces
-those models is shown separately in \cref{fig:training-flow}.
+RTDB, both a small per-cat live read and a cached history read (\cref{sec:dashboard}). The station
+writes telemetry and events to the RTDB and uploads training clips to Cloud Storage through the
+\texttt{upload\_clip} function. The station also relays the collar and delivers models to it over BLE.
+Clients never write Cloud Storage directly (\cref{sec:security-privacy}). The training path that
+produces those models appears separately in \cref{fig:training-flow}.
 
 \begin{figure}[ht]
   \centering
@@ -44,8 +45,8 @@ those models is shown separately in \cref{fig:training-flow}.
 
 \subsection{Realtime Database schema}
 
-State and history live in the Realtime Database, keyed by owner so the security rules can scope every
-read and write to the owning account. \Cref{tab:db} lists the main paths.
+State and history live in the RTDB, keyed by owner so the security rules scope every read and write to
+the owning account. \Cref{tab:db} lists the main paths.
 
 \begin{table}[ht]
   \centering
@@ -70,22 +71,22 @@ read and write to the owning account. \Cref{tab:db} lists the main paths.
 \end{table}
 
 Events store the model version and class index rather than a pre-resolved name. The dashboard maps the
-index to a label using that version's label list, so historical events stay correct even as the owner
+index to a label using that version's label list, so historical events stay correct as the owner
 changes their behaviour set.
 
 \subsection{Cloud Storage}
 
-Storage holds the training clips (audio plus aligned motion) and the trained model blobs, in an
+Cloud Storage holds the training clips (audio plus aligned motion) and the trained model blobs in an
 owner-scoped layout: clips at \texttt{training/<owner>/\allowbreak <collar>/<ts>.\{wav,imu\}} and models
-at \texttt{models/<uid>/\allowbreak \{imu,audio\}\_model.tflite}. Training clips are private to the owner and are
-deliberately \emph{not} world-readable, even in the demo, because home audio must never be public.
-Model blobs are public-read so the token-only station can fetch one to push to the collar, and are
-written only by the trainer.
+at \texttt{models/<uid>/\allowbreak \{imu,audio\}\_model.tflite}. Training clips are private to the owner
+and \emph{not} world-readable, even in the demo, because home audio must never be public. Model blobs
+are public-read so the token-only station can fetch one to push to the collar, and are written only by
+the trainer.
 
 \subsection{Cloud Functions}
 
 Two functions provide the only server-side logic. Both run on the function's ambient service account,
-so no service-account key is checked into the repository.
+so no service-account key is in the repository.
 
 \begin{description}[leftmargin=1.6em,style=nextline]
   \item[\texttt{train}] Server-side model training, \texttt{POST} with a developer account's Firebase
@@ -94,33 +95,32 @@ so no service-account key is checked into the repository.
         them to \texttt{models/<uid>/}, updates \texttt{users/<uid>/models}, and mirrors the new
         version into each of the owner's station configs to trigger delivery.
   \item[\texttt{upload\_clip}] Authenticated clip upload for the token-only station. The station has
-        no login, so it cannot satisfy the Storage rules directly; it POSTs the clip bytes here with
-        its device token, the function verifies \texttt{deviceTokens/<token>/owner}, and writes the
-        file as administrator into that owner's Storage area. This lets the Storage rules deny all
-        direct client writes while still letting an authorised station upload.
+        no login, so it cannot satisfy the Cloud Storage rules directly. It POSTs the clip bytes here
+        with its device token; the function verifies \texttt{deviceTokens/<token>/owner} and writes the
+        file as administrator into that owner's area. The rules can then deny all direct client writes
+        while still admitting an authorised station.
 \end{description}
 
 \subsection{Demo data simulator}
 
-So that the public demo always presents a populated, believable dashboard, a scheduled Cloud Function
-maintains a fully simulated companion collar (``Purrminator'') on the demo account. It is a standalone
-device that needs no station and is always online. On first run it backfills roughly six months of
-realistic activity history, weighted by time of day so the pattern matches an average cat (crepuscular,
-busy around dawn and dusk, resting overnight), with matching daily weather from a free historical
-feed. Thereafter it wakes on a short schedule and commits each activity as an event at the moment that
-action ends, so new events arrive at naturally varying intervals. The simulator only ever writes the
-demo account's own data and never touches a real collar.
+So the public demo always presents a populated, believable dashboard, a scheduled Cloud Function
+maintains a fully simulated companion collar (``Purrminator'') on the demo account. It is standalone:
+no station, always online. On first run it backfills roughly six months of realistic activity history,
+weighted by time of day to match an average cat (crepuscular, busy around dawn and dusk, resting
+overnight), with matching daily weather from a free historical feed. Thereafter it wakes on a short
+schedule and commits each activity as an event when that action ends, so new events arrive at varying
+intervals. The simulator writes only the demo account's own data and never touches a real collar.
 
 \subsection{Weather context}
 
-Local weather is incorporated so the dashboard can read a habit change against its environment, since a
-warm spell that increases drinking and suppresses appetite should not be mistaken for illness. The
-station polls a keyless forecast feed (Open-Meteo) for its provisioned location and writes current and
-recent weather under its device record; the demo simulator uses the same provider's historical archive
-to backfill weather alongside the simulated activity.
+Local weather lets the dashboard read a habit change against its environment, since a warm spell that
+raises drinking and suppresses appetite should not be mistaken for illness. The station polls a keyless
+forecast feed (Open-Meteo) for its provisioned location and writes current and recent weather under its
+device record. The demo simulator backfills weather from the same provider's historical archive
+alongside the simulated activity.
 
-\subsection{Configuration as a trust boundary}
+\subsection{Configuration trust boundary}
 
-The \texttt{config} subtree is readable by clients but not writable by them; it is maintained from the
-Firebase console. This lets the system publish facts the clients need (which account backs the demo,
+The \texttt{config} subtree is readable by clients but not writable by them, and is maintained from the
+Firebase console. The system can thus publish facts the clients need (which account backs the demo,
 which accounts are developers) without letting a client grant itself privileges.

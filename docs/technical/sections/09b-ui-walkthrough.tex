@@ -3,19 +3,19 @@
 
 This section is a guided tour of the two interactive surfaces an operator uses, the sign-in front door
 and the developer console. It complements the implementation in \cref{sec:dashboard} by showing each
-screen and explaining what every control does. All screenshots are from the public read-only demo, so
-live device controls appear disabled and the private training audio is not shown.
+screen and what every control does. All screenshots are from the public read-only demo, so live device
+controls appear disabled and the private training audio is not shown.
 
 \subsection{Signing in and accounts}
 
 \Cref{fig:ui-login} is the front door. An owner can sign in with email and password, or with
 \textbf{Continue with Google}. \textbf{Create one} opens registration, which records the owner's
 consent against the current privacy policy and sends a verification email; \textbf{Forgot password?}
-sends a reset link; and \textbf{View the demo (read-only)} enters the public demo with no account at
-all. Once signed in, the account page is where the owner pairs a station over Web Serial, registers or
-removes collars, and exercises the data-protection controls, exporting everything stored about their
-cats, or deleting the account and all its data (\cref{sec:security-privacy}). A linked privacy policy
-page states what is collected and why.
+sends a reset link; and \textbf{View the demo (read-only)} enters the public demo with no account.
+Once signed in, the account page is where the owner pairs a station and registers or removes collars
+(the onboarding flow is \cref{sec:architecture}), and exercises the data-protection controls:
+exporting everything stored about their cats, or deleting the account and all its data
+(\cref{sec:security-privacy}). A linked privacy policy page states what is collected and why.
 
 \begin{figure}[ht]\centering
   \includegraphics[width=0.5\textwidth]{ui-login.png}
@@ -24,10 +24,10 @@ page states what is collected and why.
   \label{fig:ui-login}
 \end{figure}
 
-\subsection{Moving through the app}
+\subsection{App navigation}
 
 \Cref{fig:gui-flow} shows the journey through the screens. The front door leads to the dashboard
-(by signing in, or read-only via the demo); from the dashboard a developer account can open the
+(by signing in, or read-only via the demo). From the dashboard a developer account can open the
 console, and any owner can reach the account page or log out. The console hosts the training loop,
 capture, label, train, then switch to production, after which detections appear back on the dashboard.
 
@@ -62,13 +62,13 @@ capture, label, train, then switch to production, after which detections appear 
 
 The developer console is where training data is collected and models are trained
 (\cref{sec:dashboard,sec:training-pipeline}). It is organised as collapsible cards, each with a
-\texttt{?} help popover; they are described below in order.
+\texttt{?} help popover, described below in order.
 
 \paragraph{Collar capture (\cref{fig:dev-collar}).} Live per-station status: which station and the
 collar in range, the signal strength (RSSI) and whether the collar is within the capture threshold,
 the station's power source, the collar's battery, how many collars are registered, and how long since
-the station was last heard. This is how the operator confirms a collar is close enough to record
-before starting a capture.
+the station was last heard. The operator uses this to confirm a collar is close enough to record before
+starting a capture.
 
 \begin{figure}[ht]\centering
   \includegraphics[width=0.72\textwidth]{ui-dev-collar.png}
@@ -87,9 +87,9 @@ on-device classification). This is the mode referenced throughout \cref{sec:arch
 \end{figure}
 
 \paragraph{Actions to recognise (\cref{fig:dev-actions}).} The editable list of behaviours the system
-should learn (here eat, drink, resting, moving). Adding or removing an action here changes both the
-labels offered when reviewing clips and the classes the cloud trainer learns, which is what makes the
-pipeline label-agnostic (\cref{sec:training-pipeline}).
+should learn (here eat, drink, resting, moving). Adding or removing an action changes both the labels
+offered when reviewing clips and the classes the cloud trainer learns, which makes the pipeline
+label-agnostic (\cref{sec:training-pipeline}).
 
 \begin{figure}[ht]\centering
   \includegraphics[width=0.66\textwidth]{ui-dev-actions.png}
@@ -100,8 +100,8 @@ pipeline label-agnostic (\cref{sec:training-pipeline}).
 \paragraph{Record an action / live label (\cref{fig:dev-record}).} The fastest way to gather data:
 pick a clip length, press the button for what the cat is doing \emph{now}, and the station records a
 clip at any distance and auto-labels it, so there is no labelling afterwards. A \textbf{Full screen}
-button gives a large, phone-style set of buttons for use at the bowl, and a clear warning appears when
-the station is offline (as shown) since clips cannot be captured without it.
+button gives a large, phone-style set of buttons for use at the bowl. A warning appears when the
+station is offline (as shown), since clips cannot be captured without it.
 
 \begin{figure}[ht]\centering
   \includegraphics[width=0.78\textwidth]{ui-dev-record.png}
@@ -112,7 +112,7 @@ the station is offline (as shown) since clips cannot be captured without it.
 
 \paragraph{Bowl capture / label later (\cref{fig:dev-bowl}).} The alternative capture mode: with it on,
 the station records back-to-back whenever a registered collar is within a configurable signal-strength
-gate (with a dwell before it connects), and the clips are labelled afterwards in the clip review. This
+gate (with a dwell before it connects), and the clips are labelled afterwards in the clip review. It
 suits behaviours that happen reliably at the bowl.
 
 \begin{figure}[ht]\centering
@@ -123,16 +123,16 @@ suits behaviours that happen reliably at the bowl.
 
 \paragraph{Recorded clips (\cref{fig:dev-clips}).} The dataset, and the richest card. Clips are grouped
 by \textbf{day} and by \textbf{session} (a run of captures within the same few minutes), so a recording
-run stays together and is easy to organise. A per-label tally shows how many clips and sessions each
-action has, with a bar toward a recommended minimum, so the operator can see at a glance which classes
-need more data; \textbf{Analyse motion variety} scores how varied a label's samples are, a proxy for
-training quality (too-similar samples generalise poorly). Each clip row carries a play control to hear
-the audio, a label dropdown, a \textbf{Motion} badge when time-aligned IMU data is present, its time
-and length, and a delete control. Clicking a clip expands it to a scrubber with the \emph{audio
-waveform and the motion (accelerometer and gyroscope) traces drawn time-aligned beneath it}, plus
-draggable trim handles, so a sample can be auditioned against its movement and tidied before training
-(\cref{fig:dev-expanded}). This expanded view reads the clip's private audio and motion from Storage,
-so it is shown here from a signed-in account rather than the read-only demo.
+run stays together. A per-label tally shows how many clips and sessions each action has, with a bar
+toward a recommended minimum, so the operator sees at a glance which classes need more data.
+\textbf{Analyse motion variety} scores how varied a label's samples are, a proxy for training quality
+(too-similar samples generalise poorly). Each clip row carries a play control, a label dropdown, a
+\textbf{Motion} badge when time-aligned IMU data is present, its time and length, and a delete control.
+Clicking a clip expands it to a scrubber with the \emph{audio waveform and the motion (accelerometer
+and gyroscope) traces drawn time-aligned beneath it}, plus draggable trim handles, so a sample can be
+auditioned against its movement and tidied before training (\cref{fig:dev-expanded}). This expanded
+view reads the clip's private audio and motion from Cloud Storage, so it is shown from a signed-in
+account rather than the read-only demo.
 
 \begin{figure}[ht]\centering
   \includegraphics[width=0.74\textwidth]{ui-dev-clips.png}
@@ -151,7 +151,7 @@ so it is shown here from a signed-in account rather than the read-only demo.
 \end{figure}
 
 \paragraph{Train models (cloud) (\cref{fig:dev-train}).} \textbf{Retrain models} triggers the
-\texttt{train} Cloud Function on the labelled clips (\cref{sec:training-pipeline}); the line below
+\texttt{train} Cloud Function on the labelled clips (\cref{sec:training-pipeline}). The line below
 reports live status, the current model version, and each stage's test accuracy and size (here an IMU
 stage and an audio stage). When training finishes, the new version is delivered to the collar over the
 air automatically (\cref{fig:training-flow}).

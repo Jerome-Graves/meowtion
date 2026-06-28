@@ -1,19 +1,18 @@
 \section{System architecture and data flow}
 \label{sec:architecture}
 
-This section is the map for the rest of the document. It introduces the four tiers and what each is
-responsible for, the two operating modes the system runs in, and then walks the four end-to-end data
-flows that together cover everything the system does: live monitoring, training capture, device
-onboarding, and model delivery.
+This section is the map for the rest of the document. It introduces the four tiers and their
+responsibilities, the two operating modes, and the four end-to-end data flows that together cover
+everything the system does: live monitoring, training capture, device onboarding, and model delivery.
 
 \subsection{Topology}
 
 Meowtion is a four-tier system, \cref{fig:architecture}: the \textbf{collar} on the cat, the
 \textbf{station} in the home, the \textbf{cloud} backend, and the owner's \textbf{dashboard}. The
-defining constraint is that the collar is BLE-only and battery-powered: it has no route to the
-internet of its own. The mains-powered station exists to bridge that gap, giving the collar a cheap,
-always-on Bluetooth peer and a Wi-Fi path to the cloud. Everything above the collar is conventional
-web infrastructure; everything at the collar is shaped by power and radio budget.
+defining constraint is that the collar is BLE-only and battery-powered, with no route to the internet
+of its own. The mains-powered station bridges that gap, giving the collar a cheap, always-on
+Bluetooth peer and a Wi-Fi path to the cloud. Everything above the collar is conventional web
+infrastructure; everything at the collar is shaped by power and radio budget.
 
 \begin{figure}[ht]
   \centering
@@ -44,9 +43,10 @@ web infrastructure; everything at the collar is shaped by power and radio budget
 
 \subsection{Component responsibilities}
 
-\begin{table}[ht]
-  \centering
-  \caption{What each tier is responsible for.}
+\Cref{tab:responsibilities} summarises what each tier is responsible for.
+
+\begin{center}
+  \captionof{table}{What each tier is responsible for.}
   \label{tab:responsibilities}
   \begin{tabularx}{\textwidth}{@{}lX@{}}
     \toprule
@@ -66,7 +66,7 @@ web infrastructure; everything at the collar is shaped by power and radio budget
                 dev console for data capture and training. \\
     \bottomrule
   \end{tabularx}
-\end{table}
+\end{center}
 
 \subsection{Operating modes}
 
@@ -74,20 +74,20 @@ A station runs in one of two modes at a time, selected per station from the dash
 governs what crosses the BLE link and what the station does with it.
 
 \begin{description}[leftmargin=1.6em,style=nextline]
-  \item[Production mode] The everyday monitoring mode. The collar classifies on-device and advertises
-        only the result; the station reads that result and relays it to the cloud. No audio or raw
-        motion ever leaves the collar. This is the privacy-preserving default.
-  \item[Training mode] The data-collection mode. While a registered collar is in range, the station
-        subscribes to the collar's audio service; the collar streams paired audio\,+\,IMU clips,
-        which the station slices, uploads, and the owner labels and trims in the dev console. This is
-        how a new behaviour is taught. It is used deliberately and temporarily, not continuously.
+  \item[Production mode] The everyday monitoring mode and privacy-preserving default. The collar
+        classifies on-device and advertises only the result; the station reads it and relays it to
+        the cloud. No audio or raw motion leaves the collar.
+  \item[Training mode] The data-collection mode for teaching a new behaviour. While a registered
+        collar is in range, the station subscribes to the collar's audio service; the collar streams
+        paired audio\,+\,IMU clips, which the station slices and uploads and the owner labels and
+        trims in the dev console. It is used deliberately and temporarily, not continuously.
 \end{description}
 
 \subsection{End-to-end data flows}
 
-The system's behaviour is fully described by four flows. Each is given below as the concrete
-sequence of steps across the tiers; the wire formats referenced are specified in
-\cref{sec:protocols} and the security rules in \cref{sec:security-privacy}.
+Four flows fully describe the system's behaviour. Each is given below as a concrete sequence of steps
+across the tiers; the wire formats are specified in \cref{sec:protocols} and the security rules in
+\cref{sec:security-privacy}.
 
 \paragraph{Flow 1 --- Live monitoring (production).}
 The steady state of a deployed system.
@@ -95,9 +95,9 @@ The steady state of a deployed system.
   \item The collar samples its IMU continuously and runs the on-device cascade
         (\cref{sec:on-device-ai}); when the motion result is ambiguous it briefly samples the
         microphone and runs the audio model to confirm.
-  \item The collar encodes the outcome (class index, confidence, step count, battery) into an
-        8-byte BLE telemetry advertisement (\cref{sec:protocols}). Its BLE address identifies which
-        collar it is, so no identifier is carried in the payload.
+  \item The collar encodes the outcome (class index, confidence, step count, battery) into an 8-byte
+        BLE telemetry advertisement (\cref{sec:protocols}). Its BLE address identifies the collar, so
+        the payload carries no identifier.
   \item The station, scanning continuously, hears the advertisement from a \emph{registered} collar,
         timestamps it, maps the class index to the owner's label set, and writes the current state
         plus an event record to the Realtime Database over authenticated HTTPS.
@@ -128,14 +128,14 @@ How labelled data is collected to teach a behaviour.
   \item In the dev console the owner puts a station into training mode and selects the action being
         recorded (the ``live label'').
   \item The station connects to the in-range collar and subscribes to its audio characteristic. The
-        collar streams continuously in 100\,ms frames, each frame a header followed by an audio
-        payload and a time-aligned IMU payload (\cref{sec:protocols}).
+        collar streams continuously in 100\,ms frames, each a header followed by an audio payload and
+        a time-aligned IMU payload (\cref{sec:protocols}).
   \item The station concatenates frames, slices them into fixed-length clips, and POSTs each clip's
         bytes to the \texttt{upload\_clip} Cloud Function with its device token. The function
         verifies the token's owner and writes the clip to that owner's Storage area; the station
         records the clip's metadata (label, paths, IMU presence) in the database.
-  \item The owner reviews clips in the dev console: trims the waveform, confirms or changes the
-        label, and discards bad takes. The labelled clips are the training set for Flow~4.
+  \item The owner reviews clips in the dev console: trims the waveform, confirms or changes the label,
+        and discards bad takes. The labelled clips are the training set for Flow~4.
 \end{enumerate}
 
 \paragraph{Flow 3 --- Device onboarding.}
@@ -146,11 +146,10 @@ How a station and collar are registered to an owner, performed once per device.
         the owner's account (\texttt{deviceTokens/<token>/owner}) and as a station device entry, and
         hands the station its Wi-Fi credentials, the owner id, and the token over the serial link.
         The station stores these in non-volatile storage; the token is its sole credential.
-  \item The station comes online, syncs time, and begins scanning. It publishes any unregistered
+  \item The station comes online, syncs time, and begins scanning, publishing any unregistered
         collars it hears to its \texttt{seen} list.
-  \item The owner registers a heard collar with one tap in the dashboard. The collar then appears as
-        a device on the account and is relayed by the station. Deleting the token revokes the
-        device.
+  \item The owner registers a heard collar with one tap in the dashboard. The collar then appears as a
+        device on the account and is relayed by the station. Deleting the token revokes the device.
 \end{enumerate}
 
 \begin{figure}[ht]\centering
@@ -176,14 +175,14 @@ How labelled clips become a model running on the collar.
 \begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
   \item The owner triggers training from the dev console. The \texttt{train} Cloud Function reads the
         account's labelled clips, derives the class set from the labels present, trains an int8 IMU
-        model and an int8 audio model, uploads them to Storage under \texttt{models/<uid>/}, and
-        bumps the account's model version (\cref{sec:training-pipeline}).
-  \item The station learns a new version is available (the version is mirrored into its own device
-        config), downloads each model from Storage, and, over a brief dedicated BLE connection,
-        streams it to the collar with a CRC-checked begin/data/end protocol (\cref{sec:protocols}).
+        model and an int8 audio model, uploads them to Storage under \texttt{models/<uid>/}, and bumps
+        the account's model version (\cref{sec:training-pipeline}).
+  \item The station learns a new version is available (mirrored into its own device config), downloads
+        each model from Storage, and, over a brief dedicated BLE connection, streams it to the collar
+        with a CRC-checked begin/data/end protocol (\cref{sec:protocols}).
   \item The collar stages the model into its dedicated flash partition, verifies the CRC, loads it,
-        and switches from advertising simulated state to advertising real classifier output. The
-        whole path requires no firmware reflash.
+        and switches from advertising simulated state to advertising real classifier output. The path
+        requires no firmware reflash.
 \end{enumerate}
 
 \subsection{Multi-tenant data model}
@@ -191,16 +190,17 @@ How labelled clips become a model running on the collar.
 Meowtion is multi-tenant. Each owner creates an account and registers their own station(s) and
 collar(s); all of an owner's data lives under \texttt{users/<uid>/} in the Realtime Database, and the
 database and storage rules scope every read and write to the owning account
-(\cref{sec:cloud-backend,sec:security-privacy}). Isolation is enforced by the backend, not the
-client. Battery devices never hold a login: a station authenticates with its scoped, revocable token,
-and a collar holds nothing at all (the station relays it). A single public, read-only demo account,
+(\cref{sec:cloud-backend,sec:security-privacy}). The backend enforces isolation, not the client.
+Battery devices never hold a login: a station authenticates with its scoped, revocable token, and a
+collar holds nothing at all (the station relays it). A single public, read-only demo account,
 designated in server-side config, lets anyone explore a populated dashboard without signing up.
 
 \subsection{Technology summary}
 
-\begin{table}[ht]
-  \centering
-  \caption{Technology at each tier.}
+\Cref{tab:stack} lists the technology used at each tier.
+
+\begin{center}
+  \captionof{table}{Technology at each tier.}
   \label{tab:stack}
   \begin{tabularx}{\textwidth}{@{}lX@{}}
     \toprule
@@ -217,4 +217,4 @@ designated in server-side config, lets anyone explore a populated dashboard with
                 quantisation to TensorFlow Lite \\
     \bottomrule
   \end{tabularx}
-\end{table}
+\end{center}

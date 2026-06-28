@@ -3,7 +3,7 @@
 
 Four contracts tie the tiers together: the BLE telemetry the collar advertises, the audio clip-frame
 format it streams during training, the over-the-air model protocol, and the cloud HTTP it is all
-relayed over. The two BLE wire formats are defined once in shared headers
+relayed over. The BLE wire formats are defined once in shared headers
 (\texttt{firmware/common/meow\_protocol.h} and \texttt{meow\_ota.h}) that \emph{both} firmwares
 include, so the collar (Zephyr) and station (ESP-IDF) builds cannot drift out of sync.
 
@@ -11,9 +11,9 @@ include, so the collar (Zephyr) and station (ESP-IDF) builds cannot drift out of
 
 In production mode the collar publishes its result in the manufacturer-specific field of its BLE
 advertisement, so the station can read it passively without connecting. The packet is eight bytes
-(\cref{tab:telemetry}); the collar's BLE address identifies which collar it is, so no identifier is
-carried in the payload. The \texttt{version} byte selects how the two result bytes are read: version~1
-is the simulated behaviour state machine, version~2 is real on-device classification.
+(\cref{tab:telemetry}). The collar's BLE address identifies which collar it is, so the payload carries
+no identifier. The \texttt{version} byte selects how the two result bytes are read: version~1 is the
+simulated behaviour state machine, version~2 is real on-device classification.
 
 \begin{table}[ht]
   \centering
@@ -33,15 +33,15 @@ is the simulated behaviour state machine, version~2 is real on-device classifica
   \end{tabularx}
 \end{table}
 
-Because the class is an index, not a name, the station and dashboard resolve it through the label list
-for the running model version, which keeps history correct across label-set changes
+Because the class is an index, not a name, the station and dashboard resolve it through the running
+model version's label list, which keeps history correct across label-set changes
 (\cref{sec:cloud-backend}).
 
 \subsection{Audio clip-streaming frame}
 
 While a station is subscribed in training mode, the collar streams continuously on the audio
 characteristic in 100\,ms frames. Each frame is a packed header followed by an audio payload and a
-time-aligned IMU payload; the station concatenates frames and slices them into fixed-length training
+time-aligned IMU payload. The station concatenates frames and slices them into fixed-length training
 clips.
 
 \begin{lstlisting}[language=C,caption={Clip-frame header (\texttt{firmware/common/meow\_protocol.h}).},label={lst:clip}]
@@ -61,24 +61,24 @@ struct __attribute__((packed)) meow_clip_hdr {
 
 To halve the data on the BLE link the collar encodes audio as 8-bit G.711 $\mu$-law (\texttt{version}
 2); the station decodes it back to 16-bit PCM for a normal WAV. The $\mu$-law codec is defined inline
-in the same shared header, so the encode on the collar and the decode on the station are guaranteed to
-match, and this is the same representation the model is trained and run on (\cref{sec:on-device-ai}).
+in the same shared header, so the collar encode and station decode match. This is also the
+representation the model is trained and run on (\cref{sec:on-device-ai}).
 
 \subsection{GATT services}
 
 The collar exposes two custom 128-bit GATT services that share a common Meowtion base UUID: the
-\emph{audio} service used for clip streaming, and the \emph{OTA} service used for model delivery. The
-OTA service uses three UUIDs distinguished by a \texttt{0x0b}\,$\ast\ast$ group, one each for its
-control, data, and status characteristics. Both firmwares derive these UUIDs from the same header, the
-collar through Zephyr's encoding macro and the station from the raw little-endian byte arrays the
-header also provides.
+\emph{audio} service for clip streaming, and the \emph{OTA} service for model delivery. The OTA service
+uses three UUIDs distinguished by a \texttt{0x0b}\,$\ast\ast$ group, one each for its control, data,
+and status characteristics. Both firmwares derive these UUIDs from the same header, the collar through
+Zephyr's encoding macro and the station from the raw little-endian byte arrays the header also
+provides.
 
 \subsection{Over-the-air model protocol}
 
 Model delivery is a small framed protocol over the OTA service. The client (station) writes opcodes to
 the \emph{control} characteristic, streams the model to the \emph{data} characteristic, and the collar
-acknowledges on a \emph{status} notification. A transfer is: \texttt{BEGIN} (carrying the target slot,
-the total length, and a CRC), a stream of write-with-response \texttt{DATA} chunks (each chunk's write
+acknowledges on a \emph{status} notification. A transfer is \texttt{BEGIN} (carrying the target slot,
+total length, and a CRC), then a stream of write-with-response \texttt{DATA} chunks (each chunk's write
 response is the flash-write flow control), then \texttt{END}. The collar erases the slot on
 \texttt{BEGIN}, writes chunks as they arrive, and on \texttt{END} re-reads the model from flash,
 verifies the CRC against the announced value, and reports the outcome.
@@ -98,13 +98,12 @@ enum { MEOW_OTA_ST_READY = 1, MEOW_OTA_ST_RECEIVING = 2, MEOW_OTA_ST_OK = 3,
        MEOW_OTA_ST_ERR_SIZE = 5, MEOW_OTA_ST_ERR_CRC = 7, MEOW_OTA_ST_ERR_SEQ = 8 };
 \end{lstlisting}
 
-Crucially, \texttt{END} verifies and stages the model but does \emph{not} swap the live model from
-inside the BLE callback. Committing a model is stack-heavy, and doing it in the radio callback
-crash-looped the device; the actual swap is deferred to a service call on the main thread's larger
-stack (\cref{sec:firmware-collar}). That split, together with the raised main stack, is what made OTA
-reliable on hardware. A persisted slot magic marks a slot that holds a valid committed model, so the
-collar can tell an empty slot from a written one across a reboot. \Cref{fig:ota-seq} shows the
-message exchange.
+\texttt{END} verifies and stages the model but does \emph{not} swap the live model from inside the BLE
+callback. Committing a model is stack-heavy, and doing it in the radio callback crash-looped the
+device. The swap is therefore deferred to a service call on the main thread's larger stack
+(\cref{sec:firmware-collar}). That split, with the raised main stack, is what made OTA reliable on
+hardware. A persisted slot magic marks a slot that holds a valid committed model, so the collar can
+tell an empty slot from a written one across a reboot. \Cref{fig:ota-seq} shows the message exchange.
 
 \begin{figure}[ht]\centering
   \resizebox{0.94\textwidth}{!}{%
@@ -130,7 +129,7 @@ message exchange.
 \subsection{Cloud transport}
 
 Above BLE, the station speaks ordinary HTTPS to Firebase: it writes telemetry to the Realtime Database
-through its REST interface, authorised by its device token, and POSTs training-clip bytes to the
+(RTDB) through its REST interface, authorised by its device token, and POSTs training-clip bytes to the
 \texttt{upload\_clip} Cloud Function with that same token (\cref{sec:cloud-backend}). The dashboard is
-a separate client of the same database. No bespoke transport or message broker is involved; the
-contract at this tier is just the database schema and the function's request format.
+a separate client of the same RTDB. No bespoke transport or message broker is involved; the contract at
+this tier is just the RTDB schema and the function's request format.

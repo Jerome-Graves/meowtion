@@ -20,6 +20,7 @@
 \begin{document}
 
 \input{frontmatter/titlepage}
+\input{frontmatter/acknowledgements}
 
 \tableofcontents
 \clearpage
@@ -27,26 +28,45 @@
 \listoftables
 \clearpage
 
+% Glossary up front, so a reader can look up a term before meeting it.
+\input{sections/15-glossary}
+
+\clearpage
+\part{Overview}
 \input{sections/01-introduction}
 \input{sections/01b-requirements}
 \input{sections/02-system-overview}
+
+\clearpage
+\part{The device}
 \input{sections/03-hardware}
 \input{sections/04-firmware-collar}
 \input{sections/05-firmware-station}
+
+\clearpage
+\part{On-device intelligence}
 \input{sections/06-on-device-ai}
 \input{sections/07-training-pipeline}
+
+\clearpage
+\part{Cloud and application}
 \input{sections/08-cloud-backend}
 \input{sections/09-dashboard}
 \input{sections/09b-ui-walkthrough}
+
+\clearpage
+\part{Interfaces and security}
 \input{sections/10-protocols}
 \input{sections/11-security-privacy}
+
+\clearpage
+\part{Validation and roadmap}
 \input{sections/11b-evaluation}
 \input{sections/12-future-work}
 
 \appendix
 \input{sections/13-appendix-bom}
 \input{sections/14-appendix-schema}
-\input{sections/15-glossary}
 
 \printbibliography[heading=bibnumbered]
 

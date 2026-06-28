@@ -1,12 +1,13 @@
 \section{Collar firmware}
 \label{sec:firmware-collar}
 
-The collar runs on Zephyr~\cite{zephyr} via the nRF Connect SDK (NCS v3.3.1), targeting the board
+The collar runs on Zephyr~\cite{zephyr}, a real-time operating system for microcontrollers, via the
+nRF Connect SDK (NCS v3.3.1), targeting board
 \texttt{xiao\_ble/nrf52840/sense}. It is a connectable BLE peripheral that senses on the cat,
-advertises a compact telemetry packet, and, when a station connects and subscribes, streams paired
-audio\,+\,IMU clips for training. It never touches Wi-Fi or the internet, which keeps it small and
-low-power and lets it always run on its own battery. The build is driven by \texttt{build.ps1}, which
-locates the local NCS toolchain, runs \texttt{west build -b xiao\_ble}, and copies out the UF2.
+advertises a compact telemetry packet, and streams paired audio\,+\,IMU clips for training once a
+station connects and subscribes. It never touches Wi-Fi or the internet, so it stays small, low-power,
+and battery-only. \texttt{build.ps1} drives the build: it locates the local NCS toolchain, runs
+\texttt{west build -b xiao\_ble}, and copies out the UF2.
 
 \subsection{Responsibilities}
 
@@ -20,6 +21,8 @@ The firmware has four jobs, driven from the main loop and BLE callbacks:
 \end{enumerate}
 
 \subsection{Source layout}
+
+\Cref{tab:collar-src} lists the collar firmware modules and what each is responsible for.
 
 \begin{table}[ht]
   \centering
@@ -48,23 +51,23 @@ The firmware has four jobs, driven from the main loop and BLE callbacks:
 The classifier is split deliberately. \texttt{classifier.c} defines the cascade policy in plain C
 with \emph{weak} hooks for model-presence queries and inference calls; \texttt{tflm\_classifier.cpp}
 provides the \emph{strong} \texttt{extern\,"C"} definitions that override them when the TensorFlow
-Lite Micro backend is compiled in. This keeps the policy readable and separable from the heavy C++
-inference, and it means the firmware links and runs even with the backend or any model absent.
+Lite Micro backend is compiled in. This separates the policy from the heavy C++ inference, so the
+firmware links and runs even with the backend or any model absent.
 
 \subsection{Streaming and threading}
 
-Capturing training data is the collar's most timing-sensitive path: PDM audio arrives in a steady
-stream and must be paired with IMU samples and pushed over BLE without dropping frames. The reader
-and sender are therefore decoupled (\texttt{streaming.c}): one side assembles 100\,ms frames from the
-audio and IMU sources, the other side sends them over the audio characteristic, so a momentarily slow
-radio cannot stall capture. The collar negotiates a large ATT MTU (247 bytes) and uses the 2\,Mbit
-PHY to keep throughput up.
+Capturing training data is the collar's most timing-sensitive path: PDM audio arrives steadily and
+must be paired with IMU samples and pushed over BLE without dropping frames. The reader and sender
+are therefore decoupled (\texttt{streaming.c}): one side assembles 100\,ms frames from the audio and
+IMU sources, the other sends them over the audio characteristic, so a momentarily slow radio cannot
+stall capture. The collar negotiates a large ATT MTU (247 bytes) and uses the 2\,Mbit PHY for
+throughput.
 
 \subsection{Model storage and flash layout}
 
 Models are not linked into the firmware image. They live in a dedicated flash partition so a new model
 can be written over the air without reflashing. The partition map is fixed in \texttt{pm\_static.yml}
-to stop the partition manager from silently regrowing the application region over the model storage:
+to stop the partition manager from regrowing the application region over the model storage:
 
 \begin{table}[ht]
   \centering
@@ -85,7 +88,7 @@ to stop the partition manager from silently regrowing the application region ove
 
 \subsection{Build configuration}
 
-Enabling on-device inference meant pulling TensorFlow Lite Micro into the NCS workspace (an optional,
+On-device inference requires pulling TensorFlow Lite Micro into the NCS workspace (an optional,
 normally-excluded west module) and turning on C++17 and the TFLM and CMSIS-NN options. Two stability
 fixes are baked into the configuration: TFLM's \texttt{AllocateTensors()} and \texttt{Invoke()}
 overflow Zephyr's small default stack, so the main stack is raised; and the model storage uses
@@ -102,24 +105,22 @@ CONFIG_BT_L2CAP_TX_MTU=247        /* large MTU for audio streaming + OTA chunks 
 CONFIG_BT_CTLR_PHY_2M=y           /* 2 Mbit PHY for throughput */
 \end{lstlisting}
 
-Because committing a model touches a lot of stack, the OTA receive path does not load the model from
-inside the BLE-RX callback. It stages the bytes to flash, then defers the verify-and-swap onto the
-main thread (\cref{sec:protocols}), so a model can be installed without starving the BLE stack.
+The OTA receive path stages bytes to flash and defers the verify-and-swap onto the main thread rather
+than committing a model from the BLE-RX callback (\cref{sec:protocols}).
 
 \subsection{Development console and flashing}
 
 The XIAO nRF52840 has no debug COM port, so flashing is always a UF2 drive-copy: double-tap RESET to
 mount the bootloader drive, then re-run the build script to copy the UF2 across. For development the
-firmware brings up a USB CDC ACM console on the \emph{legacy} USB device stack (the newer NEXT stack's
-CDC console silently drops output on this board). On that console the collar prints a
-\texttt{MEOW> collar id=...} banner and a periodic \texttt{state= steps= batt=} line; the
-\texttt{id=} banner is what the dashboard reads over Web Serial to register the collar.
+firmware brings up a USB CDC ACM console on the \emph{legacy} USB device stack; the newer NEXT stack's
+CDC console drops output on this board. The console prints a \texttt{MEOW> collar id=...} banner and a
+periodic \texttt{state= steps= batt=} line; the dashboard reads the \texttt{id=} banner over Web
+Serial to register the collar.
 
 \subsection{Telemetry output}
 
-In production the telemetry packet carries the cascade's live result: the class and confidence from
-the on-device classifier running on the rolling IMU window, with the audio stage confirming uncertain
-results (\cref{sec:on-device-ai}). Alongside the classification it reports a step count derived from
-the IMU and the measured battery level. A freshly flashed collar that has not yet received a model
-advertises \texttt{UNKNOWN} until its first model arrives over the air, so the firmware is always safe
-to run.
+In production the telemetry packet carries the cascade's live result: class and confidence from the
+on-device classifier on the rolling IMU window, with the audio stage confirming uncertain results
+(\cref{sec:on-device-ai}). It also reports an IMU-derived step count and the measured battery level.
+A freshly flashed collar advertises \texttt{UNKNOWN} until its first model arrives over the air, so
+the firmware is always safe to run.

@@ -12,6 +12,14 @@
 % running them into the right margin, instead of forcing an overfull line.
 \setlength{\emergencystretch}{3em}
 
+% ---- Part dividers (group the sections into parts) ----
+\titleformat{\part}[display]
+  {\centering\bfseries}
+  {\large\color{mwlavd}\MakeUppercase{\partname}~\thepart}
+  {0.35em}
+  {\Huge\color{mwink}}
+\titlespacing*{\part}{0pt}{1.5ex}{1.4ex}
+
 % ---- Headings: ink titles, lavender numbers ----
 \titleformat{\section}{\Large\bfseries\color{mwink}}{\color{mwlavd}\thesection}{0.6em}{}
 \titleformat{\subsection}{\large\bfseries\color{mwink}}{\color{mwlavd}\thesubsection}{0.6em}{}

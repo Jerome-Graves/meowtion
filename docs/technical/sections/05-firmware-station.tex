@@ -1,14 +1,16 @@
 \section{Station firmware}
 \label{sec:firmware-station}
 
-The station runs on ESP-IDF~\cite{espidf} on the XIAO ESP32-S3. It is a BLE central that hears registered collars
-and a Wi-Fi gateway that relays them to the owner's Firebase account. It also captures short
-audio\,+\,IMU clips for training and uploads them, and it delivers trained models to the collar over
-BLE. It has no Firebase login: Wi-Fi credentials, the owner id, and a per-device token are
+The station runs on ESP-IDF~\cite{espidf}, Espressif's SDK for the ESP32, on the XIAO ESP32-S3. It is a BLE central that hears
+registered collars and a Wi-Fi gateway that relays them to the owner's Firebase account. It also
+captures short audio\,+\,IMU training clips and uploads them, and it delivers trained models to the
+collar over BLE. It has no Firebase login: Wi-Fi credentials, the owner id, and a per-device token are
 provisioned over USB serial and stored in non-volatile storage (NVS), and the database authorises the
 station because that token is registered to the owner.
 
 \subsection{Source layout}
+
+\Cref{tab:station-src} lists the station firmware modules and what each is responsible for.
 
 \begin{table}[ht]
   \centering
@@ -32,14 +34,15 @@ station because that token is registered to the owner.
 
 \subsection{Provisioning}
 
-Provisioning is a single JSON line sent over USB serial; the dashboard's ``Connect a device'' form
-does this automatically over Web Serial, but it is plain text and can be sent by hand for debugging:
+Provisioning is a single JSON line sent over USB serial. The dashboard's ``Connect a device'' form
+does this automatically over Web Serial as part of the onboarding flow (\cref{sec:architecture}); the
+line is plain text and can be sent by hand for debugging:
 
 \begin{lstlisting}[caption={Provisioning line (USB serial).},label={lst:provision}]
 {"ssid":"..","pass":"..","owner":"<uid>","token":"<random>","name":"..","lat":50.8,"lon":-0.1}
 \end{lstlisting}
 
-The station stores these in NVS and can be re-provisioned at any time from the dashboard, or wiped
+The station stores these in NVS and can be re-provisioned from the dashboard at any time, or wiped
 with \texttt{idf.py erase-flash}. The token is the station's only credential; deleting it from the
 owner's account revokes the device immediately. Repository secrets such as \texttt{secrets.h} are
 excluded by \texttt{.gitignore}, so no live credential is tracked.
@@ -54,15 +57,15 @@ dashboard can map them to labels even as the label set changes (\cref{sec:cloud-
 mode it connects to an in-range collar, captures clips, and POSTs each clip's bytes to the
 \texttt{upload\_clip} Cloud Function with its device token; the function verifies the token's owner and
 writes the file to that owner's Storage area, since clients cannot write Storage directly. A manual
-capture path ignores the signal-strength gate, used to collect behaviours such as purring that happen
-while the cat rests rather than at the bowl.
+capture path ignores the signal-strength gate, to collect behaviours such as purring that happen while
+the cat rests rather than at the bowl.
 
 \subsection{Over-the-air model delivery}
 
-The station is the delivery vehicle for trained models, since the collar is BLE-only and never touches
-Storage. The wire protocol is fixed in the shared header \texttt{firmware/common/meow\_ota.h}: the
-collar is the GATT server that stages a \texttt{.tflite} into flash, the station is the client that
-pushes it (\cref{sec:protocols}).
+The station delivers trained models, since the collar is BLE-only and never touches Storage. The wire
+protocol is fixed in the shared header \texttt{firmware/common/meow\_ota.h}: the collar is the GATT
+server that stages a \texttt{.tflite} into flash, the station is the client that pushes it
+(\cref{sec:protocols}).
 
 \begin{description}[leftmargin=1.6em,style=nextline]
   \item[Version gate.] The \texttt{train} function bumps \texttt{users/<uid>/models/version} and
@@ -73,27 +76,11 @@ pushes it (\cref{sec:protocols}).
         \texttt{models/<uid>/\allowbreak imu\_model.tflite} (IMU slot) or
         \texttt{models/<uid>/\allowbreak audio\_model.tflite} (audio slot). A 404 means that slot has no model
         yet and is skipped.
-  \item[Push.] It computes a CRC-32/IEEE over the bytes, then over a brief dedicated BLE connection
-        writes \texttt{BEGIN}, streams the model to the data characteristic in
-        write-with-response chunks (the chunk write-response is the flash-write flow control), and
-        writes \texttt{END}. On the collar's \texttt{OK} it records the new version in NVS; on any
-        error it leaves NVS unchanged and retries later.
+  \item[Push.] It computes a CRC-32/IEEE over the bytes and pushes the model over a brief dedicated
+        BLE connection using the BEGIN/DATA/END/CRC sequence (\cref{sec:protocols}). On the collar's
+        \texttt{OK} it records the new version in NVS; on any error it leaves NVS unchanged and retries
+        later.
 \end{description}
 
 A push runs only when a registered collar is in range and audio capture is idle, so model delivery
 never contends with the capture or relay path for the radio.
-
-\subsection{Robustness: scanning after an update}
-
-The station drives one BLE radio for several jobs, and the OTA path exposed a subtle defect. To push a
-model the station must cancel scanning and open a connection; the OTA path used its own GAP callback
-and originally never restarted scanning when it finished, so after an update the station went deaf and
-the dashboard reported the collar offline. The fix is an idempotent \texttt{ble\_resume\_scan()},
-guarded on the discovery-active flag, that the OTA path calls on both completion and bail-out. It was
-verified on hardware.
-
-\subsection{Build and flash}
-
-The station builds with \texttt{idf.py build} and flashes over its USB serial port with
-\texttt{idf.py -p <COM> flash monitor} (the repository's VS Code task \textbf{Build+Flash Station}
-wraps this). It is verified building under ESP-IDF.
