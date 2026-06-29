@@ -53,3 +53,25 @@ make -C firmware/test check
 
 `.github/workflows/test.yml` runs both the Python and the C suites on every push and pull request,
 so the tests are exercised automatically even without a local C toolchain.
+
+## Manual and on-hardware verification
+
+The end-to-end behaviour that can't be unit-tested off-device was checked on the real hardware,
+the collar (XIAO nRF52840 Sense) and the station (ESP32-S3), over USB serial, plus the
+build and deploy steps. Each row was directly observed.
+
+| # | Area | Condition / action | Expected | Result |
+|---|------|--------------------|----------|--------|
+| 1 | Model delivery | Boot the collar with OTA'd models in flash | Both slots load | Serial: `slot 0 loaded: 23616 bytes`, `slot 1 loaded: 19640 bytes` ✓ |
+| 2 | On-device inference | Collar in production mode | Real class + confidence on a full window | Serial: `production: cls=… conf=…% (win=624/624)` ✓ |
+| 3 | Activity gate → rest | Hold the collar still ~60 s | Drops to low-power rest | Serial: `activity: still >= 60s , entering low-power rest`, periodic logging stops ✓ |
+| 4 | Wake on motion | Move the collar while resting | Wakes and resumes classification | Serial: `activity: motion , waking after Ns rest`, production resumes ✓ |
+| 5 | Rest event | Collar rests, then wakes | Station logs the span as a `rest` episode | Station serial: `relay cat_… rest` for the dormant span (steps frozen) ✓ |
+| 6 | REST mapping fix | Station running updated firmware | `0xFE` shown as `rest`, not `active` | Station relay reported `rest` after reflash (was `active` before) ✓ |
+| 7 | Collar build | `west build` (NCS v3.3.1) | Builds, UF2 produced | FLASH 57.6 %, RAM 86.6 %, `zephyr.uf2` written ✓ |
+| 8 | Station build | `idf.py build` (ESP-IDF) | Builds, image produced | `esp32_firebase_test.bin`, 22 % partition free ✓ |
+| 9 | Docs build | `build.ps1` (XeLaTeX + Biber) | Compiles, no errors | PDF produced and published ✓ |
+| 10 | Backend deploy | `firebase deploy` (rules + functions) | Released to `meowtion-app` | Rules released; `upload_clip`, `train`, `simulate(_now)` updated ✓ |
+
+These complement the automated suites above: the unit tests pin the pure logic, and this table
+records the integration behaviour confirmed on hardware.
