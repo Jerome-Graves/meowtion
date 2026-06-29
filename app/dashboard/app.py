@@ -56,3 +56,17 @@ _history()
 
 # Recent-activity list (live) , bottom.
 mw.live_view(uid, token, only_cat=selected, part="recent")
+
+# --- footer: data-safety disclosure + a cat-health resource ---
+st.divider()
+with st.expander("🔒 How your data is used, and how we keep it safe"):
+    st.markdown(
+        "Your collar's activity data belongs to you. It's stored in your own private space, and our "
+        "database rules let only your signed-in account read it. We never sell it or share it with "
+        "third parties, and we use it only to show you the activity and health insights on this page. "
+        "You can remove a device, and its data, from the account page at any time.\n\n"
+        "These insights are a helpful guide, not veterinary advice. If anything about your cat's "
+        "health worries you, please speak to your vet."
+    )
+st.caption("Learn more about cat health and wellbeing at "
+           "[International Cat Care](https://icatcare.org/), a UK feline-welfare charity.")
