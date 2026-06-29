@@ -85,12 +85,16 @@ def render(df, data=None):
     
     today = datetime.date.today()
     pure_dates = pd.to_datetime(df["event_date"]).dt.date
+    lo, hi = pure_dates.min(), pure_dates.max()
+    # Default to today, but clamp into the range the data actually covers: if today is past the
+    # latest logged day (or before the first), st.date_input rejects an out-of-range default.
+    default_day = min(max(today, lo), hi)
 
     date_range = st.date_input(
         label="📅 Select a date or date range",
-        value=(today, today),
-        min_value=pure_dates.min(),
-        max_value=pure_dates.max()
+        value=(default_day, default_day),
+        min_value=lo,
+        max_value=hi,
     )
 
     # Determine whether a range or a single date was chosen, and configure the time span
