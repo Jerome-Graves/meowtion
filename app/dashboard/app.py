@@ -16,7 +16,19 @@ import meowtion_dash as mw
 import dashboard_view
 
 mw.configure_page()        # set_page_config , must be the first Streamlit call
+
+# Light/dark choice from the in-page toggle, persisted in the URL so it survives a reload. Resolve it
+# BEFORE brand_header so the first paint already matches the chosen theme.
+if "mw_dark_toggle" not in st.session_state:
+    st.session_state["mw_dark_toggle"] = st.query_params.get("theme") == "dark"
+
 mw.brand_header()          # logo + wordmark + page theme
+
+# Visible light/dark toggle, top-right.
+_sp, _tg = st.columns([4, 1])
+with _tg:
+    _dark = st.toggle("🌙 Dark mode", key="mw_dark_toggle")
+st.query_params["theme"] = "dark" if _dark else "light"
 
 # Resolve the viewer from the login cookie. Renders the signed-in header (or the demo
 # caption); if signed out it shows the sign-in gate and stops here.
@@ -75,5 +87,5 @@ st.caption("Trouble signing in or using the site? Please "
            "For anything private, you can reach us through our GitHub profiles: "
            "[Jerome](https://github.com/Jerome-Graves) and "
            "[Rose](https://github.com/auntihero).")
-st.caption("Prefer dark mode? Click the ⋮ menu in the top-right corner of the page → Settings → "
-           "Theme, and pick Dark. Your choice is remembered in this browser.")
+st.caption("Prefer dark mode? Use the 🌙 toggle at the top of the page. "
+           "Your choice is remembered for this view.")

@@ -32,12 +32,33 @@ html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', sy
 
 
 def is_dark():
-    """True if the viewer has Streamlit's dark theme active (chosen from the top-right ⋮ menu,
-    Settings -> Theme). Our custom CSS and charts read this so they adapt instead of staying light."""
-    try:
-        return getattr(st.context.theme, "type", "light") == "dark"
-    except Exception:
-        return False
+    """True if the viewer turned on dark mode with the in-page toggle (stored in session state and
+    mirrored to the URL so it survives a reload). Defaults to light. Our custom CSS and the charts
+    read this so they adapt together."""
+    return bool(st.session_state.get("mw_dark_toggle", False))
+
+
+# Dark-mode overrides. The base CSS (in _BRAND_HTML) is light; when the toggle is on we layer this on
+# top (later CSS wins). Streamlit's own widgets follow its config theme, not our toggle, so we have to
+# recolour text, metrics, buttons, expanders and surfaces here as well as the brand bar.
+_DARK_CSS = """
+<style>
+.stApp { background: radial-gradient(1100px 480px at 50% -220px, #2b2750, transparent), #0e0e15; }
+.mw-word { color:#ececf2; }
+.mw-tag, [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * { color:#9aa0ad !important; }
+.stApp, .stApp p, .stApp li,
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li,
+[data-testid="stHeading"], h1, h2, h3, h4, h5,
+[data-testid="stWidgetLabel"] label, [data-testid="stWidgetLabel"] p { color:#e7e7ef; }
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color:#e7e7ef !important; }
+[data-testid="stMetricDelta"] { color:#b8b8c4 !important; }
+.stButton > button { background:#22222e; color:#e7e7ef; border:1px solid #3a3a48; }
+[data-testid="stExpander"] details { background:#15151d; border:1px solid #2a2a36; border-radius:.5rem; }
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary * { color:#e7e7ef; }
+hr { border-color:#2a2a36 !important; }
+a { color:#d6a9db; }
+</style>
+"""
 
 
 def configure_page():
@@ -47,15 +68,8 @@ def configure_page():
 
 
 def brand_header():
-    """Render the Meowtion brand bar and apply the page theme CSS. The base CSS is light; if the
-    viewer picked the dark theme we layer a dark override on top (later CSS wins)."""
+    """Render the Meowtion brand bar and apply the page theme CSS. Light by default; if the in-page
+    toggle is on, layer the dark overrides on top."""
     st.markdown(_BRAND_HTML, unsafe_allow_html=True)
     if is_dark():
-        st.markdown(
-            "<style>"
-            ".stApp { background: radial-gradient(1100px 480px at 50% -220px, #2b2750, transparent), #0e0e15; }"
-            ".mw-word { color:#ececf2; }"
-            ".mw-tag { color:#9aa0ad; }"
-            "</style>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(_DARK_CSS, unsafe_allow_html=True)
