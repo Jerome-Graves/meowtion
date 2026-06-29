@@ -205,8 +205,12 @@ def render(df, data=None):
             
             unit, time_unit, time_format = "hour", "yearmonthdatehours", "%H:%M"
             chosen_label = start_date.strftime("%B %d, %Y")
+            # Always span the full 24 hours of the day, not just the hours that have data.
+            day_start = pd.Timestamp(start_date)
+            x_domain = [day_start.isoformat(), (day_start + pd.Timedelta(days=1)).isoformat()]
         else:
             # --- DAILY VIEW STRATEGY ---
+            x_domain = None
             frame = mw.over_time(window, span)
             if span == "Week":
                 unit, time_unit, time_format = "day", "yearmonthdate", "%a %d"
@@ -227,7 +231,7 @@ def render(df, data=None):
             st.altair_chart(
                 mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
                                time_unit=time_unit, time_format=time_format, height=380, legend=False,
-                               colors=colours),
+                               colors=colours, x_domain=x_domain),
                 use_container_width=True,
             )
 

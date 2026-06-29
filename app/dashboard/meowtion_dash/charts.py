@@ -39,7 +39,7 @@ def activity_scale(activities=None, colors=None):
 
 
 def stacked_bar(data, x, y, color, y_title=None, time_unit=None, time_format="%d %b",
-                legend=True, height=300, colors=None):
+                legend=True, height=300, colors=None, x_domain=None):
     """A branded bar chart split by colour into the `color` column (e.g. activity), transparent
     background.
 
@@ -49,7 +49,10 @@ def stacked_bar(data, x, y, color, y_title=None, time_unit=None, time_format="%d
     """
     cats = sorted(map(str, data[color].unique()))
     if time_unit:
+        # x_domain (e.g. midnight->midnight) forces the axis to cover the whole period rather than
+        # only the hours/days that happen to have data.
         x_enc = alt.X(f"{x}:T", timeUnit=time_unit, title=None,
+                      scale=alt.Scale(domain=x_domain, nice=False) if x_domain else alt.Undefined,
                       axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0))
         y_enc = alt.Y(f"sum({y}):Q", title=y_title, axis=alt.Axis(labelColor="#6b7280", titleColor="#6b7280"))
     else:
