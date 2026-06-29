@@ -44,7 +44,7 @@ _SAFE_ID = re.compile(r"^[A-Za-z0-9_-]+$")
 _SAFE_TS = re.compile(r"^[0-9]+$")
 
 
-def ref(path):
+def ref(path):  # pragma: no cover  (thin RTDB wrapper; needs live Firebase)
     return db.reference(path, url=DB_URL)
 
 
@@ -54,7 +54,7 @@ MAX_CLIP_BYTES = 4 * 1024 * 1024   # reject oversized uploads; a real clip is fa
 
 @https_fn.on_request(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=120,
                      cors=options.CorsOptions(cors_origins=["*"], cors_methods=["post", "options"]))
-def upload_clip(req: https_fn.Request) -> https_fn.Response:
+def upload_clip(req: https_fn.Request) -> https_fn.Response:  # pragma: no cover  (integration: Firebase/Storage; tested via deploy + manual checks; the validation regexes are unit-tested separately)
     # Prefer the bearer token from the Authorization header; fall back to the legacy ?token= query
     # arg so an un-updated station still works. The header keeps the token out of URLs and logs.
     auth = req.headers.get("Authorization", "")
@@ -98,7 +98,7 @@ def parse_wav(buf):
     return np.frombuffer(data, dtype="<i2").copy(), rate
 
 
-def load_clips(uid):
+def load_clips(uid):  # pragma: no cover  (integration: reads RTDB + Storage)
     bucket = storage.bucket()
     devs = ref(f"users/{uid}/devices").get() or {}
     clips = []
@@ -165,7 +165,7 @@ def build_dataset(clips, kind):
     return np.array(X, np.float32), np.array(y, np.int64)
 
 
-def train_one(name, clips):
+def train_one(name, clips):  # pragma: no cover  (TensorFlow training; not a unit test target)
     import tensorflow as tf
     from sklearn.model_selection import train_test_split
     L = tf.keras.layers
@@ -205,7 +205,7 @@ def train_one(name, clips):
 @https_fn.on_request(region=REGION, memory=options.MemoryOption.GB_4, timeout_sec=3600,
                      cpu=2, concurrency=1,
                      cors=options.CorsOptions(cors_origins=["*"], cors_methods=["post", "options"]))
-def train(req: https_fn.Request) -> https_fn.Response:
+def train(req: https_fn.Request) -> https_fn.Response:  # pragma: no cover  (integration: Firebase + TensorFlow; tested via deploy + manual checks)
     # auth: must be a signed-in dev account (same gate as the dashboard)
     authz = req.headers.get("Authorization", "")
     token = authz.split("Bearer ", 1)[1] if "Bearer " in authz else ""

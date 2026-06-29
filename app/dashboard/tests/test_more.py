@@ -72,6 +72,32 @@ def test_health_signals_recent_average_without_baseline():
     assert eat["change_pct"] is None
 
 
+def test_fmt_time_format():
+    s = mw.fmt_time(0)
+    assert "·" in s and ":" in s
+
+
+def test_filter_by_weekday():
+    df = pd.DataFrame({"event_weekday_name": ["Monday", "Saturday", "Sunday"],
+                       "event_duration": [1, 2, 3]})
+    assert set(mw.filter_by_weekday(df, ["Saturday", "Sunday"])["event_weekday_name"]) == {"Saturday", "Sunday"}
+    assert list(mw.filter_by_weekday(df, "Monday")["event_weekday_name"]) == ["Monday"]
+
+
+def test_filter_by_date_range():
+    df = pd.DataFrame({"event_date": ["2026-06-26", "2026-06-27", "2026-06-28"],
+                       "event_duration": [1, 2, 3]})
+    both = mw.filter_by_date_range(df, "2026-06-27", "2026-06-28")
+    assert set(both["event_date"]) == {"2026-06-27", "2026-06-28"}
+    assert set(mw.filter_by_date_range(df, start="2026-06-28")["event_date"]) == {"2026-06-28"}
+
+
+def test_last_n_days_keeps_recent_calendar_days():
+    df = pd.DataFrame({"event_date": ["2026-06-26", "2026-06-27", "2026-06-28"],
+                       "event_duration": [1, 2, 3]})
+    assert set(mw.last_n_days(df, n=2)["event_date"]) == {"2026-06-27", "2026-06-28"}
+
+
 def test_health_signals_reports_drop_vs_baseline():
     # 5 days: the latest (still-accumulating) day is dropped, leaving [100, 8, 8, 8].
     # baseline = the day before the recent window (100), recent = last 3 (8,8,8) -> -92%.

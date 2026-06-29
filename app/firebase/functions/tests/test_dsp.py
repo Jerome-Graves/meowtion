@@ -46,3 +46,26 @@ def test_windows_slides_with_hop():
     assert len(got) == 3
     assert [int(w[0, 0]) for w in got] == [0, 3, 6]
     assert all(w.shape == (4, 1) for w in got)
+
+
+def test_build_dataset_windows_imu_clips():
+    main.LABELS = ["eat", "drink"]
+    clip = {"imu": np.zeros((main.IMU_WIN, main.IMU_AXES), dtype=np.int16), "label": "drink"}
+    X, y = main.build_dataset([clip], "imu")
+    assert X.shape == (1, main.IMU_WIN, main.IMU_AXES)
+    assert list(y) == [1]                       # LABELS.index("drink")
+
+
+def test_build_dataset_windows_audio_clips():
+    main.LABELS = ["eat", "drink"]
+    clip = {"audio": np.zeros(main.AUDIO_WIN, dtype=np.int16), "label": "eat"}
+    X, y = main.build_dataset([clip], "audio")
+    assert X.shape == (1, main.AUDIO_WIN, 1)
+    assert list(y) == [0]
+
+
+def test_build_dataset_skips_empty_imu():
+    main.LABELS = ["eat"]
+    clip = {"imu": np.zeros((0, main.IMU_AXES), dtype=np.int16), "label": "eat"}
+    X, _ = main.build_dataset([clip], "imu")
+    assert len(X) == 0
