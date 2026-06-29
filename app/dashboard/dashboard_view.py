@@ -93,7 +93,6 @@ def render(df, data=None):
     # Streamlit's default date box looks like flat text, so it isn't obvious it's clickable. Give it
     # a clear prompt and style the input as a bordered, lavender, pointer-cursor box that lifts on
     # hover, so it plainly reads as a control you can click to change the date.
-    st.markdown("**📅 Choose the dates to show**")
     st.caption("Click the box below to pick a day, or pick a start and end date for a range.")
     st.html("""
         <style>
