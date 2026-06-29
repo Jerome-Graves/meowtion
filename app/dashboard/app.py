@@ -22,11 +22,11 @@ mw.configure_page()        # set_page_config , must be the first Streamlit call
 if "mw_dark_toggle" not in st.session_state:
     st.session_state["mw_dark_toggle"] = st.query_params.get("theme") == "dark"
 
-mw.brand_header()          # logo + wordmark + page theme
-
-# Visible light/dark toggle, top-right.
-_sp, _tg = st.columns([4, 1])
-with _tg:
+# Brand bar on the left, the light/dark toggle inline with the title on the right.
+_brand, _toggle = st.columns([5, 1], vertical_alignment="center")
+with _brand:
+    mw.brand_header()      # logo + wordmark + page theme
+with _toggle:
     _dark = st.toggle("🌙 Dark mode", key="mw_dark_toggle")
 st.query_params["theme"] = "dark" if _dark else "light"
 
