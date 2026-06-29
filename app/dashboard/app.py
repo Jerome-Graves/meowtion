@@ -11,34 +11,24 @@ Flow:
     activity history  ->  recent activity
 """
 import streamlit as st
-import streamlit.components.v1 as components
 
 import meowtion_dash as mw
 import dashboard_view
 
 mw.configure_page()        # set_page_config , must be the first Streamlit call
 
-# Brand bar + an on-page light/dark toggle that drives Streamlit's REAL theme. Streamlit has no Python
-# API to set the theme, so we write its theme into localStorage (key stActiveTheme-<path>-v2) and
-# reload. is_dark() reads the actual active theme, so the toggle reflects it and our custom CSS/charts
-# stay in sync with the native widgets (calendar, inputs, etc.).
-_dark_now = mw.is_dark()
+# On-page light/dark toggle, driving our own CSS dark mode (no native theme, no page reload). The
+# choice lives in session state (read by is_dark()) and is mirrored to the URL so it survives a
+# reload. Seed it BEFORE brand_header so the first paint matches.
+if "theme_toggle" not in st.session_state:
+    st.session_state["theme_toggle"] = st.query_params.get("theme") == "dark"
+
 _brand, _toggle = st.columns([5, 1], vertical_alignment="center")
 with _brand:
-    mw.brand_header()      # logo + wordmark + page theme (adapts to the active theme)
+    mw.brand_header()      # logo + wordmark + page theme (adapts via is_dark())
 with _toggle:
-    _want_dark = st.toggle("🌙 Dark", value=_dark_now, key="theme_toggle")
-if _want_dark != _dark_now:
-    _target = "Dark" if _want_dark else "Light"
-    components.html(
-        f"""<script>
-        const k = 'stActiveTheme-' + window.parent.location.pathname + '-v2';
-        window.parent.localStorage.setItem(k, JSON.stringify({{name: "{_target}"}}));
-        window.parent.location.reload();
-        </script>""",
-        height=0,
-    )
-    st.stop()
+    st.toggle("🌙 Dark", key="theme_toggle")
+st.query_params["theme"] = "dark" if st.session_state["theme_toggle"] else "light"
 
 # Resolve the viewer from the login cookie. Renders the signed-in header (or the demo
 # caption); if signed out it shows the sign-in gate and stops here.

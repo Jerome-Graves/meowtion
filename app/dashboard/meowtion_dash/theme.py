@@ -43,24 +43,34 @@ button[data-testid="stBaseButton-segmented_controlActive"]::before { content:"âœ
 
 
 def is_dark():
-    """True if the viewer has Streamlit's dark theme active (switched from the top-right menu,
-    Settings -> Theme). All native widgets follow it automatically; we read it only so our own
-    custom bits (brand background, charts, filter buttons) adapt to match."""
-    try:
-        return getattr(st.context.theme, "type", "light") == "dark"
-    except Exception:
-        return False
+    """True if the viewer turned on dark mode with the on-page toggle (stored in session state and
+    mirrored to the URL). Our custom CSS and the charts read this so they adapt together."""
+    return bool(st.session_state.get("theme_toggle", False))
 
 
-# Dark-mode override for our CUSTOM bits only (the brand background gradient and wordmark, which are
-# our own HTML that the native theme doesn't know about). Every Streamlit widget , the date picker and
-# its calendar, metrics, buttons, segmented control, inputs , is themed by Streamlit natively, so it
-# needs no CSS here.
+# Dark-mode overrides, layered on top of the light base CSS when the toggle is on. Streamlit's own
+# widgets follow the config (light) theme, not our toggle, so we recolour text, metrics, buttons,
+# expanders and the segmented control here. (The date-picker CALENDAR popup is intentionally left in
+# its clean native light styling , forcing it dark fought baseweb and kept breaking.)
 _DARK_CSS = """
 <style>
 .stApp { background: radial-gradient(1100px 480px at 50% -220px, #2b2750, transparent), #0e0e15; }
 .mw-word { color:#ececf2; }
-.mw-tag { color:#9aa0ad; }
+.mw-tag, [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * { color:#9aa0ad !important; }
+.stApp, .stApp p, .stApp li,
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li,
+[data-testid="stHeading"], h1, h2, h3, h4, h5,
+[data-testid="stWidgetLabel"] label, [data-testid="stWidgetLabel"] p { color:#e7e7ef; }
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color:#e7e7ef !important; }
+[data-testid="stMetricDelta"] { color:#b8b8c4 !important; }
+.st-key-reset_timeline_zoom button { background:#22222e !important; border:1px solid #3a3a48 !important; }
+.st-key-reset_timeline_zoom button, .st-key-reset_timeline_zoom button * { color:#e7e7ef !important; }
+[data-testid="stExpander"] details { background:#15151d; border:1px solid #2a2a36; border-radius:.5rem; }
+[data-testid="stExpander"] summary, [data-testid="stExpander"] summary * { color:#e7e7ef; }
+button[data-testid="stBaseButton-segmented_control"] { background:#26262f !important; border-color:#3a3a48 !important; }
+button[data-testid="stBaseButton-segmented_control"], button[data-testid="stBaseButton-segmented_control"] * { color:#8f8f9b !important; }
+hr { border-color:#2a2a36 !important; }
+a { color:#d6a9db; }
 </style>
 """
 

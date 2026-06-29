@@ -98,22 +98,24 @@ def render(df, data=None):
     # a clear prompt and style the input as a bordered, lavender, pointer-cursor box that lifts on
     # hover, so it plainly reads as a control you can click to change the date.
     st.caption("Click the box below to pick a day, or pick a start and end date for a range.")
-    # Just a lavender border + pointer cursor so the box reads as clickable; the background and text
-    # are handled by Streamlit's native theme, so it auto-adapts to light/dark.
-    st.html("""
+    # Lavender border + pointer cursor so the box reads as clickable, with bg/text following our theme.
+    box_bg = "#1d1d27" if dark else "#ffffff"
+    box_text = "#e7e7ef" if dark else "#1b1b2b"
+    st.html(f"""
         <style>
-        div[data-testid="stDateInput"] div[data-baseweb="input"] {
+        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
+            background: {box_bg};
             border: 2px solid #bc7bc2;
             border-radius: 10px;
             cursor: pointer;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             transition: border-color .15s ease, box-shadow .15s ease;
-        }
-        div[data-testid="stDateInput"] div[data-baseweb="input"]:hover {
+        }}
+        div[data-testid="stDateInput"] div[data-baseweb="input"]:hover {{
             border-color: #d6a9db;
             box-shadow: 0 2px 8px rgba(188,123,194,0.40);
-        }
-        div[data-testid="stDateInput"] input { cursor: pointer; }
+        }}
+        div[data-testid="stDateInput"] input {{ cursor: pointer; color: {box_text} !important; }}
         </style>
     """)
     date_range = st.date_input(
