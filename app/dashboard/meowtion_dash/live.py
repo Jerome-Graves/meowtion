@@ -63,10 +63,10 @@ def live_view(uid, token, only_cat=None, part="all"):
             # --- current-state card (detected activity, battery, weather) ---
             if part in ("all", "current"):
                 st.divider()
-                st.subheader(f"🐈 {cat_name}")
+                st.subheader("🐈 Current activity")
                 state_line = "🟢 online" if (is_sim or fresh) else "⚪ offline"   # a sim collar is always online
                 via = "simulated" if is_sim else (f"via {rec['via']}" if rec["via"] else "")
-                st.caption(state_line
+                st.caption(f"{cat_name}  ·  " + state_line
                            + ("  ·  🧠 detecting on-device" if real else "")
                            + (f"  ·  {via}" if via else ""))
 
