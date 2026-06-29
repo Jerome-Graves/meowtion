@@ -217,16 +217,33 @@ def hourly_segments(df):
     return pd.DataFrame(rows, columns=cols)
 
 
-def event_spans(df):
-    """One row per event with absolute start/end timestamps, for a Gantt-style timeline across a
-    multi-day range. Columns: `start`, `end` (timestamps), `activity`."""
-    cols = ["start", "end", "activity"]
-    if df.empty:
+_TOD_REF = pd.Timestamp("2000-01-01")   # shared reference date for the "time of day" axis
+
+
+def daily_segments(df):
+    """Split each event by calendar day for a rows-of-days timeline: the `day` is the y value, and
+    the event's time-of-day span is mapped onto a shared reference date so every day plots on one
+    00:00-24:00 x-axis. An event crossing midnight yields one row per day. Columns: `day`
+    (YYYY-MM-DD), `start`, `end` (time of day, on the reference date), `activity`."""
+    cols = ["day", "start", "end", "activity"]
+    rows = []
+    for _, e in df.iterrows():
+        start = pd.to_datetime(f"{e['event_date']} {e['start_time']}")
+        end = start + pd.Timedelta(minutes=float(e["event_duration"]))
+        if end <= start:                       # zero/negative duration: nothing to draw
+            continue
+        day0 = start.normalize()               # midnight of the event's (current) day
+        while day0 < end:
+            nxt = day0 + pd.Timedelta(days=1)
+            seg_start, seg_end = max(start, day0), min(end, nxt)
+            rows.append({"day": day0.strftime("%Y-%m-%d"),
+                         "start": _TOD_REF + (seg_start - day0),   # time of day on the reference date
+                         "end": _TOD_REF + (seg_end - day0),
+                         "activity": e["activity"]})
+            day0 = nxt
+    if not rows:
         return pd.DataFrame(columns=cols)
-    start = pd.to_datetime(df["event_date"].astype(str) + " " + df["start_time"].astype(str))
-    end = start + pd.to_timedelta(df["event_duration"].astype(float), unit="m")
-    return pd.DataFrame({"start": start.to_numpy(), "end": end.to_numpy(),
-                         "activity": df["activity"].to_numpy()})
+    return pd.DataFrame(rows, columns=cols)
 
 
 # Health-relevant habits, most informative first. Appetite and thirst changes are classic early

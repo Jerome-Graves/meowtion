@@ -184,11 +184,22 @@ def test_hourly_segments_skips_zero_duration_and_empty():
     assert mw.hourly_segments(z.iloc[0:0]).empty  # no events -> empty
 
 
-def test_event_spans_builds_start_and_end():
-    df = pd.DataFrame({"event_date": ["2026-06-28"], "start_time": ["10:30"],
-                       "activity": ["Eat"], "event_duration": [30.0]})
-    out = mw.event_spans(df)
-    assert out["start"].iloc[0] == pd.Timestamp("2026-06-28 10:30")
-    assert out["end"].iloc[0] == pd.Timestamp("2026-06-28 11:00")
-    assert out["activity"].iloc[0] == "Eat"
-    assert mw.event_spans(df.iloc[0:0]).empty
+def test_daily_segments_rows_per_day_with_time_of_day():
+    # Rest 22:00 for 4h crosses midnight -> 22:00-24:00 on day 1, 00:00-02:00 on day 2,
+    # both mapped onto the shared reference date for the time-of-day x-axis.
+    df = pd.DataFrame({"event_date": ["2026-06-28"], "start_time": ["22:00"],
+                       "activity": ["Rest"], "event_duration": [240.0]})
+    out = mw.daily_segments(df).set_index("day")
+    ref = pd.Timestamp("2000-01-01")
+    assert set(out.index) == {"2026-06-28", "2026-06-29"}
+    assert out.loc["2026-06-28", "start"] == ref + pd.Timedelta(hours=22)
+    assert out.loc["2026-06-28", "end"] == ref + pd.Timedelta(hours=24)
+    assert out.loc["2026-06-29", "start"] == ref
+    assert out.loc["2026-06-29", "end"] == ref + pd.Timedelta(hours=2)
+
+
+def test_daily_segments_skips_zero_and_empty():
+    z = pd.DataFrame({"event_date": ["2026-06-28"], "start_time": ["10:00"],
+                      "activity": ["Eat"], "event_duration": [0.0]})
+    assert mw.daily_segments(z).empty
+    assert mw.daily_segments(z.iloc[0:0]).empty

@@ -2,6 +2,7 @@
 Altair styling each time.
 """
 import altair as alt
+import pandas as pd
 
 ACCENT = "#bc7bc2"   # brand lavender
 
@@ -103,26 +104,30 @@ def intraday_timeline(data, colors=None, x_domain=None, height=300):
     )
 
 
-def event_timeline(data, colors=None, time_domain=None, time_format="%a %d", height=300):
-    """A Gantt-style timeline across a multi-day range, drawn VERTICALLY: time runs down the y-axis
-    and each activity is a column on the x-axis. Each event (`start`/`end` timestamps, `activity`) is
-    a vertical bar from its start to its end in its activity's column, coloured by activity. Pass
-    `colors` to match the filter buttons and `time_domain` to bound the time axis."""
+def event_timeline(data, colors=None, height=300):
+    """Multi-day timeline drawn as rows of days: the y-axis is the calendar day and the x-axis is the
+    time of day (00:00-24:00, shared across days). Each event is a horizontal bar from its start to
+    its end time of day in its day's row, coloured by activity. `data` columns: `day`, `start`, `end`
+    (time of day) and `activity` (see data.daily_segments). Pass `colors` to match the buttons."""
     scale = activity_scale(colors=colors) if colors else activity_scale(sorted(map(str, data["activity"].unique())))
+    if len(data):
+        base = pd.Timestamp(data["start"].min()).normalize()                 # the shared reference day
+        x_scale = alt.Scale(domain=[base.isoformat(), (base + pd.Timedelta(days=1)).isoformat()], nice=False)
+    else:
+        x_scale = alt.Undefined
     return (
         alt.Chart(data)
-        .mark_bar(cornerRadius=2, size=18)
+        .mark_bar(cornerRadius=2, height=14)
         .encode(
-            x=alt.X("activity:N", title=None,
-                    axis=alt.Axis(labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
-            y=alt.Y("start:T", title=None,
-                    scale=alt.Scale(domain=time_domain, nice=False) if time_domain else alt.Undefined,
-                    axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600)),
-            y2="end:T",
+            x=alt.X("start:T", title=None, scale=x_scale,
+                    axis=alt.Axis(format="%H:%M", labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
+            x2="end:T",
+            y=alt.Y("day:N", title=None, sort="ascending",
+                    axis=alt.Axis(labelColor="#3a3a4a", labelFontWeight=600)),
             color=alt.Color("activity:N", scale=scale, legend=None),
-            tooltip=["activity",
-                     alt.Tooltip("start:T", title="start", format="%a %d %H:%M"),
-                     alt.Tooltip("end:T", title="end", format="%a %d %H:%M")],
+            tooltip=["activity", "day",
+                     alt.Tooltip("start:T", title="from", format="%H:%M"),
+                     alt.Tooltip("end:T", title="to", format="%H:%M")],
         )
         .properties(height=height, background="transparent")
         .configure_view(fill=None, stroke=None)

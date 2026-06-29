@@ -208,19 +208,15 @@ def render(df, data=None):
                     use_container_width=True,
                 )
         else:
-            # Multiple days -> a continuous Gantt timeline: one bar per event from start to end, in
-            # a lane per activity, spanning the whole selected range.
-            frame = mw.event_spans(window)
+            # Multiple days -> rows of days: y-axis is the day, x-axis is time of day, and each event
+            # is a horizontal bar at the time of day it happened in its day's row.
+            frame = mw.daily_segments(window)
             if frame.empty:
                 st.info("No activity logged in this window.")
             else:
-                rng_start = pd.Timestamp(start_date)
-                rng_end = pd.Timestamp(end_date) + pd.Timedelta(days=1)   # inclusive of the last day
-                time_domain = [rng_start.isoformat(), rng_end.isoformat()]
-                time_format = "%a %d" if span == "Week" else "%d %b"
+                n_days = frame["day"].nunique()
                 st.altair_chart(
-                    mw.event_timeline(frame, colors=colours, time_domain=time_domain,
-                                      time_format=time_format, height=380),
+                    mw.event_timeline(frame, colors=colours, height=max(220, 40 + 26 * n_days)),
                     use_container_width=True,
                 )
 
