@@ -18,7 +18,7 @@ html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', sy
 .mw-brand { display:flex; align-items:center; gap:.8rem; margin:.2rem 0 1.3rem; }
 .mw-logo { width:46px; height:46px; border-radius:50%; display:grid; place-items:center;
   background:#bc7bc2; box-shadow:0 10px 30px rgba(16,18,40,.12); }
-.mw-word { font-weight:800; font-size:1.5rem; letter-spacing:-.02em; line-height:1; color:#1b1b2b; }
+.mw-word { font-weight:800; font-size:2.1rem; letter-spacing:-.02em; line-height:1; color:#1b1b2b; }
 .mw-tag { font-size:.82rem; color:#6b7280; margin-top:3px; }
 </style>
 <div class="mw-brand">
