@@ -32,8 +32,10 @@ if len(cats) > 1:
     st.divider()
     st.subheader("🐱 Cat Selection")
     st.caption("You have more than one cat. Pick which one to view, it switches every section below.")
-    selected = st.radio("Cat Selection", [name for name, _ in cats],
-                        horizontal=True, label_visibility="collapsed")
+    names = [name for name, _ in cats]
+    selected = st.segmented_control("Cat Selection", names, default=names[0],
+                                    selection_mode="single", label_visibility="collapsed")
+    selected = selected or names[0]   # keep a cat selected if the chip is deselected
 
 # Current-activity card (live) , top, right under the switcher.
 mw.live_view(uid, token, only_cat=selected, part="current")
