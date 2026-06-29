@@ -101,7 +101,7 @@ input[type=range] { width: 100%; margin-top: .5rem; accent-color: var(--accent);
    trim window and playhead span audio + motion together. */
 .wave-stack { position: relative; }
 .wave-lane { position: relative; }
-.wave-lane + .wave-lane { border-top: 1px solid #e6e7ec; }
+.wave-lane + .wave-lane { border-top: 1px solid var(--line); }
 .wave-lane canvas { display: block; width: 100%; }
 canvas.wave-audio { height: 64px; }
 canvas.wave-imu { height: 46px; }

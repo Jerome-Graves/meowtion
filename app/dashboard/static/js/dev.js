@@ -292,9 +292,10 @@
       bar.append(playBtn, tnum, saveBtn, fullBtn);
       if (hasImu) {
         const lg = el("div", "imu-legend");
-        lg.innerHTML = '<span><i style="background:#d1495b"></i>X</span>' +
-                       '<span><i style="background:#2a9d8f"></i>Y</span>' +
-                       '<span><i style="background:#5b6cc2"></i>Z</span>';
+        // Built from IMU_COLORS so the legend swatches can't drift from the waveform line colours.
+        lg.innerHTML = ["X", "Y", "Z"]
+          .map((ax, i) => `<span><i style="background:${IMU_COLORS[i]}"></i>${ax}</span>`)
+          .join("");
         bar.appendChild(lg);
       }
       container.appendChild(bar);
