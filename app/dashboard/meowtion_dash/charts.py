@@ -115,20 +115,23 @@ def event_timeline(data, colors=None, height=300):
         x_scale = alt.Scale(domain=[base.isoformat(), (base + pd.Timedelta(days=1)).isoformat()], nice=False)
     else:
         x_scale = alt.Undefined
+    zoom = alt.selection_interval(bind="scales", encodings=["x"])   # scroll/drag to zoom the time axis
     return (
         alt.Chart(data)
-        .mark_bar(cornerRadius=2, height=14)
+        .mark_bar(cornerRadius=2)
         .encode(
             x=alt.X("start:T", title=None, scale=x_scale,
                     axis=alt.Axis(format="%H:%M", labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
             x2="end:T",
             y=alt.Y("day:N", title=None, sort="ascending",
+                    scale=alt.Scale(paddingInner=0.25),   # a small vertical gap between the day rows
                     axis=alt.Axis(labelColor="#3a3a4a", labelFontWeight=600)),
             color=alt.Color("activity:N", scale=scale, legend=None),
             tooltip=["activity", "day",
                      alt.Tooltip("start:T", title="from", format="%H:%M"),
                      alt.Tooltip("end:T", title="to", format="%H:%M")],
         )
+        .add_params(zoom)
         .properties(height=height, background="transparent")
         .configure_view(fill=None, stroke=None)
         .configure_axis(grid=False, domainColor="#e6e7ec", tickColor="#e6e7ec")
