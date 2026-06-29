@@ -45,7 +45,7 @@ def _signed_in_header(claims):
            "color:inherit;text-decoration:none;font-weight:400;white-space:nowrap;")
     st.markdown(
         '<div style="display:flex;align-items:center;gap:0.6rem;margin:0 0 0.6rem;">'
-        f'<span style="flex:1;color:rgba(133,133,143,0.95);font-size:0.85rem;">Signed in as {email}</span>'
+        f'<span style="flex:1;color:rgba(133,133,143,0.95);font-size:0.85rem;">Signed in as <strong style="color:inherit;font-weight:700;">{email}</strong></span>'
         f'<a href="{_ACCOUNT_URL}" target="_self" style="{btn}">Manage devices</a>'
         f'<a href="{_ACCOUNT_URL}?logout=1" target="_self" style="{btn}">Log out</a>'
         '</div>',
