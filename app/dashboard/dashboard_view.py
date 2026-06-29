@@ -216,10 +216,10 @@ def render(df, data=None):
             else:
                 rng_start = pd.Timestamp(start_date)
                 rng_end = pd.Timestamp(end_date) + pd.Timedelta(days=1)   # inclusive of the last day
-                x_domain = [rng_start.isoformat(), rng_end.isoformat()]
+                time_domain = [rng_start.isoformat(), rng_end.isoformat()]
                 time_format = "%a %d" if span == "Week" else "%d %b"
                 st.altair_chart(
-                    mw.event_timeline(frame, colors=colours, x_domain=x_domain,
+                    mw.event_timeline(frame, colors=colours, time_domain=time_domain,
                                       time_format=time_format, height=380),
                     use_container_width=True,
                 )

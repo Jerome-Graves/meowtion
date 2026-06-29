@@ -103,21 +103,22 @@ def intraday_timeline(data, colors=None, x_domain=None, height=300):
     )
 
 
-def event_timeline(data, colors=None, x_domain=None, time_format="%a %d", height=300):
-    """A Gantt-style timeline across a multi-day range. Each row is an event with `start`/`end`
-    timestamps and `activity`; it is drawn as a horizontal bar from start to end in a lane per
-    activity, coloured by activity, so you can read when each behaviour happened across the days.
-    Pass `colors` to match the filter buttons and `x_domain` to bound the time axis."""
+def event_timeline(data, colors=None, time_domain=None, time_format="%a %d", height=300):
+    """A Gantt-style timeline across a multi-day range, drawn VERTICALLY: time runs down the y-axis
+    and each activity is a column on the x-axis. Each event (`start`/`end` timestamps, `activity`) is
+    a vertical bar from its start to its end in its activity's column, coloured by activity. Pass
+    `colors` to match the filter buttons and `time_domain` to bound the time axis."""
     scale = activity_scale(colors=colors) if colors else activity_scale(sorted(map(str, data["activity"].unique())))
     return (
         alt.Chart(data)
         .mark_bar(cornerRadius=2, size=18)
         .encode(
-            x=alt.X("start:T", title=None,
-                    scale=alt.Scale(domain=x_domain, nice=False) if x_domain else alt.Undefined,
-                    axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
-            x2="end:T",
-            y=alt.Y("activity:N", title=None, axis=alt.Axis(labelColor="#3a3a4a", labelFontWeight=600)),
+            x=alt.X("activity:N", title=None,
+                    axis=alt.Axis(labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
+            y=alt.Y("start:T", title=None,
+                    scale=alt.Scale(domain=time_domain, nice=False) if time_domain else alt.Undefined,
+                    axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600)),
+            y2="end:T",
             color=alt.Color("activity:N", scale=scale, legend=None),
             tooltip=["activity",
                      alt.Tooltip("start:T", title="start", format="%a %d %H:%M"),
