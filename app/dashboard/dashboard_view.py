@@ -40,8 +40,6 @@ def render(df, data=None):
     # Daily weather (from the station's stored history), used for context below.
     wdf = mw.weather_dataframe(data)
 
-    dark = mw.is_dark()   # adapt our custom CSS + charts to the viewer's light/dark theme
-
     # ===================================================================== #
     # STEP 1 , HEALTH WATCH , the useful bit.
     #   For each key habit, mw.health_signals compares the last few days to the cat's
@@ -98,24 +96,21 @@ def render(df, data=None):
     # a clear prompt and style the input as a bordered, lavender, pointer-cursor box that lifts on
     # hover, so it plainly reads as a control you can click to change the date.
     st.caption("Click the box below to pick a day, or pick a start and end date for a range.")
-    # Lavender border + pointer cursor so the box reads as clickable, with bg/text following our theme.
-    box_bg = "#1d1d27" if dark else "#ffffff"
-    box_text = "#e7e7ef" if dark else "#1b1b2b"
-    st.html(f"""
+    # Lavender border + pointer cursor so the box reads as clickable.
+    st.html("""
         <style>
-        div[data-testid="stDateInput"] div[data-baseweb="input"] {{
-            background: {box_bg};
+        div[data-testid="stDateInput"] div[data-baseweb="input"] {
             border: 2px solid #bc7bc2;
             border-radius: 10px;
             cursor: pointer;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             transition: border-color .15s ease, box-shadow .15s ease;
-        }}
-        div[data-testid="stDateInput"] div[data-baseweb="input"]:hover {{
+        }
+        div[data-testid="stDateInput"] div[data-baseweb="input"]:hover {
             border-color: #d6a9db;
             box-shadow: 0 2px 8px rgba(188,123,194,0.40);
-        }}
-        div[data-testid="stDateInput"] input {{ cursor: pointer; color: {box_text} !important; }}
+        }
+        div[data-testid="stDateInput"] input { cursor: pointer; }
         </style>
     """)
     date_range = st.date_input(
@@ -172,9 +167,9 @@ def render(df, data=None):
                 label_prefix = ""
                 # "off" state: a neutral surface with the activity's own colour as an outline and
                 # readable text, so it's clearly the same button just switched off (filled = on,
-                # outline = off). Adapts to the light/dark theme.
-                bg_colour = "#2a2a36" if dark else "#FFFFFF"
-                text_colour = "#e7e7ef" if dark else "#3a3a4a"
+                # outline = off).
+                bg_colour = "#FFFFFF"
+                text_colour = "#3a3a4a"
                 border_colour = colours[activity]
             
             button_label = f"{label_prefix} {activity}"
@@ -231,7 +226,7 @@ def render(df, data=None):
         st.markdown("**Time per activity**")
         st.caption("Total minutes spent on each activity over the chosen dates. "
                    "Use the coloured buttons above to turn activities on or off in both charts.")
-        st.altair_chart(mw.activity_totals(window, colors=colours, dark=dark), use_container_width=True)
+        st.altair_chart(mw.activity_totals(window, colors=colours), use_container_width=True)
 
         # ONE timeline for any span: rows of days (y-axis), time of day on the x-axis (00:00-24:00),
         # each event a horizontal bar at the time of day it happened. A single day is simply one row,
@@ -253,7 +248,7 @@ def render(df, data=None):
             zoom_n = st.session_state.get("timeline_zoom_n", 0)
             st.altair_chart(
                 mw.event_timeline(frame, colors=colours,
-                                  height=max(220, 40 + 26 * n_days), zoom_key=zoom_n, dark=dark),
+                                  height=max(220, 40 + 26 * n_days), zoom_key=zoom_n),
                 use_container_width=True,
                 key=f"timeline_{zoom_n}",
             )

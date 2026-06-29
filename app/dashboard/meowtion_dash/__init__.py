@@ -22,7 +22,7 @@ For charts (used by dashboard_view.py):
     mw.bar(frame, x, y, y_title)             branded Altair bar chart
     mw.EVENT_ICON, mw.fmt_time, mw.fmt_dur
 """
-from .theme import configure_page, brand_header, is_dark
+from .theme import configure_page, brand_header
 from .auth import require_session
 from .firebase import fetch
 from .data import (
@@ -37,7 +37,7 @@ from .weather import weather_dataframe, window_weather, weather_caption
 from .live import live_view
 
 __all__ = [
-    "configure_page", "brand_header", "is_dark", "require_session", "fetch", "live_view",
+    "configure_page", "brand_header", "require_session", "fetch", "live_view",
     "activity_dataframe", "model_labels", "list_cats", "iter_cats", "EVENT_ICON", "fmt_time", "fmt_dur",
     "canonical_activity",
     "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",

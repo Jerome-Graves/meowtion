@@ -42,39 +42,6 @@ button[data-testid="stBaseButton-segmented_controlActive"]::before { content:"âœ
 """
 
 
-def is_dark():
-    """True if the viewer turned on dark mode with the on-page toggle (stored in session state and
-    mirrored to the URL). Our custom CSS and the charts read this so they adapt together."""
-    return bool(st.session_state.get("theme_toggle", False))
-
-
-# Dark-mode overrides, layered on top of the light base CSS when the toggle is on. Streamlit's own
-# widgets follow the config (light) theme, not our toggle, so we recolour text, metrics, buttons,
-# expanders and the segmented control here. (The date-picker CALENDAR popup is intentionally left in
-# its clean native light styling , forcing it dark fought baseweb and kept breaking.)
-_DARK_CSS = """
-<style>
-.stApp { background: radial-gradient(1100px 480px at 50% -220px, #2b2750, transparent), #0e0e15; }
-.mw-word { color:#ececf2; }
-.mw-tag, [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * { color:#9aa0ad !important; }
-.stApp, .stApp p, .stApp li,
-[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li,
-[data-testid="stHeading"], h1, h2, h3, h4, h5,
-[data-testid="stWidgetLabel"] label, [data-testid="stWidgetLabel"] p { color:#e7e7ef; }
-[data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color:#e7e7ef !important; }
-[data-testid="stMetricDelta"] { color:#b8b8c4 !important; }
-.st-key-reset_timeline_zoom button { background:#22222e !important; border:1px solid #3a3a48 !important; }
-.st-key-reset_timeline_zoom button, .st-key-reset_timeline_zoom button * { color:#e7e7ef !important; }
-[data-testid="stExpander"] details { background:#15151d; border:1px solid #2a2a36; border-radius:.5rem; }
-[data-testid="stExpander"] summary, [data-testid="stExpander"] summary * { color:#e7e7ef; }
-button[data-testid="stBaseButton-segmented_control"] { background:#26262f !important; border-color:#3a3a48 !important; }
-button[data-testid="stBaseButton-segmented_control"], button[data-testid="stBaseButton-segmented_control"] * { color:#8f8f9b !important; }
-hr { border-color:#2a2a36 !important; }
-a { color:#d6a9db; }
-</style>
-"""
-
-
 def configure_page():
     """Set the page title and icon. Must be the FIRST Streamlit call in the app."""
     st.set_page_config(page_title="Meowtion",
@@ -82,8 +49,5 @@ def configure_page():
 
 
 def brand_header():
-    """Render the Meowtion brand bar and apply the page theme CSS. Light by default; if the in-page
-    toggle is on, the dark overrides are appended to the SAME markdown call. (Rendering them as a
-    second st.markdown would add an empty element container, nudging the whole page down a few px when
-    dark is on, so dividers appeared to shift between themes.)"""
-    st.markdown(_BRAND_HTML + (_DARK_CSS if is_dark() else ""), unsafe_allow_html=True)
+    """Render the Meowtion brand bar and apply the page theme CSS."""
+    st.markdown(_BRAND_HTML, unsafe_allow_html=True)
