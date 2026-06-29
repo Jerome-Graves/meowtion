@@ -30,7 +30,7 @@ cats = mw.list_cats(data)                          # [(name, cat_id), ...]
 selected = cats[0][0] if cats else None
 if len(cats) > 1:
     st.divider()
-    st.markdown("**Cat Selection**")
+    st.subheader("🐱 Cat Selection")
     selected = st.radio("Cat Selection", [name for name, _ in cats],
                         horizontal=True, label_visibility="collapsed")
 
