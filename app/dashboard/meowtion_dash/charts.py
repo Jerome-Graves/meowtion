@@ -118,7 +118,7 @@ def intraday_timeline(data, colors=None, x_domain=None, height=300):
     )
 
 
-def event_timeline(data, colors=None, height=300, zoom_key=0):
+def event_timeline(data, colors=None, height=300, zoom_key=0, dark=False):
     """Multi-day timeline drawn as rows of days: the y-axis is the calendar day and the x-axis is the
     time of day (spanning the data's actual range, shared across days). Each event is a horizontal bar from its start to
     its end time of day in its day's row, coloured by activity. `data` columns: `day`, `start`, `end`
@@ -137,16 +137,17 @@ def event_timeline(data, colors=None, height=300, zoom_key=0):
     else:
         x_scale = alt.Undefined
     zoom = alt.selection_interval(bind="scales", encodings=["x"], name=f"zoom_{zoom_key}")
+    label_c, _title_c, line_c = _axis_colors(dark)
     return (
         alt.Chart(data)
         .mark_bar(cornerRadius=2)
         .encode(
             x=alt.X("start:T", title=None, scale=x_scale,
-                    axis=alt.Axis(format="%H:%M", labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
+                    axis=alt.Axis(format="%H:%M", labelColor=label_c, labelFontWeight=600, labelAngle=0)),
             x2="end:T",
             y=alt.Y("day:N", title=None, sort="ascending",
                     scale=alt.Scale(paddingInner=0.25),   # a small vertical gap between the day rows
-                    axis=alt.Axis(labelColor="#3a3a4a", labelFontWeight=600)),
+                    axis=alt.Axis(labelColor=label_c, labelFontWeight=600)),
             color=alt.Color("activity:N", scale=scale, legend=None),
             tooltip=["activity", "day",
                      alt.Tooltip("start:T", title="from", format="%H:%M"),
@@ -155,31 +156,39 @@ def event_timeline(data, colors=None, height=300, zoom_key=0):
         .add_params(zoom)
         .properties(height=height, background="transparent")
         .configure_view(fill=None, stroke=None)
-        .configure_axis(grid=False, domainColor="#e6e7ec", tickColor="#e6e7ec")
+        .configure_axis(grid=False, domainColor=line_c, tickColor=line_c)
     )
 
 
-def activity_totals(data, colors=None, height=240):
+def _axis_colors(dark):
+    """(label, title, line) axis colours for the current theme, so charts stay readable in dark mode."""
+    if dark:
+        return "#d7d7e0", "#9aa0ad", "#3a3a44"
+    return "#3a3a4a", "#6b7280", "#e6e7ec"
+
+
+def activity_totals(data, colors=None, height=240, dark=False):
     """One bar per activity showing the TOTAL minutes spent on it across the selected period:
     x = activity, y = total minutes, bars coloured to match the filter buttons and sorted biggest
     first. `data` is event rows with `activity` and `event_duration` (minutes); pass `colors` to
-    share the buttons' palette."""
+    share the buttons' palette. `dark` adapts the axis colours to the dark theme."""
     scale = activity_scale(colors=colors) if colors else activity_scale(sorted(map(str, data["activity"].unique())))
+    label_c, title_c, line_c = _axis_colors(dark)
     return (
         alt.Chart(data)
         .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
         .encode(
             x=alt.X("activity:N", title=None, sort="-y",
-                    axis=alt.Axis(labelAngle=0, labelColor="#3a3a4a", labelFontWeight=600)),
+                    axis=alt.Axis(labelAngle=0, labelColor=label_c, labelFontWeight=600)),
             y=alt.Y("sum(event_duration):Q", title="total minutes",
-                    axis=alt.Axis(labelColor="#6b7280", titleColor="#6b7280")),
+                    axis=alt.Axis(labelColor=title_c, titleColor=title_c)),
             color=alt.Color("activity:N", scale=scale, legend=None),
             tooltip=[alt.Tooltip("activity:N", title="activity"),
                      alt.Tooltip("sum(event_duration):Q", title="minutes", format=".0f")],
         )
         .properties(height=height, background="transparent")
         .configure_view(fill=None, stroke=None)
-        .configure_axis(grid=False, domainColor="#e6e7ec", tickColor="#e6e7ec")
+        .configure_axis(grid=False, domainColor=line_c, tickColor=line_c)
     )
 
 

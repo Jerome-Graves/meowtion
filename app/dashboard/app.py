@@ -74,3 +74,5 @@ st.caption("Trouble signing in or using the site? Please "
            "[open an issue on GitHub](https://github.com/Jerome-Graves/meowtion/issues). "
            "For anything private, you can reach me through my "
            "[GitHub profile](https://github.com/Jerome-Graves).")
+st.caption("Prefer dark mode? Switch any time from the ⋮ menu (top-right) → Settings → Theme. "
+           "Your choice is remembered in this browser.")

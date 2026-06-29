@@ -31,6 +31,15 @@ html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', sy
 """
 
 
+def is_dark():
+    """True if the viewer has Streamlit's dark theme active (chosen from the top-right ⋮ menu,
+    Settings -> Theme). Our custom CSS and charts read this so they adapt instead of staying light."""
+    try:
+        return getattr(st.context.theme, "type", "light") == "dark"
+    except Exception:
+        return False
+
+
 def configure_page():
     """Set the page title and icon. Must be the FIRST Streamlit call in the app."""
     st.set_page_config(page_title="Meowtion",
@@ -38,5 +47,15 @@ def configure_page():
 
 
 def brand_header():
-    """Render the Meowtion brand bar and apply the page theme CSS."""
+    """Render the Meowtion brand bar and apply the page theme CSS. The base CSS is light; if the
+    viewer picked the dark theme we layer a dark override on top (later CSS wins)."""
     st.markdown(_BRAND_HTML, unsafe_allow_html=True)
+    if is_dark():
+        st.markdown(
+            "<style>"
+            ".stApp { background: radial-gradient(1100px 480px at 50% -220px, #2b2750, transparent), #0e0e15; }"
+            ".mw-word { color:#ececf2; }"
+            ".mw-tag { color:#9aa0ad; }"
+            "</style>",
+            unsafe_allow_html=True,
+        )
