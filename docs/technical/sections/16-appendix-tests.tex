@@ -1,134 +1,286 @@
 \section{Automated test inventory}
 \label{app:tests}
 
-% Test names and paths contain underscores; \detokenize renders them literally without manual
-% escaping, and avoids the \path name clash with TikZ used elsewhere in this document.
+% Identifiers/literals contain underscores; \detokenize renders them literally without manual escaping
+% and avoids the \path clash with TikZ used elsewhere in this document.
 \providecommand{\tn}[1]{\texttt{\detokenize{#1}}}
 
-This appendix lists every automated test in the project, with the assertion each one makes and its
-result. The suites run in continuous integration on every push and pull request
-(\cref{sec:evaluation}). As of the run on 2026-06-29 all \textbf{71} tests pass: \textbf{62} Python
-tests (executed with \texttt{pytest}) and \textbf{9} host-compiled C tests for the on-device cascade.
-Line coverage of the unit-testable core (\tn{meowtion_dash/data.py} and the Cloud Function's
-\tn{main.py}) is \textbf{100\,\%}; request handlers, model training, the dashboard UI and
-hardware-bound firmware paths are excluded from that figure and are covered by on-hardware
-verification (\cref{sec:evaluation}).
+% A filled-in test-case form (IEEE-829 style). One per automated test.
+% #1 ID  #2 Title  #3 Component  #4 Type  #5 Preconditions  #6 Input/data  #7 Procedure  #8 Expected  #9 Status
+\newcommand{\testcase}[9]{%
+  \par\smallskip\noindent
+  \begingroup\footnotesize
+  \arrayrulecolor{mwline}\setlength{\arrayrulewidth}{0.4pt}\renewcommand{\arraystretch}{1.25}%
+  \begin{tabularx}{\textwidth}{|>{\bfseries\color{mwink}}p{3.0cm}|X|}
+    \hline
+    \rowcolor{mwlav!10}\multicolumn{2}{|@{\hspace{6pt}}l|}{%
+      {\bfseries\color{mwlavd}Test case #1}\hfill{\color{mwmut}#4}}\\
+    \hline
+    Title & #2\\\hline
+    Component & #3\\\hline
+    Preconditions & #5\\\hline
+    Input / test data & #6\\\hline
+    Procedure & #7\\\hline
+    Expected result & #8\\\hline
+    Actual result & As expected\\\hline
+    Status & \textbf{#9}\\\hline
+  \end{tabularx}%
+  \endgroup\smallskip
+}
 
-\subsection{Firmware unit tests (C, host-compiled)}
+This appendix is the test-case specification for the project's automated tests: one filled form per
+test, recording its scenario, inputs, expected result and status. The suites run in continuous
+integration on every push and pull request (\cref{sec:evaluation}). As of the run on 2026-06-29,
+\textbf{all 71 tests pass}: \textbf{62} Python tests (run with \texttt{pytest}) and \textbf{9}
+host-compiled C tests for the on-device cascade. Line coverage of the unit-testable core
+(\tn{meowtion_dash/data.py} and the Cloud Function's \tn{main.py}) is \textbf{100\,\%}. Parametrised
+tests are recorded as a single form whose input field lists every case. ``Actual result: as expected''
+denotes the assertions held when the suite last ran.
 
-The pure collar logic is compiled and run on the host (no Zephyr, no hardware) from
-\tn{firmware/test}. These cover the rules-based activity gate and the confidence-gated IMU/audio
-cascade.
+\subsection{Firmware tests (C, host-compiled)}
 
-\begin{table}[ht]
-  \centering
-  \footnotesize
-  \caption{Firmware C unit tests.}
-  \label{tab:tests-c}
-  \begin{tabularx}{\textwidth}{@{}Xr@{}}
-    \toprule
-    \textbf{Test and assertion} & \textbf{Result} \\
-    \midrule
-    \multicolumn{2}{@{}l}{\emph{\tn{test_activity.c} , rules-based activity gate}}\\
-    \tn{test_motion_keeps_awake}: motion above the still threshold keeps the collar awake & Pass \\
-    \tn{test_sustained_stillness_trips_rest}: sustained stillness past the hold-off enters low-power rest & Pass \\
-    \tn{test_motion_resets_the_timer}: fresh motion resets the stillness timer, deferring rest & Pass \\
-    \addlinespace
-    \multicolumn{2}{@{}l}{\emph{\tn{test_classifier.c} , confidence-gated cascade}}\\
-    \tn{test_confident_imu_skips_audio}: a confident IMU result skips the audio stage & Pass \\
-    \tn{test_unsure_imu_consults_audio}: an uncertain IMU result triggers audio confirmation & Pass \\
-    \tn{test_audio_kept_only_when_more_confident}: audio replaces the IMU result only when more confident & Pass \\
-    \tn{test_disabled_confirm_never_runs_audio}: with confirmation disabled, audio never runs & Pass \\
-    \tn{test_no_pcm_skips_audio}: with no audio samples buffered, the audio stage is skipped & Pass \\
-    \tn{test_no_audio_model_skips_audio}: with no audio model loaded, the audio stage is skipped & Pass \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
+Compiled and run on the host from \tn{firmware/test} (no Zephyr, no hardware). The classifier tests
+link strong overrides of the model hooks (declared \texttt{weak} in \tn{classifier.c}) and count
+audio-stage invocations, so every gating branch is checked.
 
-\subsection{Cloud Function unit tests (Python)}
+\testcase{ACT-01}{Motion keeps the collar awake}{Activity gate , \tn{activity.c}}{Unit test (host C)}
+{\tn{activity_reset()} called; step \tn{dt}=2\,s.}
+{100 consecutive readings at peak motion \tn{ACT_STILL_MG}+50 (above the stillness threshold).}
+{Call \tn{activity_should_rest(peak, 2)} for each reading.}
+{Every call returns ``do not rest'' , motion never drops the collar to low-power rest.}{Pass}
 
-From \tn{app/firebase/functions/tests}: the model-training signal logic (\tn{test_dsp.py}) and the
-request-path validation and WAV parsing (\tn{test_helpers.py}). Parametrised tests note the number of
-cases they cover.
+\testcase{ACT-02}{Sustained stillness trips rest}{Activity gate , \tn{activity.c}}{Unit test (host C)}
+{\tn{activity_reset()} called; step \tn{dt}=2\,s.}
+{Still readings (peak 0) every 2\,s, spanning the hold-off \tn{ACT_REST_HOLDOFF_S}.}
+{Call \tn{activity_should_rest(0, 2)} repeatedly across the hold-off.}
+{Returns ``no rest'' for every step before the hold-off, then ``rest'' once stillness is sustained past it.}{Pass}
 
-\begin{table}[ht]
-  \centering
-  \footnotesize
-  \caption{Cloud Function Python unit tests.}
-  \label{tab:tests-cloud}
-  \begin{tabularx}{\textwidth}{@{}Xr@{}}
-    \toprule
-    \textbf{Test and assertion} & \textbf{Result} \\
-    \midrule
-    \multicolumn{2}{@{}l}{\emph{\tn{test_dsp.py} , windowing and normalisation}}\\
-    \tn{test_per_window_norm_is_zero_mean_and_bounded}: per-window normalisation is zero-mean and bounded & Pass \\
-    \tn{test_per_window_norm_matches_formula}: normalisation matches the reference formula & Pass \\
-    \tn{test_per_window_norm_normalises_each_channel_independently}: each channel is normalised independently & Pass \\
-    \tn{test_windows_pads_short_input_to_a_single_window}: short input is padded to a single window & Pass \\
-    \tn{test_windows_slides_with_hop}: the window slides by the configured hop & Pass \\
-    \tn{test_build_dataset_windows_imu_clips}: the dataset builder windows IMU clips & Pass \\
-    \tn{test_build_dataset_windows_audio_clips}: the dataset builder windows audio clips & Pass \\
-    \tn{test_build_dataset_skips_empty_imu}: empty IMU clips are skipped & Pass \\
-    \addlinespace
-    \multicolumn{2}{@{}l}{\emph{\tn{test_helpers.py} , path validation and WAV parsing}}\\
-    \tn{test_safe_id_accepts_valid_segments}: \tn{_safe_id} accepts valid id segments (4 cases) & Pass \\
-    \tn{test_safe_id_rejects_traversal_and_separators}: rejects path traversal, separators and spaces (10 cases) & Pass \\
-    \tn{test_safe_ts_accepts_digits_only}: \tn{_safe_ts} accepts all-digit timestamps & Pass \\
-    \tn{test_safe_ts_rejects_non_digits}: rejects signed, hex, spaced or traversal timestamps (7 cases) & Pass \\
-    \tn{test_parse_wav_roundtrips_samples}: the WAV parser round-trips PCM samples & Pass \\
-    \tn{test_parse_wav_reads_rate_from_fmt_chunk}: reads the sample rate from the fmt chunk & Pass \\
-    \tn{test_parse_wav_rejects_non_wav}: rejects non-WAV input & Pass \\
-    \tn{test_parse_wav_requires_a_data_chunk}: requires a data chunk & Pass \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
+\testcase{ACT-03}{Motion resets the still-timer}{Activity gate , \tn{activity.c}}{Unit test (host C)}
+{\tn{activity_reset()} called; still-timer advanced to just before the hold-off.}
+{One reading at the threshold \tn{ACT_STILL_MG}, then a still reading.}
+{Call \tn{activity_should_rest(ACT_STILL_MG, 2)} then \tn{activity_should_rest(0, 2)}.}
+{Does not rest immediately , the motion reset the timer, so a full hold-off is required again.}{Pass}
 
-\subsection{Dashboard unit tests (Python)}
+\testcase{CLF-01}{Confident IMU skips audio}{Cascade , \tn{classifier.c}}{Unit test (host C)}
+{\tn{conf_threshold}=0.75; audio confirmation enabled; audio model present.}
+{IMU = (class 2, confidence 0.90); audio = (5, 0.99).}
+{Call \tn{clf_classify()} for the cycle; count audio invocations.}
+{Audio stage not run (0 calls); result class = 2 (the confident IMU result).}{Pass}
 
-From \tn{app/dashboard/tests}: the data layer that turns the raw Firebase JSON into the chart-ready
-frame, the time-window drill-down, the per-day segmenting used by the timeline, and the health-watch
-comparison.
+\testcase{CLF-02}{Unsure IMU consults audio}{Cascade , \tn{classifier.c}}{Unit test (host C)}
+{\tn{conf_threshold}=0.75; audio confirmation enabled; audio model present.}
+{IMU = (2, 0.40) below threshold; audio = (5, 0.95).}
+{Call \tn{clf_classify()} for the cycle; count audio invocations.}
+{Audio run exactly once; result class = 5 (the more-confident audio result).}{Pass}
 
-\begin{table}[ht]
-  \centering
-  \footnotesize
-  \caption{Dashboard data-layer Python unit tests.}
-  \label{tab:tests-dash}
-  \begin{tabularx}{\textwidth}{@{}Xr@{}}
-    \toprule
-    \textbf{Test and assertion} & \textbf{Result} \\
-    \midrule
-    \multicolumn{2}{@{}l}{\emph{\tn{test_data.py}}}\\
-    \tn{test_fmt_dur_under_and_over_a_minute}: duration formatting under and over a minute & Pass \\
-    \tn{test_activity_dataframe_maps_class_index_to_label}: real events map the class index to the model label & Pass \\
-    \tn{test_activity_dataframe_rest_event_uses_type_not_class}: the 0xFE rest sentinel falls back to the event type & Pass \\
-    \tn{test_activity_dataframe_v1_event_uses_type}: legacy v1 events use the stored type & Pass \\
-    \tn{test_activity_dataframe_skips_malformed_events}: events with no start time are skipped & Pass \\
-    \tn{test_filter_by_activity_single_and_list}: the activity filter accepts a name or a list & Pass \\
-    \tn{test_over_time_sums_duration_by_activity}: over-time aggregation sums duration by activity & Pass \\
-    \addlinespace
-    \multicolumn{2}{@{}l}{\emph{\tn{test_more.py}}}\\
-    \tn{test_iter_cats_handles_station_nested_and_standalone}: parses station-nested and standalone cat shapes & Pass \\
-    \tn{test_list_cats_dedups_and_pairs_name_id}: de-duplicates and pairs (name, id) & Pass \\
-    \tn{test_period_options_day_newest_first_deduped}: day options are newest-first and de-duplicated & Pass \\
-    \tn{test_filter_to_window_day_and_month}: day and month window filtering & Pass \\
-    \tn{test_health_signals_recent_average_without_baseline}: recent average with no baseline yet & Pass \\
-    \tn{test_fmt_time_format}: epoch-to-clock time formatting & Pass \\
-    \tn{test_filter_by_weekday}: weekday filtering (single or list) & Pass \\
-    \tn{test_filter_by_date_range}: date-range filtering (bounded or open-ended) & Pass \\
-    \tn{test_last_n_days_keeps_recent_calendar_days}: keeps the most recent N calendar days & Pass \\
-    \tn{test_health_signals_reports_drop_vs_baseline}: reports a habit drop versus baseline as a percentage & Pass \\
-    \tn{test_model_labels}: reads model labels, with empty/None guards & Pass \\
-    \tn{test_iter_cats_skips_non_dict_entries}: skips non-dict device and cat entries & Pass \\
-    \tn{test_period_options_empty_week_and_month}: empty input and the Week/Month option paths & Pass \\
-    \tn{test_filter_to_window_empty_and_week}: empty input and the 7-day window & Pass \\
-    \tn{test_over_time_empty_and_day}: empty input and the hourly (Day) path & Pass \\
-    \tn{test_last_n_days_and_health_signals_handle_empty}: empty-input guards & Pass \\
-    \tn{test_daily_segments_rows_per_day_with_time_of_day}: events split per day with time-of-day, crossing midnight & Pass \\
-    \tn{test_daily_segments_skips_zero_and_empty}: zero-duration and empty input are skipped & Pass \\
-    \tn{test_trim_sparse_edge_days_drops_thin_first_and_last}: near-empty leading/trailing days are dropped & Pass \\
-    \tn{test_trim_sparse_edge_days_keeps_thin_interior_day}: a thin interior day is kept & Pass \\
-    \tn{test_trim_sparse_edge_days_handles_single_and_empty}: single-day and empty inputs are handled & Pass \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
+\testcase{CLF-03}{Audio kept only when more confident}{Cascade , \tn{classifier.c}}{Unit test (host C)}
+{\tn{conf_threshold}=0.75; audio confirmation enabled; audio model present.}
+{IMU = (2, 0.40); audio = (5, 0.30) , less confident than the IMU.}
+{Call \tn{clf_classify()} for the cycle; count audio invocations.}
+{Audio run once but discarded; result class = 2 (the IMU result is kept).}{Pass}
+
+\testcase{CLF-04}{Disabled confirmation never runs audio}{Cascade , \tn{classifier.c}}{Unit test (host C)}
+{\tn{conf_threshold}=0.75; audio confirmation \emph{disabled}; audio model present.}
+{IMU = (2, 0.40) below threshold; audio = (5, 0.95).}
+{Call \tn{clf_classify()} for the cycle; count audio invocations.}
+{Audio stage never runs (0 calls); result class = 2.}{Pass}
+
+\testcase{CLF-05}{No audio buffer skips audio}{Cascade , \tn{classifier.c}}{Unit test (host C)}
+{\tn{conf_threshold}=0.75; audio confirmation enabled; no PCM buffer this cycle.}
+{IMU = (2, 0.40) below threshold; PCM = NULL (the production IMU-only path).}
+{Call \tn{clf_classify(NULL, NULL, 0)}; count audio invocations.}
+{Audio stage skipped (0 calls); result class = 2.}{Pass}
+
+\testcase{CLF-06}{No audio model skips audio}{Cascade , \tn{classifier.c}}{Unit test (host C)}
+{\tn{conf_threshold}=0.75; audio confirmation enabled; no audio model present.}
+{IMU = (2, 0.40) below threshold; audio model absent.}
+{Call \tn{clf_classify()} for the cycle; count audio invocations.}
+{Audio stage skipped (0 calls); result class = 2.}{Pass}
+
+\subsection{Cloud Function tests (Python)}
+
+From \tn{app/firebase/functions/tests}; the Firebase SDKs are stubbed in \tn{conftest.py}.
+\tn{test_dsp.py} pins the exact representation the model trains on (and the collar reproduces at
+inference); the \tn{test_helpers.py} path-validation forms are security tests.
+
+\testcase{DSP-01}{Normalisation is zero-mean and bounded}{DSP , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{One channel \texttt{[1,2,3]}.}{Call \tn{per_window_norm(x)}.}
+{Output mean is 0 to within \texttt{1e-5}; all values lie within \texttt{[-1,1]}.}{Pass}
+
+\testcase{DSP-02}{Normalisation matches the reference formula}{DSP , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{\texttt{[0,10]}.}{Call \tn{per_window_norm(x)}.}
+{Output equals \texttt{[-1,1]} exactly (mean 5 removed, then divided by max-abs 5).}{Pass}
+
+\testcase{DSP-03}{Channels normalised independently}{DSP , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{Two channels \texttt{[[0,100],[4,104]]}.}{Call \tn{per_window_norm(x)}.}
+{Each channel's mean is 0 independently (channels are not pooled).}{Pass}
+
+\testcase{DSP-04}{Short input padded to one window}{DSP , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{3$\times$2 array; \tn{win}=5, \tn{hop}=2.}{Call \tn{windows(arr, win, hop)}.}
+{Exactly one window of shape \texttt{(5,2)}; the last two rows are zero-padded.}{Pass}
+
+\testcase{DSP-05}{Window slides with the hop}{DSP , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{\tn{arange(10)} reshaped \texttt{(10,1)}; \tn{win}=4, \tn{hop}=3.}{Call \tn{windows(arr, win, hop)}.}
+{Three windows starting at indices 0,\,3,\,6; each shape \texttt{(4,1)}.}{Pass}
+
+\testcase{DSP-06}{Dataset windows IMU clips}{DSP , \tn{main.py}}{Unit test (pytest)}
+{\tn{LABELS}=[\tn{eat},\tn{drink}].}{One IMU clip labelled \tn{drink}.}{Call \tn{build_dataset([clip], "imu")}.}
+{\tn{X} shape \texttt{(1, IMU\_WIN, IMU\_AXES)}; \tn{y}=[1] (the label index).}{Pass}
+
+\testcase{DSP-07}{Dataset windows audio clips}{DSP , \tn{main.py}}{Unit test (pytest)}
+{\tn{LABELS}=[\tn{eat},\tn{drink}].}{One audio clip labelled \tn{eat}.}{Call \tn{build_dataset([clip], "audio")}.}
+{\tn{X} shape \texttt{(1, AUDIO\_WIN, 1)}; \tn{y}=[0].}{Pass}
+
+\testcase{DSP-08}{Empty IMU clip skipped}{DSP , \tn{main.py}}{Unit test (pytest)}
+{\tn{LABELS}=[\tn{eat}].}{A clip with a zero-length IMU array.}{Call \tn{build_dataset([clip], "imu")}.}
+{No windows produced (\tn{len(X)}=0) , empty clips never reach training.}{Pass}
+
+\testcase{VAL-01}{Valid ids accepted}{Path validation (security) , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{4 inputs: \tn{cat_64582d}, \tn{abc-123_XYZ}, \tn{A}, \tn{0}.}
+{Match each against \tn{_SAFE_ID}.}{All four are accepted.}{Pass}
+
+\testcase{VAL-02}{Traversal and separators rejected}{Path validation (security) , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{10 inputs: \tn{../etc}, \tn{a/b}, \tn{a..b/}, \tn{a.b}, \tn{a b}, \tn{a;b}, empty, \tn{a/../b}, \tn{..}, \texttt{a\textbackslash b}.}
+{Match each against \tn{_SAFE_ID}.}{All ten are rejected (no path can escape the owner's prefix).}{Pass}
+
+\testcase{VAL-03}{Numeric timestamp accepted}{Path validation (security) , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{\tn{1719600000000} (all digits).}{Match against \tn{_SAFE_TS}.}
+{Accepted.}{Pass}
+
+\testcase{VAL-04}{Non-numeric timestamps rejected}{Path validation (security) , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{7 inputs: \tn{12a}, \tn{-1}, \tn{1.0}, \tn{../1}, empty, \tn{1 2}, \tn{0x10}.}
+{Match each against \tn{_SAFE_TS}.}{All seven are rejected.}{Pass}
+
+\testcase{WAV-01}{WAV parser round-trips samples}{WAV parsing , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{An 8\,kHz mono 16-bit WAV of \texttt{[0,1,-1,32767,-32768]}.}{Call \tn{parse_wav(buf)}.}
+{Returns rate 8000 and exactly those samples (including the int16 extremes).}{Pass}
+
+\testcase{WAV-02}{Sample rate read from header}{WAV parsing , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{A 16\,kHz WAV.}{Call \tn{parse_wav(buf)}.}
+{Parsed rate = 16000 (read from the \texttt{fmt} chunk, not assumed).}{Pass}
+
+\testcase{WAV-03}{Non-WAV input rejected}{WAV parsing , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{Non-RIFF bytes.}{Call \tn{parse_wav(buf)}.}
+{Raises \tn{ValueError}.}{Pass}
+
+\testcase{WAV-04}{Missing data chunk rejected}{WAV parsing , \tn{main.py}}{Unit test (pytest)}
+{Firebase SDKs stubbed.}{A WAV with a \texttt{fmt} chunk but no \texttt{data} chunk.}{Call \tn{parse_wav(buf)}.}
+{Raises \tn{ValueError}.}{Pass}
+
+\subsection{Dashboard data-layer tests (Python)}
+
+From \tn{app/dashboard/tests}, over the data layer that turns raw Firebase JSON into the chart-ready
+frame: event parsing, the time-window drill-down, the per-day segmenting behind the timeline, and the
+health-watch comparison.
+
+\testcase{DAT-01}{Duration formatting}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{\tn{fmt_dur(45)} and \tn{fmt_dur(125)}.}{Call \tn{fmt_dur}.}
+{Returns \tn{45s} and \tn{2m 05s} respectively.}{Pass}
+
+\testcase{DAT-02}{Class index maps to label}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{\tn{labels}=[\tn{eat},\tn{drink}].}{A \texttt{ver==2} event with \tn{cls}=0 and \texttt{durationSec}=120.}{Call \tn{activity_dataframe}.}
+{Activity is \tn{Eating} (label 0, canonicalised); \tn{event_duration}=2.0\,min.}{Pass}
+
+\testcase{DAT-03}{Rest sentinel uses type, not class}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{\tn{labels}=[\tn{eat},\tn{drink}].}{A \texttt{ver==2} event with \tn{cls}=254 (\texttt{0xFE}), \tn{type}=rest, \texttt{durationSec}=600.}{Call \tn{activity_dataframe}.}
+{Activity is \tn{Resting} from the \tn{type} (254 is not indexed into \tn{labels}); 10.0\,min.}{Pass}
+
+\testcase{DAT-04}{Legacy v1 event uses type}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A v1 event (no \tn{cls}) with \tn{type}=groom.}{Call \tn{activity_dataframe}.}
+{Activity is \tn{Grooming}.}{Pass}
+
+\testcase{DAT-05}{Malformed event skipped}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{An event with no \tn{start} timestamp.}{Call \tn{activity_dataframe}.}
+{The row is dropped; the resulting frame is empty (no exception).}{Pass}
+
+\testcase{DAT-06}{Activity filter, single and list}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{Frame with activities \{\tn{Eat},\tn{Drink},\tn{Rest}\}.}{Filter by \tn{Eat}, then by [\tn{Eat},\tn{Rest}].}{Call \tn{filter_by_activity}.}
+{Returns \{\tn{Eat}\}, then \{\tn{Eat},\tn{Rest}\}.}{Pass}
+
+\testcase{DAT-07}{Over-time sums duration}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Two same-day events of 120\,s and 60\,s.}{Call \tn{over_time}.}
+{Per-activity total is 3.0\,min.}{Pass}
+
+\testcase{DSH-01}{Parses nested and standalone cats}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A device tree with a station-relayed cat and a standalone collar.}{Call \tn{iter_cats}.}
+{Both are returned with name and relay resolved; the standalone's \tn{via}=\tn{None}.}{Pass}
+
+\testcase{DSH-02}{Cat list de-duplicated}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A mixed device tree.}{Call \tn{list_cats}.}
+{Returns de-duplicated \texttt{(name, id)} pairs.}{Pass}
+
+\testcase{DSH-03}{Day options newest-first}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Dates 27,\,28,\,28 Jun.}{Call \tn{period_options(df, "Day")}.}
+{Options \texttt{[2026-06-28, 2026-06-27]} , newest-first and de-duplicated.}{Pass}
+
+\testcase{DSH-04}{Day and month windows}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Mixed dates; Day=2026-06-28, Month=2026-06.}{Call \tn{filter_to_window}.}
+{Day keeps 2 rows; Month keeps the June rows \{27,\,28\}.}{Pass}
+
+\testcase{DSH-05}{Recent average without baseline}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{3 days of eating \texttt{[10,20,30]}\,min.}{Call \tn{health_signals}.}
+{\tn{recent}=20.0; \tn{baseline}=\tn{None}; \tn{change_pct}=\tn{None} (too little history).}{Pass}
+
+\testcase{DSH-06}{Time formatting}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{An epoch-milliseconds value.}{Call \tn{fmt_time}.}
+{Renders a ``dd Mon $\cdot$ HH:MM'' string.}{Pass}
+
+\testcase{DSH-07}{Weekday filter}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A set \{Saturday, Sunday\}, and a single \tn{Monday}.}{Call \tn{filter_by_weekday}.}
+{Keeps the matching weekday rows in both cases.}{Pass}
+
+\testcase{DSH-08}{Date-range filter}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A bounded range, and a start-only (open-ended) range.}{Call \tn{filter_by_date_range}.}
+{Bounded keeps \{27,\,28\}; start-only keeps \{28\}.}{Pass}
+
+\testcase{DSH-09}{Last N calendar days}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Dates 26,\,27,\,28; \tn{n}=2.}{Call \tn{last_n_days(df, n=2)}.}
+{Keeps the two most recent days \{27,\,28\}.}{Pass}
+
+\testcase{DSH-10}{Habit drop versus baseline}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Eating \texttt{[100,8,8,8,999]} over 5 days.}{Call \tn{health_signals}.}
+{Latest still-accruing day (999) dropped; \tn{recent}=8.0; \tn{baseline}=100.0; \tn{change_pct}=-92.0.}{Pass}
+
+\testcase{DSH-11}{Model labels with guards}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{\tn{models/labels} present, then \texttt{\{\}}, then \tn{None}.}{Call \tn{model_labels}.}
+{Returns \texttt{[eat,drink]}, then \texttt{[]}, then \texttt{[]} (no exception).}{Pass}
+
+\testcase{DSH-12}{Non-dict entries skipped}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A non-dict device entry and a non-dict cat entry.}{Call \tn{iter_cats}.}
+{Both are skipped; only the valid cat is returned.}{Pass}
+
+\testcase{DSH-13}{Empty input and Week/Month options}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Empty input; then dates spanning two months.}{Call \tn{period_options}.}
+{Empty input yields \texttt{[]}; Week/Month produce labelled options (\tn{Week of ...}, \tn{July 2026}/\tn{June 2026}).}{Pass}
+
+\testcase{DSH-14}{Empty input and Week window}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Empty input; then a Week window from 2026-06-29.}{Call \tn{filter_to_window}.}
+{Empty input handled; the Week window keeps \{2026-06-29\}.}{Pass}
+
+\testcase{DSH-15}{Empty input and hourly path}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Empty input; then a single-day (hourly) aggregation.}{Call \tn{over_time}.}
+{Empty input yields an empty frame; the Day path sums to 2.0.}{Pass}
+
+\testcase{DSH-16}{Empty-input guards}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Empty input.}{Call \tn{last_n_days} and \tn{health_signals}.}
+{Both return empty results (\texttt{[]} / empty frame) without raising.}{Pass}
+
+\testcase{DSH-17}{Midnight-crossing event split per day}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{Rest at 22:00 lasting 240\,min (crosses midnight).}{Call \tn{daily_segments}.}
+{Two rows: 22:00 to 24:00 on day 1 and 00:00 to 02:00 on day 2, mapped onto the shared time-of-day reference.}{Pass}
+
+\testcase{DSH-18}{Zero-duration and empty skipped}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A zero-duration event; then empty input.}{Call \tn{daily_segments}.}
+{No rows are produced in either case.}{Pass}
+
+\testcase{DSH-19}{Sparse edge days trimmed}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{3 days of 10 / 600 / 10\,min.}{Call \tn{trim_sparse_edge_days}.}
+{The thin first and last days are trimmed; the busy middle day is kept.}{Pass}
+
+\testcase{DSH-20}{Sparse interior day kept}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{3 days of 600 / 10 / 600\,min.}{Call \tn{trim_sparse_edge_days}.}
+{The thin interior day is kept (all three remain) , only edges are trimmed.}{Pass}
+
+\testcase{DSH-21}{Single-day and empty handled}{Data layer , \tn{data.py}}{Unit test (pytest)}
+{None.}{A single-day frame; then an empty frame.}{Call \tn{trim_sparse_edge_days}.}
+{The single-day frame is returned unchanged; the empty frame stays empty.}{Pass}

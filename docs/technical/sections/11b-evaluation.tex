@@ -1,6 +1,11 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
+% Tables below are ready-to-fill skeletons: replace each red "?" (\pcell) and each \ph{...} with the
+% measured value, then delete this note. Class rows assume the eat/drink/purr set , adjust to match
+% the deployed labels.
+\newcommand{\pcell}{\textcolor{red}{\textbf{?}}}
+
 This section reports the system's measured performance: the dataset it was trained and tested on, the
 classification accuracy of each cascade stage, the benefit of the audio confirmation stage, the
 on-device resource footprint and inference latency, power draw and battery life, and the time taken to
@@ -12,9 +17,41 @@ deliver a model over the air. All on-device figures are measured on the collar h
 The models were trained and evaluated on labelled cat-behaviour clips captured with the collar
 (\cref{sec:training-pipeline}), each a short window of audio paired with time-aligned motion.
 
-\phblock{Dataset summary table , number of clips per class, number of cats, number of capture
-sessions, clip length, sampling rates, and the train/validation/test split. State how the test split
-was held out (by clip, by session, or by cat) so the accuracy figures can be interpreted.}
+\begin{table}[ht]
+  \centering
+  \caption{Dataset summary.}
+  \label{tab:dataset}
+  \begin{tabularx}{\textwidth}{@{}lX@{}}
+    \toprule
+    \textbf{Property} & \textbf{Value} \\
+    \midrule
+    Cats                         & \pcell \\
+    Capture sessions             & \pcell \\
+    Clip length                  & \pcell\,s \\
+    Audio sample rate            & 8\,kHz ($\mu$-law) \\
+    IMU sample rate              & 104\,Hz \\
+    Train / validation / test    & \pcell\,/\,\pcell\,/\,\pcell\,\% \\
+    Test split held out by       & \pcell{} (clip / session / cat) \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+  \centering
+  \caption{Clips per behaviour class.}
+  \label{tab:dataset-classes}
+  \begin{tabularx}{\textwidth}{@{}Xrrr@{}}
+    \toprule
+    \textbf{Class} & \textbf{Clips} & \textbf{Sessions} & \textbf{Total (s)} \\
+    \midrule
+    Eating   & \pcell & \pcell & \pcell \\
+    Drinking & \pcell & \pcell & \pcell \\
+    Purring  & \pcell & \pcell & \pcell \\
+    \midrule
+    \textbf{Total} & \pcell & \pcell & \pcell \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
 \subsection{Classification accuracy}
 
@@ -22,8 +59,42 @@ The collar runs the confidence-gated cascade of \cref{sec:on-device-ai}: the IMU
 every window, and the audio stage confirms when the IMU result is uncertain. Overall accuracy on the
 held-out test split is \ph{overall accuracy \%}, with the per-class breakdown and confusion below.
 
-\phblock{Per-class precision / recall / F1 table and a confusion matrix, for (a) the IMU stage alone
-and (b) the full cascade. Note the operating confidence threshold used.}
+\begin{table}[ht]
+  \centering
+  \caption{Per-class precision / recall / F1: the IMU stage alone vs the full cascade (operating
+           confidence threshold 0.75).}
+  \label{tab:accuracy}
+  \begin{tabularx}{\textwidth}{@{}X rrr rrr@{}}
+    \toprule
+    & \multicolumn{3}{c}{\textbf{IMU stage alone}} & \multicolumn{3}{c}{\textbf{Full cascade}} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+    \textbf{Class} & P & R & F1 & P & R & F1 \\
+    \midrule
+    Eating   & \pcell & \pcell & \pcell & \pcell & \pcell & \pcell \\
+    Drinking & \pcell & \pcell & \pcell & \pcell & \pcell & \pcell \\
+    Purring  & \pcell & \pcell & \pcell & \pcell & \pcell & \pcell \\
+    \midrule
+    \textbf{Overall accuracy} & \multicolumn{3}{c}{\pcell\,\%} & \multicolumn{3}{c}{\pcell\,\%} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+  \centering
+  \caption{Confusion matrix for the full cascade (rows = actual, columns = predicted).}
+  \label{tab:confusion}
+  \begin{tabular}{@{}l rrrr@{}}
+    \toprule
+    & \multicolumn{4}{c}{\textbf{Predicted}} \\
+    \cmidrule(lr){2-5}
+    \textbf{Actual} & Eating & Drinking & Purring & Unknown \\
+    \midrule
+    Eating   & \pcell & \pcell & \pcell & \pcell \\
+    Drinking & \pcell & \pcell & \pcell & \pcell \\
+    Purring  & \pcell & \pcell & \pcell & \pcell \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Benefit of the audio confirmation stage}
 
@@ -31,9 +102,35 @@ Eating and drinking are nearly identical to an accelerometer but distinct by sou
 case the audio stage exists to resolve. Adding the gated audio stage raises eat/drink accuracy from
 \ph{IMU-only eat/drink accuracy \%} to \ph{cascade eat/drink accuracy \%}.
 
-\phblock{Comparison table: IMU-only vs. gated IMU+audio cascade, on the eat/drink pair and overall.
-Report how often the audio stage fires (its share of windows) and, of those, how often it changes and
-how often it corrects the IMU result , this is the direct evidence for the cascade design.}
+\begin{table}[ht]
+  \centering
+  \caption{Effect of the gated audio confirmation stage.}
+  \label{tab:audio-benefit}
+  \begin{tabularx}{\textwidth}{@{}X rr@{}}
+    \toprule
+    \textbf{Metric} & \textbf{IMU only} & \textbf{IMU + audio} \\
+    \midrule
+    Eat/drink pair accuracy & \pcell\,\% & \pcell\,\% \\
+    Overall accuracy        & \pcell\,\% & \pcell\,\% \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\begin{table}[ht]
+  \centering
+  \caption{Audio-stage activity: how often the gate fires and how often it helps , the direct
+           evidence for the cascade design.}
+  \label{tab:audio-fire}
+  \begin{tabularx}{\textwidth}{@{}Xr@{}}
+    \toprule
+    \textbf{Quantity} & \textbf{Value} \\
+    \midrule
+    Windows on which the audio stage fired (share of all windows) & \pcell\,\% \\
+    Of those, audio \emph{changed} the IMU label                  & \pcell\,\% \\
+    Of those, audio \emph{corrected} the label (vs ground truth)  & \pcell\,\% \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
 \subsection{Resource footprint}
 
@@ -62,9 +159,22 @@ dominant RAM cost of inference; the audio window buffer and the BLE stack make u
 
 \subsection{Inference latency}
 
-\phblock{Mean and worst-case on-device inference time for the IMU stage and for the audio stage,
-timed on the collar across many windows. Note the resulting effective classification rate and the
-added cost when the audio stage fires.}
+\begin{table}[ht]
+  \centering
+  \caption{On-device inference latency, timed on the collar across many windows.}
+  \label{tab:latency}
+  \begin{tabularx}{\textwidth}{@{}X rr@{}}
+    \toprule
+    \textbf{Stage} & \textbf{Mean (ms)} & \textbf{Worst case (ms)} \\
+    \midrule
+    IMU stage                    & \pcell & \pcell \\
+    Audio stage (when it fires)  & \pcell & \pcell \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\noindent The effective classification rate is \ph{rate Hz}; the audio stage adds \ph{ms} only on the
+windows where it fires.
 
 \subsection{Power and battery life}
 
@@ -75,15 +185,47 @@ the radio slows, so average current tracks how active the cat actually is instea
 all day. The remaining draw is set by the active duty cycle of the IMU path and the occasional audio
 path on the 100\,mAh cell.
 
-\phblock{Per-state current-draw table , low-power rest, active idle, IMU inference, audio inference,
-clip streaming, and OTA , measured at the cell, with the resulting projected battery life under a
-representative behaviour mix (e.g. 16\,h rest / 8\,h active). Report the rest-vs-active current ratio,
-since the activity gate's benefit is that ratio times the fraction of the day the cat spends resting.}
+\begin{table}[ht]
+  \centering
+  \caption{Per-state current draw, measured at the 100\,mAh cell.}
+  \label{tab:power}
+  \begin{tabularx}{\textwidth}{@{}X r@{}}
+    \toprule
+    \textbf{State} & \textbf{Current (mA)} \\
+    \midrule
+    Low-power rest   & \pcell \\
+    Active idle      & \pcell \\
+    IMU inference    & \pcell \\
+    Audio inference  & \pcell \\
+    Clip streaming   & \pcell \\
+    OTA              & \pcell \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\noindent The rest-to-active current ratio is \ph{ratio}:1. Under a representative 16\,h rest /
+8\,h active day, projected battery life on the 100\,mAh cell is \ph{hours or days}. The activity
+gate's saving is that ratio times the fraction of the day the cat spends resting.
 
 \subsection{Over-the-air update}
 
-\phblock{Measured time and throughput for a full model push over BLE (per slot and total), and the
-end-to-end time from pressing ``Retrain'' to the collar running the new model.}
+\begin{table}[ht]
+  \centering
+  \caption{Over-the-air model delivery, measured over BLE.}
+  \label{tab:ota}
+  \begin{tabularx}{\textwidth}{@{}X rr@{}}
+    \toprule
+    \textbf{Step} & \textbf{Time (s)} & \textbf{Throughput (kB/s)} \\
+    \midrule
+    IMU model (slot 0)   & \pcell & \pcell \\
+    Audio model (slot 1) & \pcell & \pcell \\
+    Total push           & \pcell & \pcell \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\noindent End to end, from pressing ``Retrain'' in the dashboard to the collar running the new model:
+\ph{seconds}.
 
 \subsection{Testing and verification}
 
