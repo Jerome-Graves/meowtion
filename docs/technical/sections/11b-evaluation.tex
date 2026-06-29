@@ -85,6 +85,29 @@ since the activity gate's benefit is that ratio times the fraction of the day th
 \phblock{Measured time and throughput for a full model push over BLE (per slot and total), and the
 end-to-end time from pressing ``Retrain'' to the collar running the new model.}
 
+\subsection{Testing and verification}
+
+The system's logic is covered by automated unit tests that run in continuous integration on every
+change, and the integration and on-device behaviour is verified on the hardware. The security
+controls and their evidence are detailed separately (\cref{sec:security-privacy}).
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Automated unit tests.} 57 Python tests cover the dashboard data layer (event
+        aggregation, label resolution, the low-power-rest event handling, the time-window
+        drill-down, and the health comparison) and the Cloud Function's signal logic (per-window
+        normalisation, windowing, WAV parsing, and the path-validation regexes). Host-compiled C
+        tests cover the on-device cascade: the rules-based activity gate and the confidence-gated
+        IMU/audio gating.
+  \item \textbf{Coverage.} Line coverage of the unit-testable core is 100\,\%. The Firebase request
+        handlers, model training, the dashboard UI, and the hardware-bound firmware paths are
+        excluded from that figure and are covered by the on-hardware checks below.
+  \item \textbf{Continuous integration.} Every push and pull request runs the Python and C test
+        suites and CodeQL static security analysis.
+  \item \textbf{On-hardware verification.} Model load-from-flash, on-device classification, the
+        activity gate's rest/wake cycle, the rest-event logging, and the build and backend-deploy
+        steps were each confirmed directly on the collar and station.
+\end{itemize}
+
 \subsection{Limitations}
 
 The current evaluation is single-cat and within-subject; generalisation across cats and households is
