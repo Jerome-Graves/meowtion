@@ -75,6 +75,11 @@ button[data-testid="stBaseButton-segmented_control"] { background:#26262f !impor
 button[data-testid="stBaseButton-segmented_control"], button[data-testid="stBaseButton-segmented_control"] * { color:#8f8f9b !important; }
 hr { border-color:#2a2a36 !important; }
 a { color:#d6a9db; }
+/* date-picker calendar popup (baseweb, rendered at document level, so it's styled here) */
+[data-baseweb="calendar"], div[data-baseweb="popover"] [data-baseweb="calendar"] { background:#1d1d27 !important; }
+[data-baseweb="calendar"] * { color:#e7e7ef !important; }
+[data-baseweb="calendar"] [aria-selected="true"] { background:#bc7bc2 !important; color:#ffffff !important; }
+[data-baseweb="calendar"] [aria-disabled="true"] { color:#5a5a66 !important; }
 </style>
 """
 
