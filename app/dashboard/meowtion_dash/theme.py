@@ -61,7 +61,8 @@ _DARK_CSS = """
 [data-testid="stWidgetLabel"] label, [data-testid="stWidgetLabel"] p { color:#e7e7ef; }
 [data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color:#e7e7ef !important; }
 [data-testid="stMetricDelta"] { color:#b8b8c4 !important; }
-.stButton > button { background:#22222e; color:#e7e7ef; border:1px solid #3a3a48; }
+.st-key-reset_timeline_zoom button { background:#22222e !important; border:1px solid #3a3a48 !important; }
+.st-key-reset_timeline_zoom button, .st-key-reset_timeline_zoom button * { color:#e7e7ef !important; }
 [data-testid="stExpander"] details { background:#15151d; border:1px solid #2a2a36; border-radius:.5rem; }
 [data-testid="stExpander"] summary, [data-testid="stExpander"] summary * { color:#e7e7ef; }
 /* segmented control (Cat Selection): keep Streamlit's native fills (unselected = light surface,
