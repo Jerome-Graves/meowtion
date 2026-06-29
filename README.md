@@ -9,6 +9,10 @@
   &nbsp;·&nbsp; <a href="#license">License</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml"><img src="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml/badge.svg" alt="tests"></a>
+</p>
+
 ---
 
 **A smart cat collar that watches your cat's health through its habits.** On-device AI tracks
