@@ -15,6 +15,11 @@ _BRAND_HTML = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', system-ui, sans-serif; }
 .stApp { background: radial-gradient(1100px 480px at 50% -220px, #e9e7fc, transparent), #f4f4f8; }
+/* Smoothly crossfade colours when the light/dark toggle flips. */
+.stApp, .stApp *, .mw-word, .mw-tag {
+  transition: background-color .30s ease, color .30s ease, border-color .30s ease,
+              box-shadow .30s ease, fill .30s ease;
+}
 .mw-brand { display:flex; align-items:center; gap:.8rem; margin:.2rem 0 1.3rem; }
 .mw-logo { width:46px; height:46px; border-radius:50%; display:grid; place-items:center;
   background:#bc7bc2; box-shadow:0 10px 30px rgba(16,18,40,.12); }
