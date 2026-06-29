@@ -11,6 +11,18 @@
 
 <p align="center">
   <a href="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml"><img src="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml/badge.svg" alt="tests"></a>
+  <a href="https://github.com/Jerome-Graves/meowtion/actions/workflows/codeql.yml"><img src="https://github.com/Jerome-Graves/meowtion/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://codecov.io/gh/Jerome-Graves/meowtion"><img src="https://codecov.io/gh/Jerome-Graves/meowtion/branch/main/graph/badge.svg" alt="coverage"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license: MIT"></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/C-C11-A8B9CC?logo=c&logoColor=black" alt="C">
+  <img src="https://img.shields.io/badge/nRF52840-Zephyr%20%2F%20NCS-00A9CE" alt="nRF52840 / Zephyr">
+  <img src="https://img.shields.io/badge/ESP32--S3-ESP--IDF-E7352C?logo=espressif&logoColor=white" alt="ESP32-S3 / ESP-IDF">
+  <img src="https://img.shields.io/badge/Firebase-RTDB%20%C2%B7%20Functions%20%C2%B7%20Storage-FFCA28?logo=firebase&logoColor=black" alt="Firebase">
+  <a href="https://meowtion.streamlit.app"><img src="https://img.shields.io/badge/Streamlit-live%20demo-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit live demo"></a>
 </p>
 
 ---

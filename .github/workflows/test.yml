@@ -14,9 +14,18 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install test dependencies
-        run: pip install pytest pandas numpy
-      - name: Run pytest
-        run: python -m pytest app/dashboard/tests app/firebase/functions/tests -v
+        run: pip install pytest pytest-cov pandas numpy
+      - name: Run pytest with coverage
+        run: >
+          python -m pytest app/dashboard/tests app/firebase/functions/tests -v
+          --cov --cov-report=xml --cov-report=term
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false      # never fail the build on a coverage-upload hiccup
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   firmware:
     name: Collar logic unit tests (C)
