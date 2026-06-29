@@ -95,6 +95,13 @@ div[data-baseweb="popover"]:has([data-baseweb="calendar"]) > div { background-co
 [data-baseweb="calendar"] [disabled], [data-baseweb="calendar"] [disabled] *,
 [data-baseweb="calendar"] [aria-label*="not available" i], [data-baseweb="calendar"] [aria-label*="not available" i] *,
 [data-baseweb="calendar"] [aria-label*="unavailable" i], [data-baseweb="calendar"] [aria-label*="unavailable" i] * { color:#44444e !important; }
+/* hover on a selectable day: baseweb uses a light hover background (light-on-light in dark mode), so
+   keep it a dark lavender tint with light text. Don't touch the selected or unavailable days. */
+[data-baseweb="calendar"] [role="gridcell"]:hover:not([aria-label*="selected" i]):not([aria-label*="not available" i]),
+[data-baseweb="calendar"] [role="gridcell"]:hover:not([aria-label*="selected" i]):not([aria-label*="not available" i]) * { background-color:#33293f !important; color:#ffffff !important; }
+/* hover on an unselected cat segment: keep it dark instead of baseweb's light hover */
+button[data-testid="stBaseButton-segmented_control"]:hover { background-color:#33333d !important; }
+button[data-testid="stBaseButton-segmented_control"]:hover, button[data-testid="stBaseButton-segmented_control"]:hover * { color:#e7e7ef !important; }
 </style>
 """
 
