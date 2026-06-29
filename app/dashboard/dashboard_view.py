@@ -196,13 +196,10 @@ def render(df, data=None):
     else:
         if span == "Day":
             # --- HOURLY VIEW STRATEGY ---
-            # Safe: Cleanly combine string date and string start_time ("HH:MM")
-            combined_datetime = window["event_date"].astype(str) + " " + window["start_time"].astype(str)
-            window["when"] = pd.to_datetime(combined_datetime)
-            
-            # Group by hourly intervals and activity type
-            frame = window.groupby([pd.Grouper(key="when", freq="h"), "activity"])["event_duration"].sum().reset_index()
-            
+            # Apportion each event's minutes across the hours it actually spans, so no hour exceeds
+            # its real 60-minute budget (summing whole durations into the start hour would).
+            frame = mw.hourly_activity(window)
+
             unit, time_unit, time_format = "hour", "yearmonthdatehours", "%H:%M"
             chosen_label = start_date.strftime("%B %d, %Y")
             # Always span the full 24 hours of the day, not just the hours that have data.

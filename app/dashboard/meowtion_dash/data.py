@@ -191,6 +191,30 @@ def over_time(df, period, value="event_duration"):
     return df.assign(when=when).groupby(["when", "activity"])[value].sum().reset_index()
 
 
+def hourly_activity(df):
+    """Split each event's minutes across the clock hours it actually spans (from its start time and
+    duration) and sum per hour and activity. Bucketing a whole duration into the event's start hour
+    lets a single hour exceed 60 minutes; apportioning it keeps each hour within its real 60-minute
+    budget (for sequential, non-overlapping events). Returns columns `when` (hourly), `activity`,
+    `event_duration` (minutes within that hour)."""
+    cols = ["when", "activity", "event_duration"]
+    rows = []
+    for _, e in df.iterrows():
+        start = pd.to_datetime(f"{e['event_date']} {e['start_time']}")
+        remaining = float(e["event_duration"])                 # minutes still to place
+        cur = start
+        while remaining > 1e-9:
+            bucket = cur.floor("h")
+            nxt = bucket + pd.Timedelta(hours=1)
+            mins = min(remaining, (nxt - cur).total_seconds() / 60.0)   # minutes inside this hour
+            rows.append({"when": bucket, "activity": e["activity"], "event_duration": mins})
+            remaining -= mins
+            cur = nxt
+    if not rows:
+        return pd.DataFrame(columns=cols)
+    return pd.DataFrame(rows, columns=cols).groupby(["when", "activity"], as_index=False)["event_duration"].sum()
+
+
 # Health-relevant habits, most informative first. Appetite and thirst changes are classic early
 # warnings, and how much a cat grooms is one of the clearest behavioural health signals (grooming
 # less can mean pain/illness; a lot more can mean stress or skin trouble), so those three lead, then

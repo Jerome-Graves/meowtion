@@ -156,3 +156,32 @@ def test_over_time_empty_and_day():
 def test_last_n_days_and_health_signals_handle_empty():
     assert mw.last_n_days(pd.DataFrame({"event_date": []}), n=3).empty
     assert mw.health_signals(pd.DataFrame({"activity": [], "event_date": [], "event_duration": []})) == []
+
+
+def test_hourly_activity_splits_duration_across_hours_and_caps_at_60():
+    # Sequential (non-overlapping) events: Eat 10:50 for 30 min, Rest 11:30 for 45 min.
+    df = pd.DataFrame({
+        "event_date": ["2026-06-29", "2026-06-29"],
+        "start_time": ["10:50", "11:30"],
+        "activity": ["Eat", "Rest"],
+        "event_duration": [30.0, 45.0],
+    })
+    out = mw.hourly_activity(df)
+    idx = out.set_index(["when", "activity"])["event_duration"]
+    h10 = pd.Timestamp("2026-06-29 10:00")
+    h11 = pd.Timestamp("2026-06-29 11:00")
+    h12 = pd.Timestamp("2026-06-29 12:00")
+    assert idx[(h10, "Eat")] == 10.0     # 10:50-11:00
+    assert idx[(h11, "Eat")] == 20.0     # 11:00-11:20
+    assert idx[(h11, "Rest")] == 30.0    # 11:30-12:00
+    assert idx[(h12, "Rest")] == 15.0    # 12:00-12:15
+    # no single hour exceeds its 60-minute budget
+    assert (out.groupby("when")["event_duration"].sum() <= 60.0 + 1e-9).all()
+
+
+def test_hourly_activity_within_one_hour_and_empty():
+    df = pd.DataFrame({"event_date": ["2026-06-29"], "start_time": ["10:10"],
+                       "activity": ["Eat"], "event_duration": [20.0]})
+    out = mw.hourly_activity(df)
+    assert len(out) == 1 and out["event_duration"].iloc[0] == 20.0
+    assert mw.hourly_activity(df.iloc[0:0]).empty
