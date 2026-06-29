@@ -226,10 +226,12 @@ def render(df, data=None):
                 if st.button("↺ Reset view", key="reset_timeline_zoom",
                              help="Zoom back out to the full day"):
                     st.session_state["timeline_zoom_n"] = st.session_state.get("timeline_zoom_n", 0) + 1
+                zoom_n = st.session_state.get("timeline_zoom_n", 0)
                 st.altair_chart(
-                    mw.event_timeline(frame, colors=colours, height=max(220, 40 + 26 * n_days)),
+                    mw.event_timeline(frame, colors=colours,
+                                      height=max(220, 40 + 26 * n_days), zoom_key=zoom_n),
                     use_container_width=True,
-                    key=f"timeline_{st.session_state.get('timeline_zoom_n', 0)}",
+                    key=f"timeline_{zoom_n}",
                 )
 
     # weather over the same window, so you can read the activity against hot/cold/wet days

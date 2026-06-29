@@ -104,18 +104,22 @@ def intraday_timeline(data, colors=None, x_domain=None, height=300):
     )
 
 
-def event_timeline(data, colors=None, height=300):
+def event_timeline(data, colors=None, height=300, zoom_key=0):
     """Multi-day timeline drawn as rows of days: the y-axis is the calendar day and the x-axis is the
     time of day (00:00-24:00, shared across days). Each event is a horizontal bar from its start to
     its end time of day in its day's row, coloured by activity. `data` columns: `day`, `start`, `end`
-    (time of day) and `activity` (see data.daily_segments). Pass `colors` to match the buttons."""
+    (time of day) and `activity` (see data.daily_segments). Pass `colors` to match the buttons.
+
+    Scroll/drag zooms the time axis. `zoom_key` names the zoom selection: bump it (from a reset
+    button) to change the spec, which remounts the chart at the full view , a scale-zoom can't
+    otherwise be reset from Python."""
     scale = activity_scale(colors=colors) if colors else activity_scale(sorted(map(str, data["activity"].unique())))
     if len(data):
         base = pd.Timestamp(data["start"].min()).normalize()                 # the shared reference day
         x_scale = alt.Scale(domain=[base.isoformat(), (base + pd.Timedelta(days=1)).isoformat()], nice=False)
     else:
         x_scale = alt.Undefined
-    zoom = alt.selection_interval(bind="scales", encodings=["x"])   # scroll/drag to zoom the time axis
+    zoom = alt.selection_interval(bind="scales", encodings=["x"], name=f"zoom_{zoom_key}")
     return (
         alt.Chart(data)
         .mark_bar(cornerRadius=2)
