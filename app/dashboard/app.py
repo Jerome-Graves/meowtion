@@ -26,10 +26,12 @@ uid, token, is_demo = mw.require_session()
 status, data = mw.fetch(uid, token)
 cats = mw.list_cats(data)                          # [(name, cat_id), ...]
 
-# Active-cat switcher , only shown when there's more than one collar on the account.
+# Cat selection switcher , only shown when there's more than one collar on the account.
 selected = cats[0][0] if cats else None
 if len(cats) > 1:
-    selected = st.radio("**Active cat**", [name for name, _ in cats], horizontal=True)
+    st.markdown("**Cat Selection**")
+    selected = st.radio("Cat Selection", [name for name, _ in cats],
+                        horizontal=True, label_visibility="collapsed")
 
 # Current-activity card (live) , top, right under the switcher.
 mw.live_view(uid, token, only_cat=selected, part="current")
