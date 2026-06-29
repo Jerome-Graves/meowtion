@@ -48,7 +48,9 @@ static const char *state_name(uint8_t s)
 {
     if (s == COLLAR_STATE_REST) return "rest";
     if (s == 0xFF)              return "unknown";
-    return STATES[s % 6];
+    /* In range 0..5 it's a known behaviour; anything else (unexpected class byte) is shown as
+     * unknown rather than wrapped into a plausible-but-wrong label. */
+    return (s < 6) ? STATES[s] : "unknown";
 }
 
 /* registered-collar allow-list (the "2 devices" gate); populated by ble_fetch_allow() below */
@@ -482,18 +484,20 @@ static bool     g_fr_ulaw = false;   /* header version >= 2: audio bytes are 8-b
 static void wav_header(uint8_t *h, uint32_t pcm, uint32_t rate)
 {
     uint32_t chunk = 36 + pcm, byterate = rate * 2;
+    /* Little-endian 32-bit fields are written a byte at a time; cast each to uint8_t so the narrowing
+     * is explicit (intended: keep the low byte of each shifted value) and warning-clean. */
     memcpy(h, "RIFF", 4);
-    h[4]=chunk; h[5]=chunk>>8; h[6]=chunk>>16; h[7]=chunk>>24;
+    h[4]=(uint8_t)chunk; h[5]=(uint8_t)(chunk>>8); h[6]=(uint8_t)(chunk>>16); h[7]=(uint8_t)(chunk>>24);
     memcpy(h+8, "WAVEfmt ", 8);
     h[16]=16; h[17]=h[18]=h[19]=0;          /* fmt chunk size */
     h[20]=1; h[21]=0;                        /* PCM */
     h[22]=1; h[23]=0;                        /* mono */
-    h[24]=rate; h[25]=rate>>8; h[26]=rate>>16; h[27]=rate>>24;
-    h[28]=byterate; h[29]=byterate>>8; h[30]=byterate>>16; h[31]=byterate>>24;
+    h[24]=(uint8_t)rate; h[25]=(uint8_t)(rate>>8); h[26]=(uint8_t)(rate>>16); h[27]=(uint8_t)(rate>>24);
+    h[28]=(uint8_t)byterate; h[29]=(uint8_t)(byterate>>8); h[30]=(uint8_t)(byterate>>16); h[31]=(uint8_t)(byterate>>24);
     h[32]=2; h[33]=0;                        /* block align */
     h[34]=16; h[35]=0;                       /* bits/sample */
     memcpy(h+36, "data", 4);
-    h[40]=pcm; h[41]=pcm>>8; h[42]=pcm>>16; h[43]=pcm>>24;
+    h[40]=(uint8_t)pcm; h[41]=(uint8_t)(pcm>>8); h[42]=(uint8_t)(pcm>>16); h[43]=(uint8_t)(pcm>>24);
 }
 
 static void capture_cleanup(bool cooldown)

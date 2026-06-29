@@ -29,10 +29,10 @@ from .data import (
     activity_dataframe, model_labels, list_cats, iter_cats, EVENT_ICON, fmt_time, fmt_dur,
     canonical_activity,
     filter_by_activity, filter_by_weekday, filter_by_date_range, last_n_days,
-    period_options, filter_to_window, over_time, hourly_segments, daily_segments,
+    period_options, filter_to_window, over_time, daily_segments,
     trim_sparse_edge_days, health_signals,
 )
-from .charts import bar, stacked_bar, intraday_timeline, event_timeline, activity_colors, activity_totals, readable_text
+from .charts import bar, event_timeline, activity_colors, activity_totals, readable_text
 from .weather import weather_dataframe, window_weather, weather_caption
 from .live import live_view
 
@@ -41,8 +41,8 @@ __all__ = [
     "activity_dataframe", "model_labels", "list_cats", "iter_cats", "EVENT_ICON", "fmt_time", "fmt_dur",
     "canonical_activity",
     "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",
-    "period_options", "filter_to_window", "over_time", "hourly_segments", "daily_segments",
+    "period_options", "filter_to_window", "over_time", "daily_segments",
     "trim_sparse_edge_days", "health_signals",
-    "bar", "stacked_bar", "intraday_timeline", "event_timeline", "activity_colors", "activity_totals", "readable_text",
+    "bar", "event_timeline", "activity_colors", "activity_totals", "readable_text",
     "weather_dataframe", "window_weather", "weather_caption",
 ]

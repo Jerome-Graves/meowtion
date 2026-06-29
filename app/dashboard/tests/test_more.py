@@ -158,32 +158,6 @@ def test_last_n_days_and_health_signals_handle_empty():
     assert mw.health_signals(pd.DataFrame({"activity": [], "event_date": [], "event_duration": []})) == []
 
 
-def test_hourly_segments_blocks_at_real_minute_offsets():
-    # Eat 10:50 for 30 min spans two hours: minutes 50-60 of 10:00 and 0-20 of 11:00.
-    df = pd.DataFrame({"event_date": ["2026-06-29"], "start_time": ["10:50"],
-                       "activity": ["Eat"], "event_duration": [30.0]})
-    out = mw.hourly_segments(df).set_index("when")
-    h10 = pd.Timestamp("2026-06-29 10:00")
-    h11 = pd.Timestamp("2026-06-29 11:00")
-    assert (out.loc[h10, "start_min"], out.loc[h10, "end_min"]) == (50.0, 60.0)
-    assert (out.loc[h11, "start_min"], out.loc[h11, "end_min"]) == (0.0, 20.0)
-
-
-def test_hourly_segments_within_one_hour():
-    df = pd.DataFrame({"event_date": ["2026-06-29"], "start_time": ["10:10"],
-                       "activity": ["Rest"], "event_duration": [20.0]})
-    out = mw.hourly_segments(df)
-    assert len(out) == 1
-    assert (out["start_min"].iloc[0], out["end_min"].iloc[0]) == (10.0, 30.0)
-
-
-def test_hourly_segments_skips_zero_duration_and_empty():
-    z = pd.DataFrame({"event_date": ["2026-06-29"], "start_time": ["10:10"],
-                      "activity": ["Eat"], "event_duration": [0.0]})
-    assert mw.hourly_segments(z).empty            # zero-duration -> no block
-    assert mw.hourly_segments(z.iloc[0:0]).empty  # no events -> empty
-
-
 def test_daily_segments_rows_per_day_with_time_of_day():
     # Rest 22:00 for 4h crosses midnight -> 22:00-24:00 on day 1, 00:00-02:00 on day 2,
     # both mapped onto the shared reference date for the time-of-day x-axis.

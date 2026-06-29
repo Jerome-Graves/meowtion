@@ -293,7 +293,7 @@ def simulate(event: scheduler_fn.ScheduledEvent) -> None:
 
 @https_fn.on_request(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=300)
 def simulate_now(req: https_fn.Request) -> https_fn.Response:
-    """Manually trigger a run (so you don't wait for the hourly timer). Requires a dev-account token."""
+    """Manually trigger a run (so you don't wait for the per-minute timer). Requires a dev-account token."""
     token = (req.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
     try:
         uid = auth.verify_id_token(token)["uid"]

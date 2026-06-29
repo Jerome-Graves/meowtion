@@ -15,19 +15,13 @@ _BRAND_HTML = """
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', system-ui, sans-serif; }
 .stApp { background: radial-gradient(1100px 480px at 50% -220px, #e9e7fc, transparent), #f4f4f8; }
-/* Smoothly crossfade colours when the light/dark toggle flips. */
-.stApp, .stApp *, .mw-word, .mw-tag {
-  transition: background-color .30s ease, color .30s ease, border-color .30s ease,
-              box-shadow .30s ease, fill .30s ease;
-}
 .mw-brand { display:flex; align-items:center; gap:.8rem; margin:.2rem 0 1.3rem; }
 .mw-logo { width:46px; height:46px; border-radius:50%; display:grid; place-items:center;
   background:#bc7bc2; box-shadow:0 10px 30px rgba(16,18,40,.12); }
 .mw-word { font-weight:800; font-size:2.1rem; letter-spacing:-.02em; line-height:1; color:#1b1b2b; }
 .mw-tag { font-size:.82rem; color:#6b7280; margin-top:3px; }
 /* Cat-selection segmented control: SELECTED = filled brand lavender with white text and a leading
-   check so the active cat clearly stands out. The unselected segments are left to Streamlit's native
-   theme, so they adapt to light/dark on their own. */
+   check so the active cat clearly stands out; the unselected segments keep their default styling. */
 button[data-testid="stBaseButton-segmented_controlActive"] { background:#bc7bc2 !important; border-color:#bc7bc2 !important; }
 button[data-testid="stBaseButton-segmented_controlActive"], button[data-testid="stBaseButton-segmented_controlActive"] * { color:#ffffff !important; }
 button[data-testid="stBaseButton-segmented_controlActive"]::before { content:"✓  "; font-weight:700; }

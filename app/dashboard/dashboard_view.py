@@ -7,21 +7,24 @@ You are handed a clean pandas DataFrame called `df`. You never deal with login, 
 Firebase , that's all done for you. There is ONE ROW PER LOGGED EVENT, with these columns:
 
     cat                  the cat's name
-    activity             what it was doing, e.g. "Eat", "Drink", "Resting", "Moving"
-    event_date           the date, "YYYY-MM-DD"
+    activity             what it was doing, e.g. "Eating", "Drinking", "Resting", "Moving"
+    event_date           the date, "YYYY-MM-DD" (str)
     event_weekday_name   "Monday" ... "Sunday"
-    start_time           "HH:MM"
-    event_duration       how long it lasted, in MINUTES
+    start_time           "HH:MM" (str)
+    event_duration       how long it lasted, in MINUTES (float)
 
-Ready-made helpers (import meowtion_dash as mw):
+Ready-made helpers (import meowtion_dash as mw) , these are what this view actually uses:
 
-    mw.health_signals(df)                       # recent vs usual for eat/drink/active/rest
-    mw.period_options(df, "Week")               # the days/weeks/months you can pick from
-    mw.filter_to_window(df, "Week", key)        # keep just the chosen day/week/month
-    mw.over_time(window, "Week")                # minutes per hour/date, split by activity
-    mw.filter_by_activity(df, "Eat")            # or a list: ["Eat", "Drink"]
-    mw.stacked_bar(frame, x, y, color, title)   # bars coloured by activity (temporal=True for dates)
-    mw.bar(frame, x, y, title)                  # single-colour bars
+    mw.health_signals(df)                       # recent vs usual for eat/drink/groom/rest
+    mw.activity_colors(acts)                    # one colourblind-safe colour per activity (shared)
+    mw.filter_by_activity(df, "Eating")         # or a list: ["Eating", "Drinking"]
+    mw.activity_totals(window, colors=...)      # total minutes per activity (the top bar chart)
+    mw.daily_segments(df)                       # split events per calendar day, for the timeline
+    mw.event_timeline(frame, colors=...)        # the rows-of-days activity timeline
+    mw.bar(frame, x, y, title)                  # generic single-colour bar chart
+
+More filtering/aggregation helpers exist (filter_by_weekday, filter_by_date_range, last_n_days,
+over_time, period_options, filter_to_window); see the meowtion_dash package.
 """
 import streamlit as st
 import pandas as pd
@@ -81,10 +84,9 @@ def render(df, data=None):
 
     # ===================================================================== #
     # STEP 2 , Pick a time window via calendar selection.
-    #   Replaces the old radio buttons and selectboxes with an inline calendar picker.
-    #   We create a temporary series for clean Python date object filtering.
+    #   An inline calendar date picker; the granularity (single day vs multiple days) is derived
+    #   from the chosen span. We build a temporary date series for clean Python date filtering.
     # ===================================================================== #
-    
     today = datetime.date.today()
     pure_dates = pd.to_datetime(df["event_date"]).dt.date
     lo, hi = pure_dates.min(), pure_dates.max()
@@ -92,11 +94,9 @@ def render(df, data=None):
     # latest logged day (or before the first), st.date_input rejects an out-of-range default.
     default_day = min(max(today, lo), hi)
 
-    # Streamlit's default date box looks like flat text, so it isn't obvious it's clickable. Give it
-    # a clear prompt and style the input as a bordered, lavender, pointer-cursor box that lifts on
-    # hover, so it plainly reads as a control you can click to change the date.
+    # Streamlit's default date box looks like flat text, so it isn't obvious it's clickable. A clear
+    # prompt plus a lavender border + pointer cursor makes it plainly read as a control.
     st.caption("Click the box below to pick a day, or pick a start and end date for a range.")
-    # Lavender border + pointer cursor so the box reads as clickable.
     st.html("""
         <style>
         div[data-testid="stDateInput"] div[data-baseweb="input"] {
@@ -121,8 +121,8 @@ def render(df, data=None):
         label_visibility="collapsed",
     )
 
-    # Normalise the picker result to a (start, end) day pair, then choose the x-axis granularity from
-    # how many days it spans: a single calendar day is shown by HOUR; up to a week or longer by DAY.
+    # Normalise the picker result to a (start, end) day pair, then choose the granularity from how
+    # many days it spans: a single calendar day is one row; a wider range is many rows.
     # (st.date_input returns a 2-tuple for a range, a 1-tuple mid-selection, or a bare date.)
     if isinstance(date_range, (tuple, list)):
         start_date, end_date = date_range[0], date_range[-1]   # a 1-tuple collapses to start == end
@@ -131,90 +131,55 @@ def render(df, data=None):
     window = df[(pure_dates >= start_date) & (pure_dates <= end_date)].copy()
     span_days = (end_date - start_date).days
     if span_days == 0:
-        span = "Day"          # one calendar day -> hourly x-axis
+        span = "Day"          # single calendar day
     elif span_days <= 7:
-        span = "Week"         # daily x-axis
+        span = "Week"
     else:
-        span = "Month"        # daily x-axis
+        span = "Month"
 
     # Sleep and Resting dominate the minutes, so the small habits (eat, drink) are tiny slivers.
-    # Deselecting the big ones here is how you see those small events.
+    # Toggle the big ones off here to see the small events. One programmatic, colourblind-safe colour
+    # per activity, shared by these buttons and both charts so they always match (see charts.py).
     acts = sorted(df["activity"].unique())
-    # One programmatic, name-agnostic colour per activity, shared by these buttons and the chart
-    # below so they always match (see meowtion_dash/charts.py).
     colours = mw.activity_colors(acts)
     shown = []
 
-# Create columns to place the buttons side by side
+    # One toggle button per activity, side by side: filled in the activity's colour when on, an
+    # outline of that colour when off. The per-button colours are emitted as a single <style> block
+    # (keyed by the button's st-key class) rather than one block per button.
     cols = st.columns(len(acts))
-
+    css_rules = []
     for col, activity in zip(cols, acts):
+        state_key = f"btn_state_{activity}"
+        st.session_state.setdefault(state_key, True)   # default: shown
+        on = st.session_state[state_key]
+
+        if on:                                          # filled with the activity's colour
+            bg, fg, border = colours[activity], mw.readable_text(colours[activity]), colours[activity]
+        else:                                           # outline of the activity's colour
+            bg, fg, border = "#FFFFFF", "#3a3a4a", colours[activity]
+
+        clean_id = activity.lower()                     # lowercase id for the .st-key-btn-* CSS class
+        css_rules.append(
+            f".st-key-btn-{clean_id} button {{background-color:{bg}!important;color:{fg}!important;"
+            f"border:2px solid {border}!important;transition:background-color .2s ease,opacity .2s ease;}}"
+            f".st-key-btn-{clean_id} button:hover {{opacity:.85!important;"
+            f"background-color:{bg}!important;color:{fg}!important;}}"
+        )
+
         with col:
-            # assign a unique memory key for this activity even if it doesnn't exist yet
-            # we set the default state to True (active/on)
-            state_key = f"btn_state_{activity}"
-            if state_key not in st.session_state:
-                st.session_state[state_key] = True
-                
-            #Choose the visual icon based on the active state
-            # Active gets a bright checkmark, turned off gets a grey circle
-            if st.session_state[state_key]:
-                label_prefix = ""
-                bg_colour = colours[activity]
-                text_colour = mw.readable_text(bg_colour)   # black/white per colour, for legibility
-                border_colour = bg_colour
-            else:
-                label_prefix = ""
-                # "off" state: a neutral surface with the activity's own colour as an outline and
-                # readable text, so it's clearly the same button just switched off (filled = on,
-                # outline = off).
-                bg_colour = "#FFFFFF"
-                text_colour = "#3a3a4a"
-                border_colour = colours[activity]
-            
-            button_label = f"{label_prefix} {activity}"
-            button_key = f"btn_click_{activity}" 
-            
-            button_label = activity
-            # We use a clean lowercase string key for the CSS class mapping layout
-            clean_id = activity.lower()
-            button_key = f"btn-{clean_id}" 
-
-            
-            
-
-            st.html(f"""
-                <style>
-                .st-key-btn-{clean_id} button {{
-                    background-color: {bg_colour} !important;
-                    color: {text_colour} !important;
-                    border: 2px solid {border_colour} !important;
-                    transition: background-color 0.2s ease, opacity 0.2s ease;
-                }}
-                .st-key-btn-{clean_id} button:hover {{
-                    opacity: 0.85 !important;
-                    background-color: {bg_colour} !important;
-                    color: {text_colour} !important;
-                }}
-                </style>
-            """)
-
-
-             # Use the legend color for activ
-            # Render the button, if clicked, flip the true/false switch in memory
-            if st.button(button_label, key=button_key, use_container_width=True):
-                st.session_state[state_key] = not st.session_state[state_key]
-                st.rerun() # refresh the page instantly to update the icons and chart
-
-            # If the toggle state is True, pass this activity into the chart filter
+            # Clicking flips this activity on/off; rerun so the buttons and charts update together.
+            if st.button(activity, key=f"btn-{clean_id}", use_container_width=True):
+                st.session_state[state_key] = not on
+                st.rerun()
             if st.session_state[state_key]:
                 shown.append(activity)
 
-
+    st.html("<style>" + "".join(css_rules) + "</style>")
 
     # ===================================================================== #
-    # STEP 3 , Keep the rows in that window (and chosen activities), then chart them STACKED BY
-    #   ACTIVITY. If span is "Day", it processes the data at hourly steps instead of daily blocks.
+    # STEP 3 , Chart the chosen window: a "time per activity" totals bar, then a rows-of-days
+    #   timeline of when each activity happened. Both respect the date pick and the activity toggles.
     # ===================================================================== #
     window = mw.filter_by_activity(window, shown) if shown else window.iloc[0:0]
 
@@ -228,11 +193,11 @@ def render(df, data=None):
                    "Use the coloured buttons above to turn activities on or off in both charts.")
         st.altair_chart(mw.activity_totals(window, colors=colours), use_container_width=True)
 
-        # ONE timeline for any span: rows of days (y-axis), time of day on the x-axis (00:00-24:00),
-        # each event a horizontal bar at the time of day it happened. A single day is simply one row,
-        # so the single-day and multi-day views look and behave the same. Include the day BEFORE the
-        # range too, so an overnight episode that started before it still fills the first day's early
-        # hours; then keep only the days inside the selected range.
+        # ONE timeline for any span: rows of days (y-axis), time of day on the x-axis, each event a
+        # horizontal bar at the time of day it happened. A single day is simply one row, so the
+        # single-day and multi-day views look and behave the same. Include the day BEFORE the range
+        # too, so an overnight episode that started before it still fills the first day's early hours;
+        # then keep only the days inside the selected range.
         ext = df[(pure_dates >= start_date - datetime.timedelta(days=1)) & (pure_dates <= end_date)]
         ext = mw.filter_by_activity(ext, shown)
         frame = mw.daily_segments(ext)
@@ -252,7 +217,7 @@ def render(df, data=None):
                 use_container_width=True,
                 key=f"timeline_{zoom_n}",
             )
-            # Reset zoom, centered below the chart. Bumping this counter renames the zoom selection,
+            # Reset zoom, centred below the chart. Bumping this counter renames the zoom selection,
             # which remounts the chart at the full view (a scale-zoom can't otherwise be reset), so
             # rerun once so the chart picks up the new key.
             _, mid, _ = st.columns([2, 1, 2])
@@ -261,12 +226,8 @@ def render(df, data=None):
                 st.session_state["timeline_zoom_n"] = zoom_n + 1
                 st.rerun()
 
-    # weather over the same window, so you can read the activity against hot/cold/wet days
+    # Weather over the same window, so you can read the activity against hot/cold/wet days.
     if not window.empty:
         weather_line = mw.weather_caption(mw.window_weather(wdf, window["event_date"].unique()))
         if weather_line:
             st.caption(f"Weather this period:  {weather_line}")
-        
-    # ===================================================================== #
-    # STEP 4 , Recent activity for troubleshooting.
-    # ===================================================================== #

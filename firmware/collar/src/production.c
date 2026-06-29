@@ -68,7 +68,9 @@ static void update_peak_mg(const int16_t *src, size_t n)
     uint32_t max2 = 0;
     for (size_t i = 0; i + IMU_AXES <= n; i += IMU_AXES) {
         int32_t ax = src[i], ay = src[i + 1], az = src[i + 2];   /* milli-g */
-        uint32_t mag2 = (uint32_t)(ax * ax + ay * ay + az * az);
+        /* Each square <= 32767^2 (fits int32); sum in uint32_t (<= 3*32767^2 < UINT32_MAX), so the
+         * accumulation can't overflow even at full-scale impact. */
+        uint32_t mag2 = (uint32_t)(ax * ax) + (uint32_t)(ay * ay) + (uint32_t)(az * az);
         if (mag2 > max2) max2 = mag2;
     }
     if (n < IMU_AXES) { g_peak_mg = 0; return; }                  /* no samples this cycle */
@@ -101,8 +103,9 @@ static void accrue_steps(const int16_t *src, size_t n)
     static int refractory;
     for (size_t i = 0; i + IMU_AXES <= n; i += IMU_AXES) {
         int32_t ax = src[i], ay = src[i + 1], az = src[i + 2];
-        /* integer magnitude, avoids float in the hot loop */
-        uint32_t mag2 = (uint32_t)(ax * ax + ay * ay + az * az);
+        /* integer magnitude, avoids float in the hot loop; square per-axis (fits int32) then sum in
+         * uint32_t so a full-scale impact can't overflow */
+        uint32_t mag2 = (uint32_t)(ax * ax) + (uint32_t)(ay * ay) + (uint32_t)(az * az);
         uint32_t thr2 = (uint32_t)STEP_MG_THRESH * STEP_MG_THRESH;
         if (refractory > 0) { refractory--; continue; }
         if (mag2 > thr2) { g_steps++; refractory = STEP_REFRACTORY; }

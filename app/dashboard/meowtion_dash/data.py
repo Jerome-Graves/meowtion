@@ -213,32 +213,6 @@ def over_time(df, period, value="event_duration"):
     return df.assign(when=when).groupby(["when", "activity"])[value].sum().reset_index()
 
 
-def hourly_segments(df):
-    """Break each event into per-hour segments at their real minute offsets, so a chart can show
-    WHEN activity happened (a coloured block from start_min to end_min within each hour) instead of
-    an aggregated total. An event at 10:50 lasting 30 min yields (10:00, 50, 60) and (11:00, 0, 20).
-    Returns columns `when` (the hour), `activity`, `start_min` and `end_min` (minute-of-hour, 0..60).
-    """
-    cols = ["when", "activity", "start_min", "end_min"]
-    rows = []
-    for _, e in df.iterrows():
-        start = pd.to_datetime(f"{e['event_date']} {e['start_time']}")
-        end = start + pd.Timedelta(minutes=float(e["event_duration"]))
-        if end <= start:                                       # zero/negative duration: nothing to draw
-            continue
-        bucket = start.floor("h")
-        while bucket < end:
-            nxt = bucket + pd.Timedelta(hours=1)
-            seg_start, seg_end = max(start, bucket), min(end, nxt)
-            rows.append({"when": bucket, "activity": e["activity"],
-                         "start_min": (seg_start - bucket).total_seconds() / 60.0,
-                         "end_min": (seg_end - bucket).total_seconds() / 60.0})
-            bucket = nxt
-    if not rows:
-        return pd.DataFrame(columns=cols)
-    return pd.DataFrame(rows, columns=cols)
-
-
 _TOD_REF = pd.Timestamp("2000-01-01")   # shared reference date for the "time of day" axis
 
 
