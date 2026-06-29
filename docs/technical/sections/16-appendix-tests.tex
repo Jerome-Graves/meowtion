@@ -1,0 +1,134 @@
+\section{Automated test inventory}
+\label{app:tests}
+
+% Test names and paths contain underscores; \detokenize renders them literally without manual
+% escaping, and avoids the \path name clash with TikZ used elsewhere in this document.
+\providecommand{\tn}[1]{\texttt{\detokenize{#1}}}
+
+This appendix lists every automated test in the project, with the assertion each one makes and its
+result. The suites run in continuous integration on every push and pull request
+(\cref{sec:evaluation}). As of the run on 2026-06-29 all \textbf{71} tests pass: \textbf{62} Python
+tests (executed with \texttt{pytest}) and \textbf{9} host-compiled C tests for the on-device cascade.
+Line coverage of the unit-testable core (\tn{meowtion_dash/data.py} and the Cloud Function's
+\tn{main.py}) is \textbf{100\,\%}; request handlers, model training, the dashboard UI and
+hardware-bound firmware paths are excluded from that figure and are covered by on-hardware
+verification (\cref{sec:evaluation}).
+
+\subsection{Firmware unit tests (C, host-compiled)}
+
+The pure collar logic is compiled and run on the host (no Zephyr, no hardware) from
+\tn{firmware/test}. These cover the rules-based activity gate and the confidence-gated IMU/audio
+cascade.
+
+\begin{table}[ht]
+  \centering
+  \footnotesize
+  \caption{Firmware C unit tests.}
+  \label{tab:tests-c}
+  \begin{tabularx}{\textwidth}{@{}Xr@{}}
+    \toprule
+    \textbf{Test and assertion} & \textbf{Result} \\
+    \midrule
+    \multicolumn{2}{@{}l}{\emph{\tn{test_activity.c} , rules-based activity gate}}\\
+    \tn{test_motion_keeps_awake}: motion above the still threshold keeps the collar awake & Pass \\
+    \tn{test_sustained_stillness_trips_rest}: sustained stillness past the hold-off enters low-power rest & Pass \\
+    \tn{test_motion_resets_the_timer}: fresh motion resets the stillness timer, deferring rest & Pass \\
+    \addlinespace
+    \multicolumn{2}{@{}l}{\emph{\tn{test_classifier.c} , confidence-gated cascade}}\\
+    \tn{test_confident_imu_skips_audio}: a confident IMU result skips the audio stage & Pass \\
+    \tn{test_unsure_imu_consults_audio}: an uncertain IMU result triggers audio confirmation & Pass \\
+    \tn{test_audio_kept_only_when_more_confident}: audio replaces the IMU result only when more confident & Pass \\
+    \tn{test_disabled_confirm_never_runs_audio}: with confirmation disabled, audio never runs & Pass \\
+    \tn{test_no_pcm_skips_audio}: with no audio samples buffered, the audio stage is skipped & Pass \\
+    \tn{test_no_audio_model_skips_audio}: with no audio model loaded, the audio stage is skipped & Pass \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Cloud Function unit tests (Python)}
+
+From \tn{app/firebase/functions/tests}: the model-training signal logic (\tn{test_dsp.py}) and the
+request-path validation and WAV parsing (\tn{test_helpers.py}). Parametrised tests note the number of
+cases they cover.
+
+\begin{table}[ht]
+  \centering
+  \footnotesize
+  \caption{Cloud Function Python unit tests.}
+  \label{tab:tests-cloud}
+  \begin{tabularx}{\textwidth}{@{}Xr@{}}
+    \toprule
+    \textbf{Test and assertion} & \textbf{Result} \\
+    \midrule
+    \multicolumn{2}{@{}l}{\emph{\tn{test_dsp.py} , windowing and normalisation}}\\
+    \tn{test_per_window_norm_is_zero_mean_and_bounded}: per-window normalisation is zero-mean and bounded & Pass \\
+    \tn{test_per_window_norm_matches_formula}: normalisation matches the reference formula & Pass \\
+    \tn{test_per_window_norm_normalises_each_channel_independently}: each channel is normalised independently & Pass \\
+    \tn{test_windows_pads_short_input_to_a_single_window}: short input is padded to a single window & Pass \\
+    \tn{test_windows_slides_with_hop}: the window slides by the configured hop & Pass \\
+    \tn{test_build_dataset_windows_imu_clips}: the dataset builder windows IMU clips & Pass \\
+    \tn{test_build_dataset_windows_audio_clips}: the dataset builder windows audio clips & Pass \\
+    \tn{test_build_dataset_skips_empty_imu}: empty IMU clips are skipped & Pass \\
+    \addlinespace
+    \multicolumn{2}{@{}l}{\emph{\tn{test_helpers.py} , path validation and WAV parsing}}\\
+    \tn{test_safe_id_accepts_valid_segments}: \tn{_safe_id} accepts valid id segments (4 cases) & Pass \\
+    \tn{test_safe_id_rejects_traversal_and_separators}: rejects path traversal, separators and spaces (10 cases) & Pass \\
+    \tn{test_safe_ts_accepts_digits_only}: \tn{_safe_ts} accepts all-digit timestamps & Pass \\
+    \tn{test_safe_ts_rejects_non_digits}: rejects signed, hex, spaced or traversal timestamps (7 cases) & Pass \\
+    \tn{test_parse_wav_roundtrips_samples}: the WAV parser round-trips PCM samples & Pass \\
+    \tn{test_parse_wav_reads_rate_from_fmt_chunk}: reads the sample rate from the fmt chunk & Pass \\
+    \tn{test_parse_wav_rejects_non_wav}: rejects non-WAV input & Pass \\
+    \tn{test_parse_wav_requires_a_data_chunk}: requires a data chunk & Pass \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Dashboard unit tests (Python)}
+
+From \tn{app/dashboard/tests}: the data layer that turns the raw Firebase JSON into the chart-ready
+frame, the time-window drill-down, the per-day segmenting used by the timeline, and the health-watch
+comparison.
+
+\begin{table}[ht]
+  \centering
+  \footnotesize
+  \caption{Dashboard data-layer Python unit tests.}
+  \label{tab:tests-dash}
+  \begin{tabularx}{\textwidth}{@{}Xr@{}}
+    \toprule
+    \textbf{Test and assertion} & \textbf{Result} \\
+    \midrule
+    \multicolumn{2}{@{}l}{\emph{\tn{test_data.py}}}\\
+    \tn{test_fmt_dur_under_and_over_a_minute}: duration formatting under and over a minute & Pass \\
+    \tn{test_activity_dataframe_maps_class_index_to_label}: real events map the class index to the model label & Pass \\
+    \tn{test_activity_dataframe_rest_event_uses_type_not_class}: the 0xFE rest sentinel falls back to the event type & Pass \\
+    \tn{test_activity_dataframe_v1_event_uses_type}: legacy v1 events use the stored type & Pass \\
+    \tn{test_activity_dataframe_skips_malformed_events}: events with no start time are skipped & Pass \\
+    \tn{test_filter_by_activity_single_and_list}: the activity filter accepts a name or a list & Pass \\
+    \tn{test_over_time_sums_duration_by_activity}: over-time aggregation sums duration by activity & Pass \\
+    \addlinespace
+    \multicolumn{2}{@{}l}{\emph{\tn{test_more.py}}}\\
+    \tn{test_iter_cats_handles_station_nested_and_standalone}: parses station-nested and standalone cat shapes & Pass \\
+    \tn{test_list_cats_dedups_and_pairs_name_id}: de-duplicates and pairs (name, id) & Pass \\
+    \tn{test_period_options_day_newest_first_deduped}: day options are newest-first and de-duplicated & Pass \\
+    \tn{test_filter_to_window_day_and_month}: day and month window filtering & Pass \\
+    \tn{test_health_signals_recent_average_without_baseline}: recent average with no baseline yet & Pass \\
+    \tn{test_fmt_time_format}: epoch-to-clock time formatting & Pass \\
+    \tn{test_filter_by_weekday}: weekday filtering (single or list) & Pass \\
+    \tn{test_filter_by_date_range}: date-range filtering (bounded or open-ended) & Pass \\
+    \tn{test_last_n_days_keeps_recent_calendar_days}: keeps the most recent N calendar days & Pass \\
+    \tn{test_health_signals_reports_drop_vs_baseline}: reports a habit drop versus baseline as a percentage & Pass \\
+    \tn{test_model_labels}: reads model labels, with empty/None guards & Pass \\
+    \tn{test_iter_cats_skips_non_dict_entries}: skips non-dict device and cat entries & Pass \\
+    \tn{test_period_options_empty_week_and_month}: empty input and the Week/Month option paths & Pass \\
+    \tn{test_filter_to_window_empty_and_week}: empty input and the 7-day window & Pass \\
+    \tn{test_over_time_empty_and_day}: empty input and the hourly (Day) path & Pass \\
+    \tn{test_last_n_days_and_health_signals_handle_empty}: empty-input guards & Pass \\
+    \tn{test_daily_segments_rows_per_day_with_time_of_day}: events split per day with time-of-day, crossing midnight & Pass \\
+    \tn{test_daily_segments_skips_zero_and_empty}: zero-duration and empty input are skipped & Pass \\
+    \tn{test_trim_sparse_edge_days_drops_thin_first_and_last}: near-empty leading/trailing days are dropped & Pass \\
+    \tn{test_trim_sparse_edge_days_keeps_thin_interior_day}: a thin interior day is kept & Pass \\
+    \tn{test_trim_sparse_edge_days_handles_single_and_empty}: single-day and empty inputs are handled & Pass \\
+    \bottomrule
+  \end{tabularx}
+\end{table}

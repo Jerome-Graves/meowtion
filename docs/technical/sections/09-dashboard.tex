@@ -102,15 +102,21 @@ baseline, and flags a sustained change with a plain-language, vet-oriented note 
 diagnosis. Two design choices keep it honest. It compares whole days only, since events are logged
 when an action ends and the current day is always partial. And it pairs a flagged change with local
 weather context, so a warm-spell rise in drinking is presented with its likely cause rather than as an
-alarm. A drill-down lets the viewer set the x-axis to a day, a week, or a month and then pick the
-window to show. The activity charts are stacked by behaviour and rendered on a transparent background
-so they sit on the page's brand canvas.
+alarm. Below the health watch, a calendar date picker selects a single day or a date range; the view
+auto-derives the granularity (a single day, or multiple days) from the chosen span. It then shows a
+\emph{time per activity} bar chart (total minutes per behaviour over the selected window) above a
+rows-of-days timeline, in which each event is a coloured bar drawn at the time of day it occurred
+(y-axis: calendar day; x-axis: time of day). The timeline supports horizontal zoom (scroll or drag)
+with a reset-view control, and its x-axis spans the data's actual time range rather than a fixed
+24~hours. Colours are assigned from a colourblind-safe palette and shared between the activity filter
+buttons (outline when off, filled when on) and both charts, and everything is rendered on a
+transparent background so it sits on the page's brand canvas.
 
 \begin{figure}[ht]
   \centering
   \includegraphics[width=0.64\textwidth]{ui-history.png}
-  \caption{The history view (read-only demo): the day/week/month drill-down, the per-behaviour
-           stacked chart, and the all-activity totals, with weather context.}
+  \caption{The history view (read-only demo): the calendar date picker, the per-activity time totals,
+           and the zoomable rows-of-days activity timeline, with weather context.}
   \label{fig:ui-history}
 \end{figure}
 

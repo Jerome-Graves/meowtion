@@ -92,12 +92,13 @@ change, and the integration and on-device behaviour is verified on the hardware.
 controls and their evidence are detailed separately (\cref{sec:security-privacy}).
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Automated unit tests.} 57 Python tests cover the dashboard data layer (event
+  \item \textbf{Automated unit tests.} 62 Python tests cover the dashboard data layer (event
         aggregation, label resolution, the low-power-rest event handling, the time-window
-        drill-down, and the health comparison) and the Cloud Function's signal logic (per-window
-        normalisation, windowing, WAV parsing, and the path-validation regexes). Host-compiled C
-        tests cover the on-device cascade: the rules-based activity gate and the confidence-gated
-        IMU/audio gating.
+        drill-down, the per-day timeline segmenting, and the health comparison) and the
+        Cloud Function's signal logic (per-window normalisation, windowing, WAV parsing, and the
+        path-validation regexes). Nine host-compiled C tests cover the on-device cascade: the
+        rules-based activity gate and the confidence-gated IMU/audio gating. The full per-test
+        inventory and results are listed in \cref{app:tests}.
   \item \textbf{Coverage.} Line coverage of the unit-testable core is 100\,\%. The Firebase request
         handlers, model training, the dashboard UI, and the hardware-bound firmware paths are
         excluded from that figure and are covered by the on-hardware checks below.
