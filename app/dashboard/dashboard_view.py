@@ -168,10 +168,12 @@ def render(df, data=None):
                 border_colour = bg_colour
             else:
                 label_prefix = ""
-                # muted "off" state, adapts to the light/dark theme
-                bg_colour = "#2a2a36" if dark else "#F4F2F7"
-                text_colour = "#b8b8c4" if dark else "#6b7280"
-                border_colour = "#4a4458" if dark else "#DCD2E4"
+                # "off" state: a neutral surface with the activity's own colour as an outline and
+                # readable text, so it's clearly the same button just switched off (filled = on,
+                # outline = off). Adapts to the light/dark theme.
+                bg_colour = "#2a2a36" if dark else "#FFFFFF"
+                text_colour = "#e7e7ef" if dark else "#3a3a4a"
+                border_colour = colours[activity]
             
             button_label = f"{label_prefix} {activity}"
             button_key = f"btn_click_{activity}" 
@@ -189,7 +191,7 @@ def render(df, data=None):
                 .st-key-btn-{clean_id} button {{
                     background-color: {bg_colour} !important;
                     color: {text_colour} !important;
-                    border: 1px solid {border_colour} !important;
+                    border: 2px solid {border_colour} !important;
                     transition: background-color 0.2s ease, opacity 0.2s ease;
                 }}
                 .st-key-btn-{clean_id} button:hover {{
