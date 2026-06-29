@@ -10,18 +10,32 @@ ACCENT = "#bc7bc2"   # brand lavender
 # scheme is agnostic to whatever activity names the model produces. A given activity always gets the
 # same colour, and the filter buttons and the charts share this one mapping (activity_colors) so they
 # always match.
+#
+# Palette: colourblind-safe categorical colours (Okabe-Ito, plus two from Paul Tol to extend to 10),
+# ordered so the first few activities get the most distinct hues. The reddish-purple sits with the
+# lavender brand accent. Button labels pick black/white automatically (see readable_text) so they
+# stay legible on the lighter colours too.
 PALETTE = [
-    "#4caf7d",  # green
-    "#3d9bd6",  # blue
-    "#e8943a",  # orange
-    "#9b8bd6",  # purple
-    "#c77bb0",  # pink
-    "#e0b020",  # amber
-    "#48bfae",  # teal
-    "#e07a5f",  # coral
-    "#6c5cc2",  # indigo
-    "#5cba8a",  # mint
+    "#0072B2",  # blue
+    "#E69F00",  # orange
+    "#009E73",  # bluish green
+    "#CC79A7",  # reddish purple (pairs with the lavender brand)
+    "#56B4E9",  # sky blue
+    "#D55E00",  # vermillion
+    "#F0E442",  # yellow
+    "#999999",  # grey
+    "#332288",  # indigo (Tol)
+    "#661100",  # dark red-brown (Tol)
 ]
+
+
+def readable_text(hex_colour):
+    """Return black or white, whichever reads better on `hex_colour` (by sRGB relative luminance).
+    Used so an activity button's label stays legible whatever palette colour sits behind it."""
+    h = hex_colour.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return "#000000" if lum > 0.6 else "#FFFFFF"
 
 
 def activity_colors(activities):

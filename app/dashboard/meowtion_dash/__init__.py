@@ -31,7 +31,7 @@ from .data import (
     period_options, filter_to_window, over_time, hourly_segments, daily_segments,
     trim_sparse_edge_days, health_signals,
 )
-from .charts import bar, stacked_bar, intraday_timeline, event_timeline, activity_colors, activity_totals
+from .charts import bar, stacked_bar, intraday_timeline, event_timeline, activity_colors, activity_totals, readable_text
 from .weather import weather_dataframe, window_weather, weather_caption
 from .live import live_view
 
@@ -41,6 +41,6 @@ __all__ = [
     "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",
     "period_options", "filter_to_window", "over_time", "hourly_segments", "daily_segments",
     "trim_sparse_edge_days", "health_signals",
-    "bar", "stacked_bar", "intraday_timeline", "event_timeline", "activity_colors", "activity_totals",
+    "bar", "stacked_bar", "intraday_timeline", "event_timeline", "activity_colors", "activity_totals", "readable_text",
     "weather_dataframe", "window_weather", "weather_caption",
 ]

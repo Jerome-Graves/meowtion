@@ -159,7 +159,7 @@ def render(df, data=None):
             if st.session_state[state_key]:
                 label_prefix = ""
                 bg_colour = colours[activity]
-                text_colour = "#FFFFFF"
+                text_colour = mw.readable_text(bg_colour)   # black/white per colour, for legibility
                 border_colour = bg_colour
             else:
                 label_prefix = ""
