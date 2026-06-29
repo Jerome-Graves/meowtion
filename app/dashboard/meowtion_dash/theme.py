@@ -64,8 +64,10 @@ _DARK_CSS = """
    theme, so their text must be DARK to be readable; the selected segment has a dark fill, so it keeps
    light text. */
 [data-testid="stSegmentedControl"] button, [data-testid="stSegmentedControl"] button * { color:#1b1b2b !important; }
+[data-testid="stSegmentedControl"] button[aria-checked="true"],
+[data-testid="stSegmentedControl"] button[aria-pressed="true"] { background:#3a2f48 !important; border-color:#bc7bc2 !important; }
 [data-testid="stSegmentedControl"] button[aria-checked="true"], [data-testid="stSegmentedControl"] button[aria-checked="true"] *,
-[data-testid="stSegmentedControl"] button[aria-pressed="true"], [data-testid="stSegmentedControl"] button[aria-pressed="true"] * { background:#3a2f48 !important; color:#ffffff !important; border-color:#bc7bc2 !important; }
+[data-testid="stSegmentedControl"] button[aria-pressed="true"], [data-testid="stSegmentedControl"] button[aria-pressed="true"] * { color:#ffffff !important; }
 hr { border-color:#2a2a36 !important; }
 a { color:#d6a9db; }
 </style>
