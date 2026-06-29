@@ -195,42 +195,31 @@ def render(df, data=None):
         st.info("Nothing to show , pick another window or add activities.")
     else:
         if span == "Day":
-            # --- HOURLY VIEW STRATEGY ---
-            # Apportion each event's minutes across the hours it actually spans, so no hour exceeds
-            # its real 60-minute budget (summing whole durations into the start hour would).
-            frame = mw.hourly_activity(window)
-
-            unit, time_unit, time_format = "hour", "yearmonthdatehours", "%H:%M"
-            chosen_label = start_date.strftime("%B %d, %Y")
-            # Always span the full 24 hours of the day, not just the hours that have data.
-            day_start = pd.Timestamp(start_date)
-            x_domain = [day_start.isoformat(), (day_start + pd.Timedelta(days=1)).isoformat()]
+            # Single day -> a timeline: each event is a coloured block at its real minute offset
+            # within the hour, so you see WHEN activities happened, across the full 24 hours.
+            frame = mw.hourly_segments(window)
+            if frame.empty:
+                st.info("No activity logged in this window.")
+            else:
+                day_start = pd.Timestamp(start_date)
+                x_domain = [day_start.isoformat(), (day_start + pd.Timedelta(days=1)).isoformat()]
+                st.altair_chart(
+                    mw.intraday_timeline(frame, colors=colours, x_domain=x_domain, height=380),
+                    use_container_width=True,
+                )
         else:
-            # --- DAILY VIEW STRATEGY ---
-            x_domain = None
+            # Multiple days -> total minutes per day, stacked by activity.
             frame = mw.over_time(window, span)
-            if span == "Week":
-                unit, time_unit, time_format = "day", "yearmonthdate", "%a %d"
+            if frame.empty or frame["event_duration"].fillna(0).sum() == 0:
+                st.info("No activity logged in this window.")
             else:
-                unit, time_unit, time_format = "day", "yearmonthdate", "%d"
-            
-            # Handle label ranges for printing strings cleanly
-            if isinstance(date_range, tuple) and len(date_range) == 2:
-                chosen_label = f"{date_range[0].strftime('%b %d')} - {date_range[1].strftime('%b %d, %Y')}"
-            else:
-                chosen_label = "Selected Window"
-
-        # Skip the chart when the window has nothing to plot. Handing Vega an empty (or all-zero)
-        # dataset makes it warn "Infinite extent for field ..." and renders a blank axis.
-        if frame.empty or frame["event_duration"].fillna(0).sum() == 0:
-            st.info("No activity logged in this window.")
-        else:
-            st.altair_chart(
-                mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
-                               time_unit=time_unit, time_format=time_format, height=380, legend=False,
-                               colors=colours, x_domain=x_domain),
-                use_container_width=True,
-            )
+                time_unit, time_format = ("yearmonthdate", "%a %d") if span == "Week" else ("yearmonthdate", "%d")
+                st.altair_chart(
+                    mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
+                                   time_unit=time_unit, time_format=time_format, height=380,
+                                   legend=False, colors=colours),
+                    use_container_width=True,
+                )
 
     # weather over the same window, so you can read the activity against hot/cold/wet days
     if not window.empty:

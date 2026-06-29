@@ -191,28 +191,30 @@ def over_time(df, period, value="event_duration"):
     return df.assign(when=when).groupby(["when", "activity"])[value].sum().reset_index()
 
 
-def hourly_activity(df):
-    """Split each event's minutes across the clock hours it actually spans (from its start time and
-    duration) and sum per hour and activity. Bucketing a whole duration into the event's start hour
-    lets a single hour exceed 60 minutes; apportioning it keeps each hour within its real 60-minute
-    budget (for sequential, non-overlapping events). Returns columns `when` (hourly), `activity`,
-    `event_duration` (minutes within that hour)."""
-    cols = ["when", "activity", "event_duration"]
+def hourly_segments(df):
+    """Break each event into per-hour segments at their real minute offsets, so a chart can show
+    WHEN activity happened (a coloured block from start_min to end_min within each hour) instead of
+    an aggregated total. An event at 10:50 lasting 30 min yields (10:00, 50, 60) and (11:00, 0, 20).
+    Returns columns `when` (the hour), `activity`, `start_min` and `end_min` (minute-of-hour, 0..60).
+    """
+    cols = ["when", "activity", "start_min", "end_min"]
     rows = []
     for _, e in df.iterrows():
         start = pd.to_datetime(f"{e['event_date']} {e['start_time']}")
-        remaining = float(e["event_duration"])                 # minutes still to place
-        cur = start
-        while remaining > 1e-9:
-            bucket = cur.floor("h")
+        end = start + pd.Timedelta(minutes=float(e["event_duration"]))
+        if end <= start:                                       # zero/negative duration: nothing to draw
+            continue
+        bucket = start.floor("h")
+        while bucket < end:
             nxt = bucket + pd.Timedelta(hours=1)
-            mins = min(remaining, (nxt - cur).total_seconds() / 60.0)   # minutes inside this hour
-            rows.append({"when": bucket, "activity": e["activity"], "event_duration": mins})
-            remaining -= mins
-            cur = nxt
+            seg_start, seg_end = max(start, bucket), min(end, nxt)
+            rows.append({"when": bucket, "activity": e["activity"],
+                         "start_min": (seg_start - bucket).total_seconds() / 60.0,
+                         "end_min": (seg_end - bucket).total_seconds() / 60.0})
+            bucket = nxt
     if not rows:
         return pd.DataFrame(columns=cols)
-    return pd.DataFrame(rows, columns=cols).groupby(["when", "activity"], as_index=False)["event_duration"].sum()
+    return pd.DataFrame(rows, columns=cols)
 
 
 # Health-relevant habits, most informative first. Appetite and thirst changes are classic early

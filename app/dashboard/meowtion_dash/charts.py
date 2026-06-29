@@ -77,6 +77,32 @@ def stacked_bar(data, x, y, color, y_title=None, time_unit=None, time_format="%d
     )
 
 
+def intraday_timeline(data, colors=None, x_domain=None, height=300):
+    """A single-day timeline. Each row is a per-hour event segment (columns `when`, `activity`,
+    `start_min`, `end_min`); it is drawn as a coloured block at its real minute offset within the
+    hour (y from start_min to end_min, 0..60), so you can read WHEN activities happened across the
+    day rather than just totals. Pass `colors` to match the filter buttons and `x_domain` (e.g.
+    midnight->midnight) to span the whole day."""
+    scale = activity_scale(colors=colors) if colors else activity_scale(sorted(map(str, data["activity"].unique())))
+    return (
+        alt.Chart(data)
+        .mark_bar(cornerRadius=2)
+        .encode(
+            x=alt.X("when:T", timeUnit="yearmonthdatehours", title=None,
+                    scale=alt.Scale(domain=x_domain, nice=False) if x_domain else alt.Undefined,
+                    axis=alt.Axis(format="%H:%M", labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
+            y=alt.Y("start_min:Q", title="minute of hour", scale=alt.Scale(domain=[0, 60]),
+                    axis=alt.Axis(values=[0, 15, 30, 45, 60], labelColor="#6b7280", titleColor="#6b7280")),
+            y2="end_min:Q",
+            color=alt.Color("activity:N", scale=scale, legend=None),
+            tooltip=["activity"],
+        )
+        .properties(height=height, background="transparent")
+        .configure_view(fill=None, stroke=None)
+        .configure_axis(grid=False, domainColor="#e6e7ec", tickColor="#e6e7ec")
+    )
+
+
 def bar(data, x, y, y_title=None, temporal=False, time_format="%d %b"):
     """A branded Altair bar chart: lavender bars on a TRANSPARENT background, so it sits on the
     page's gradient instead of in a clashing white panel. `x`/`y` are column names.
