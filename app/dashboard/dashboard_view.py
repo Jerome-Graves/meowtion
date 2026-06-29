@@ -221,9 +221,15 @@ def render(df, data=None):
                 st.info("No activity logged in this window.")
             else:
                 n_days = frame["day"].nunique()
+                # Scroll/drag zooms the time axis. A scale-zoom can't be capped, so offer a reset:
+                # bumping this counter changes the chart's key, which remounts it at the full view.
+                if st.button("↺ Reset view", key="reset_timeline_zoom",
+                             help="Zoom back out to the full day"):
+                    st.session_state["timeline_zoom_n"] = st.session_state.get("timeline_zoom_n", 0) + 1
                 st.altair_chart(
                     mw.event_timeline(frame, colors=colours, height=max(220, 40 + 26 * n_days)),
                     use_container_width=True,
+                    key=f"timeline_{st.session_state.get('timeline_zoom_n', 0)}",
                 )
 
     # weather over the same window, so you can read the activity against hot/cold/wet days
