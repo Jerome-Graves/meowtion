@@ -97,23 +97,21 @@ def render(df, data=None):
         max_value=hi,
     )
 
-    # Determine whether a range or a single date was chosen, and configure the time span
-    if isinstance(date_range, tuple) and len(date_range) == 2 and date_range[0] != date_range[1]:
-        start_date, end_date = date_range
-        window = df[(pure_dates >= start_date) & (pure_dates <= end_date)].copy()
-        span = "Week" if (end_date - start_date).days <= 7 else "Month"
-    elif isinstance(date_range, tuple) and len(date_range) == 1 or date_range[0] == date_range[1]:
-        start_date = date_range[0]
-        window = df[pure_dates == start_date].copy()
-        span = "Day"
-    elif isinstance(date_range, pd.Timestamp) or hasattr(date_range, 'year'):
-        # Fallback handle if Streamlit returns a single bare date object instead of a tuple
-        start_date = date_range
-        window = df[pure_dates == start_date].copy()
-        span = "Day"
+    # Normalise the picker result to a (start, end) day pair, then choose the x-axis granularity from
+    # how many days it spans: a single calendar day is shown by HOUR; up to a week or longer by DAY.
+    # (st.date_input returns a 2-tuple for a range, a 1-tuple mid-selection, or a bare date.)
+    if isinstance(date_range, (tuple, list)):
+        start_date, end_date = date_range[0], date_range[-1]   # a 1-tuple collapses to start == end
     else:
-        window = df.copy()
-        span = "Month"
+        start_date = end_date = date_range
+    window = df[(pure_dates >= start_date) & (pure_dates <= end_date)].copy()
+    span_days = (end_date - start_date).days
+    if span_days == 0:
+        span = "Day"          # one calendar day -> hourly x-axis
+    elif span_days <= 7:
+        span = "Week"         # daily x-axis
+    else:
+        span = "Month"        # daily x-axis
 
     # Sleep and Resting dominate the minutes, so the small habits (eat, drink) are tiny slivers.
     # Deselecting the big ones here is how you see those small events.
