@@ -182,3 +182,13 @@ def test_hourly_segments_skips_zero_duration_and_empty():
                       "activity": ["Eat"], "event_duration": [0.0]})
     assert mw.hourly_segments(z).empty            # zero-duration -> no block
     assert mw.hourly_segments(z.iloc[0:0]).empty  # no events -> empty
+
+
+def test_event_spans_builds_start_and_end():
+    df = pd.DataFrame({"event_date": ["2026-06-28"], "start_time": ["10:30"],
+                       "activity": ["Eat"], "event_duration": [30.0]})
+    out = mw.event_spans(df)
+    assert out["start"].iloc[0] == pd.Timestamp("2026-06-28 10:30")
+    assert out["end"].iloc[0] == pd.Timestamp("2026-06-28 11:00")
+    assert out["activity"].iloc[0] == "Eat"
+    assert mw.event_spans(df.iloc[0:0]).empty

@@ -103,6 +103,32 @@ def intraday_timeline(data, colors=None, x_domain=None, height=300):
     )
 
 
+def event_timeline(data, colors=None, x_domain=None, time_format="%a %d", height=300):
+    """A Gantt-style timeline across a multi-day range. Each row is an event with `start`/`end`
+    timestamps and `activity`; it is drawn as a horizontal bar from start to end in a lane per
+    activity, coloured by activity, so you can read when each behaviour happened across the days.
+    Pass `colors` to match the filter buttons and `x_domain` to bound the time axis."""
+    scale = activity_scale(colors=colors) if colors else activity_scale(sorted(map(str, data["activity"].unique())))
+    return (
+        alt.Chart(data)
+        .mark_bar(cornerRadius=2, size=18)
+        .encode(
+            x=alt.X("start:T", title=None,
+                    scale=alt.Scale(domain=x_domain, nice=False) if x_domain else alt.Undefined,
+                    axis=alt.Axis(format=time_format, labelColor="#3a3a4a", labelFontWeight=600, labelAngle=0)),
+            x2="end:T",
+            y=alt.Y("activity:N", title=None, axis=alt.Axis(labelColor="#3a3a4a", labelFontWeight=600)),
+            color=alt.Color("activity:N", scale=scale, legend=None),
+            tooltip=["activity",
+                     alt.Tooltip("start:T", title="start", format="%a %d %H:%M"),
+                     alt.Tooltip("end:T", title="end", format="%a %d %H:%M")],
+        )
+        .properties(height=height, background="transparent")
+        .configure_view(fill=None, stroke=None)
+        .configure_axis(grid=False, domainColor="#e6e7ec", tickColor="#e6e7ec")
+    )
+
+
 def bar(data, x, y, y_title=None, temporal=False, time_format="%d %b"):
     """A branded Altair bar chart: lavender bars on a TRANSPARENT background, so it sits on the
     page's gradient instead of in a clashing white panel. `x`/`y` are column names.

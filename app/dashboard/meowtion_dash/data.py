@@ -217,6 +217,18 @@ def hourly_segments(df):
     return pd.DataFrame(rows, columns=cols)
 
 
+def event_spans(df):
+    """One row per event with absolute start/end timestamps, for a Gantt-style timeline across a
+    multi-day range. Columns: `start`, `end` (timestamps), `activity`."""
+    cols = ["start", "end", "activity"]
+    if df.empty:
+        return pd.DataFrame(columns=cols)
+    start = pd.to_datetime(df["event_date"].astype(str) + " " + df["start_time"].astype(str))
+    end = start + pd.to_timedelta(df["event_duration"].astype(float), unit="m")
+    return pd.DataFrame({"start": start.to_numpy(), "end": end.to_numpy(),
+                         "activity": df["activity"].to_numpy()})
+
+
 # Health-relevant habits, most informative first. Appetite and thirst changes are classic early
 # warnings, and how much a cat grooms is one of the clearest behavioural health signals (grooming
 # less can mean pain/illness; a lot more can mean stress or skin trouble), so those three lead, then
