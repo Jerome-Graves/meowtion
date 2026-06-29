@@ -89,8 +89,12 @@ div[data-baseweb="popover"]:has([data-baseweb="calendar"]) > div { background-co
    baseweb labels the chosen day "...it's selected"); fill the centre so it matches the ring. */
 [data-baseweb="calendar"] [aria-selected="true"], [data-baseweb="calendar"] [aria-selected="true"] *,
 [data-baseweb="calendar"] [aria-label*="selected" i], [data-baseweb="calendar"] [aria-label*="selected" i] * { background-color:#bc7bc2 !important; color:#ffffff !important; border-radius:50% !important; }
-/* unselectable days = clearly dimmer than the selectable (bright) ones */
-[data-baseweb="calendar"] [aria-disabled="true"], [data-baseweb="calendar"] [aria-disabled="true"] * { color:#4d4d57 !important; }
+/* unselectable days = clearly dimmer than the selectable (bright) ones. baseweb may use aria-disabled
+   OR the disabled attribute OR an aria-label of "not available", so cover all. */
+[data-baseweb="calendar"] [aria-disabled="true"], [data-baseweb="calendar"] [aria-disabled="true"] *,
+[data-baseweb="calendar"] [disabled], [data-baseweb="calendar"] [disabled] *,
+[data-baseweb="calendar"] [aria-label*="not available" i], [data-baseweb="calendar"] [aria-label*="not available" i] *,
+[data-baseweb="calendar"] [aria-label*="unavailable" i], [data-baseweb="calendar"] [aria-label*="unavailable" i] * { color:#44444e !important; }
 </style>
 """
 
