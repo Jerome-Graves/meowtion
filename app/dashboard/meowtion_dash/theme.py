@@ -60,6 +60,11 @@ _DARK_CSS = """
 .stButton > button { background:#22222e; color:#e7e7ef; border:1px solid #3a3a48; }
 [data-testid="stExpander"] details { background:#15151d; border:1px solid #2a2a36; border-radius:.5rem; }
 [data-testid="stExpander"] summary, [data-testid="stExpander"] summary * { color:#e7e7ef; }
+/* segmented control (Cat Selection): unselected segments default to a white surface in the light
+   base theme, so they need a dark surface here or it's white-on-white. */
+[data-testid="stSegmentedControl"] button { background:#22222e !important; color:#e7e7ef !important; border-color:#3a3a48 !important; }
+[data-testid="stSegmentedControl"] button[aria-checked="true"],
+[data-testid="stSegmentedControl"] button[aria-pressed="true"] { background:#3a2f48 !important; color:#ffffff !important; border-color:#bc7bc2 !important; }
 hr { border-color:#2a2a36 !important; }
 a { color:#d6a9db; }
 </style>
