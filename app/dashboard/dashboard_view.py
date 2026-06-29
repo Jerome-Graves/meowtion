@@ -90,11 +90,33 @@ def render(df, data=None):
     # latest logged day (or before the first), st.date_input rejects an out-of-range default.
     default_day = min(max(today, lo), hi)
 
+    def _clamp(d):
+        return min(max(d, lo), hi)
+
+    # Seed the picker once; quick buttons below and the calendar both read/write this same key.
+    if "date_pick" not in st.session_state:
+        st.session_state["date_pick"] = (default_day, default_day)
+
+    # Make it obvious the date is selectable and changeable: a clear prompt, a how-to line, and
+    # one-tap shortcuts that drive the calendar below.
+    st.markdown("#### 📅 Choose the dates to show")
+    st.caption("Tap the box below to pick a day, or pick a start and end date for a range. "
+               "Or use a quick shortcut:")
+    q1, q2, q3, q4 = st.columns(4)
+    if q1.button("Latest day", use_container_width=True):
+        st.session_state["date_pick"] = (hi, hi)
+    if q2.button("Last 7 days", use_container_width=True):
+        st.session_state["date_pick"] = (_clamp(hi - datetime.timedelta(days=6)), hi)
+    if q3.button("Last 30 days", use_container_width=True):
+        st.session_state["date_pick"] = (_clamp(hi - datetime.timedelta(days=29)), hi)
+    if q4.button("All time", use_container_width=True):
+        st.session_state["date_pick"] = (lo, hi)
+
     date_range = st.date_input(
-        label="📅 Select a date or date range",
-        value=(default_day, default_day),
+        label="Date or date range (click to change)",
         min_value=lo,
         max_value=hi,
+        key="date_pick",
     )
 
     # Normalise the picker result to a (start, end) day pair, then choose the x-axis granularity from
