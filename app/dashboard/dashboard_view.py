@@ -163,9 +163,9 @@ def render(df, data=None):
                 border_colour = bg_colour
             else:
                 label_prefix = ""
-                bg_colour = "#F0FAF6"
-                text_colour = "#000000"
-                border_colour = "#E0EF52"
+                bg_colour = "#F4F2F7"        # muted light lavender = "off", fits the brand theme
+                text_colour = "#6b7280"
+                border_colour = "#DCD2E4"
             
             button_label = f"{label_prefix} {activity}"
             button_key = f"btn_click_{activity}" 
@@ -218,7 +218,7 @@ def render(df, data=None):
     else:
         # Totals first: total minutes per activity over the selected period (x = activity, y = total
         # minutes). Driven by `window`, so it tracks the date pick and the activity filters.
-        st.markdown("**Total time per activity**")
+        st.markdown("**Time per activity**")
         st.altair_chart(mw.activity_totals(window, colors=colours), use_container_width=True)
 
         # ONE timeline for any span: rows of days (y-axis), time of day on the x-axis (00:00-24:00),
@@ -238,11 +238,6 @@ def render(df, data=None):
             n_days = frame["day"].nunique()
             st.markdown("**When activities happened**")
             st.caption("Each bar is an activity at the time of day it occurred. Scroll or drag to zoom the time axis.")
-            # Scroll/drag zooms the time axis. A scale-zoom can't be capped, so offer a reset:
-            # bumping this counter renames the zoom selection, which remounts the chart at the full view.
-            if st.button("↺ Reset view", key="reset_timeline_zoom",
-                         help="Zoom back out to the full day"):
-                st.session_state["timeline_zoom_n"] = st.session_state.get("timeline_zoom_n", 0) + 1
             zoom_n = st.session_state.get("timeline_zoom_n", 0)
             st.altair_chart(
                 mw.event_timeline(frame, colors=colours,
@@ -250,6 +245,14 @@ def render(df, data=None):
                 use_container_width=True,
                 key=f"timeline_{zoom_n}",
             )
+            # Reset zoom, centered below the chart. Bumping this counter renames the zoom selection,
+            # which remounts the chart at the full view (a scale-zoom can't otherwise be reset), so
+            # rerun once so the chart picks up the new key.
+            _, mid, _ = st.columns([2, 1, 2])
+            if mid.button("↺ Reset view", key="reset_timeline_zoom",
+                          help="Zoom back out to the full day", use_container_width=True):
+                st.session_state["timeline_zoom_n"] = zoom_n + 1
+                st.rerun()
 
     # weather over the same window, so you can read the activity against hot/cold/wet days
     if not window.empty:
