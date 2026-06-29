@@ -31,10 +31,25 @@ python -m pytest app/dashboard/tests app/firebase/functions/tests
   including short-input zero-padding. The Firebase SDKs are stubbed (see `conftest.py`) so the
   helpers test in isolation.
 
-## Firmware (collar / station, C)
+## Firmware (collar, C)
 
-The on-device cascade logic (the rules-based activity gate in `activity.c` and the
-confidence-gated cascade in `classifier.c`) is pure C and host-compilable, but running unit
-tests for it needs a host C toolchain, which isn't part of the embedded build environment.
-A host test harness under `firmware/test/` is planned; until then this logic is validated by
-the on-hardware checks recorded in the project report.
+The on-device cascade logic is pure C, so it is unit-tested on the host (no Zephyr, no hardware)
+under `firmware/test/`:
+
+- **`test_activity.c`** , the rules-based activity gate (`activity.c`): motion keeps the collar
+  awake, sustained stillness past the hold-off trips low-power rest, and any motion resets the timer.
+- **`test_classifier.c`** , the confidence-gated cascade (`classifier.c`): the audio stage runs
+  only when it is enabled, a model is present, audio exists for the cycle, and the IMU was unsure,
+  and the more-confident stage wins. classifier.c's weak model hooks are overridden with scripted
+  stubs.
+
+Run (needs any host C compiler, e.g. gcc/clang):
+
+```bash
+make -C firmware/test check
+```
+
+## Continuous integration
+
+`.github/workflows/test.yml` runs both the Python and the C suites on every push and pull request,
+so the tests are exercised automatically even without a local C toolchain.
