@@ -190,49 +190,37 @@ def render(df, data=None):
     #   ACTIVITY. If span is "Day", it processes the data at hourly steps instead of daily blocks.
     # ===================================================================== #
     window = mw.filter_by_activity(window, shown) if shown else window.iloc[0:0]
-    
+
     if window.empty:
         st.info("Nothing to show , pick another window or add activities.")
     else:
-        if span == "Day":
-            # Single day -> a timeline: each event is a coloured block at its real minute offset
-            # within the hour, so you see WHEN activities happened, across the full 24 hours.
-            frame = mw.hourly_segments(window)
-            if frame.empty:
-                st.info("No activity logged in this window.")
-            else:
-                day_start = pd.Timestamp(start_date)
-                x_domain = [day_start.isoformat(), (day_start + pd.Timedelta(days=1)).isoformat()]
-                st.altair_chart(
-                    mw.intraday_timeline(frame, colors=colours, x_domain=x_domain, height=380),
-                    use_container_width=True,
-                )
+        # ONE timeline for any span: rows of days (y-axis), time of day on the x-axis (00:00-24:00),
+        # each event a horizontal bar at the time of day it happened. A single day is simply one row,
+        # so the single-day and multi-day views look and behave the same. Include the day BEFORE the
+        # range too, so an overnight episode that started before it still fills the first day's early
+        # hours; then keep only the days inside the selected range.
+        ext = df[(pure_dates >= start_date - datetime.timedelta(days=1)) & (pure_dates <= end_date)]
+        ext = mw.filter_by_activity(ext, shown)
+        frame = mw.daily_segments(ext)
+        frame = frame[(frame["day"] >= start_date.isoformat()) & (frame["day"] <= end_date.isoformat())]
+        if span != "Day":
+            frame = mw.trim_sparse_edge_days(frame)   # multi-day: hide incomplete leading/trailing days
+        if frame.empty:
+            st.info("No activity logged in this window.")
         else:
-            # Multiple days -> rows of days: y-axis is the day, x-axis is time of day, each event a
-            # horizontal bar at the time of day it happened. Include the day BEFORE the range too, so
-            # an overnight episode that started before the range still fills the first day's early
-            # hours; then keep only the days inside the selected range.
-            ext = df[(pure_dates >= start_date - datetime.timedelta(days=1)) & (pure_dates <= end_date)]
-            ext = mw.filter_by_activity(ext, shown)
-            frame = mw.daily_segments(ext)
-            frame = frame[(frame["day"] >= start_date.isoformat()) & (frame["day"] <= end_date.isoformat())]
-            frame = mw.trim_sparse_edge_days(frame)   # hide incomplete leading/trailing days
-            if frame.empty:
-                st.info("No activity logged in this window.")
-            else:
-                n_days = frame["day"].nunique()
-                # Scroll/drag zooms the time axis. A scale-zoom can't be capped, so offer a reset:
-                # bumping this counter changes the chart's key, which remounts it at the full view.
-                if st.button("↺ Reset view", key="reset_timeline_zoom",
-                             help="Zoom back out to the full day"):
-                    st.session_state["timeline_zoom_n"] = st.session_state.get("timeline_zoom_n", 0) + 1
-                zoom_n = st.session_state.get("timeline_zoom_n", 0)
-                st.altair_chart(
-                    mw.event_timeline(frame, colors=colours,
-                                      height=max(220, 40 + 26 * n_days), zoom_key=zoom_n),
-                    use_container_width=True,
-                    key=f"timeline_{zoom_n}",
-                )
+            n_days = frame["day"].nunique()
+            # Scroll/drag zooms the time axis. A scale-zoom can't be capped, so offer a reset:
+            # bumping this counter renames the zoom selection, which remounts the chart at the full view.
+            if st.button("↺ Reset view", key="reset_timeline_zoom",
+                         help="Zoom back out to the full day"):
+                st.session_state["timeline_zoom_n"] = st.session_state.get("timeline_zoom_n", 0) + 1
+            zoom_n = st.session_state.get("timeline_zoom_n", 0)
+            st.altair_chart(
+                mw.event_timeline(frame, colors=colours,
+                                  height=max(220, 40 + 26 * n_days), zoom_key=zoom_n),
+                use_container_width=True,
+                key=f"timeline_{zoom_n}",
+            )
 
     # weather over the same window, so you can read the activity against hot/cold/wet days
     if not window.empty:
