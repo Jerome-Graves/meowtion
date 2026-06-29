@@ -259,8 +259,10 @@ def train(req: https_fn.Request) -> https_fn.Response:  # pragma: no cover  (int
 
         return https_fn.Response(json.dumps({"version": version, "labels": LABELS, "results": results}), status=200)
     except Exception as ex:
+        # Record the full error server-side (owner-only RTDB) for debugging, but return a generic
+        # message to the caller , don't leak exception/stack detail to clients (CodeQL py/stack-trace-exposure).
         ref(f"users/{uid}/models").update({"status": "error", "error": str(ex)})
-        return https_fn.Response(f"error: {ex}", status=500)
+        return https_fn.Response("internal error", status=500)
 
 
 # Simulated companion collar ("Purrminator"): a scheduled history generator + manual trigger.
