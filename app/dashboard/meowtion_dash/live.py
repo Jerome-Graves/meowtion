@@ -88,12 +88,12 @@ def live_view(uid, token, only_cat=None, part="all"):
                 if weather:
                     rain = " · raining" if weather.get("raining") else ""
                     st.caption(f"🌤 {weather.get('tempC', '?')}°C · {weather.get('condition', '?')}{rain}")
-                st.divider()
 
             # --- recent-events list ---
             if part in ("all", "recent"):
                 recent = sorted(events.values(), key=lambda e: e.get("start", 0), reverse=True)
                 if recent:
+                    st.divider()
                     st.subheader("🐾 Recent activity")
                     for e in recent[:8]:
                         ecls = e.get("cls")
