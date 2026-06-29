@@ -81,8 +81,12 @@ a { color:#d6a9db; }
    dimmed. */
 div[data-baseweb="popover"]:has([data-baseweb="calendar"]) > div { background-color:#1d1d27 !important; }
 [data-baseweb="calendar"], [data-baseweb="calendar"] * { background-color:#1d1d27 !important; color:#e7e7ef !important; }
-[data-baseweb="calendar"] [aria-selected="true"] { background-color:#bc7bc2 !important; color:#ffffff !important; }
-[data-baseweb="calendar"] [aria-disabled="true"] { color:#5a5a66 !important; }
+/* remove baseweb's today/focus rings (the stray lavender outline around a day) */
+[data-baseweb="calendar"] * { box-shadow:none !important; border-color:transparent !important; }
+/* selected day = filled lavender, white text */
+[data-baseweb="calendar"] [aria-selected="true"], [data-baseweb="calendar"] [aria-selected="true"] * { background-color:#bc7bc2 !important; color:#ffffff !important; }
+/* unselectable days = clearly dimmer than the selectable (bright) ones */
+[data-baseweb="calendar"] [aria-disabled="true"], [data-baseweb="calendar"] [aria-disabled="true"] * { color:#4d4d57 !important; }
 </style>
 """
 
