@@ -105,6 +105,5 @@ def live_view(uid, token, only_cat=None, part="all"):
                             name = canonical_activity(e.get("type", "?"))
                         ic = EVENT_ICON.get(name.lower(), "•")
                         st.write(f"{ic} {name}  ·  {fmt_time(e.get('start', 0))}  ·  {fmt_dur(e.get('durationSec', 0))}")
-                    st.divider()
 
     _show()
