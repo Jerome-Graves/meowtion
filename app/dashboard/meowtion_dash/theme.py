@@ -74,7 +74,7 @@ def configure_page():
 
 def brand_header():
     """Render the Meowtion brand bar and apply the page theme CSS. Light by default; if the in-page
-    toggle is on, layer the dark overrides on top."""
-    st.markdown(_BRAND_HTML, unsafe_allow_html=True)
-    if is_dark():
-        st.markdown(_DARK_CSS, unsafe_allow_html=True)
+    toggle is on, the dark overrides are appended to the SAME markdown call. (Rendering them as a
+    second st.markdown would add an empty element container, nudging the whole page down a few px when
+    dark is on, so dividers appeared to shift between themes.)"""
+    st.markdown(_BRAND_HTML + (_DARK_CSS if is_dark() else ""), unsafe_allow_html=True)
