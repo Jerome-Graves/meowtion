@@ -30,7 +30,7 @@ html, body, .stApp, .stMarkdown, p, h1, h2, h3, label { font-family: 'Inter', sy
    unselected colours separately). */
 button[data-testid="stBaseButton-segmented_controlActive"] { background:#bc7bc2 !important; border-color:#bc7bc2 !important; }
 button[data-testid="stBaseButton-segmented_controlActive"], button[data-testid="stBaseButton-segmented_controlActive"] * { color:#ffffff !important; }
-button[data-testid="stBaseButton-segmented_controlActive"]::before { content:"\2713  "; font-weight:700; }
+button[data-testid="stBaseButton-segmented_controlActive"]::before { content:"✓  "; font-weight:700; }
 button[data-testid="stBaseButton-segmented_control"] { background:#ececf0 !important; border-color:#dcd6e4 !important; }
 button[data-testid="stBaseButton-segmented_control"], button[data-testid="stBaseButton-segmented_control"] * { color:#8a8a96 !important; }
 </style>
