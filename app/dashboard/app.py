@@ -35,10 +35,18 @@ if len(cats) > 1:
 mw.live_view(uid, token, only_cat=selected, part="current")
 
 # Activity-history dashboard (the part teammates edit): health watch + history charts.
-df = mw.activity_dataframe(data, mw.model_labels(data))
-if selected is not None:
-    df = df[df["cat"] == selected]
-dashboard_view.render(df, data)
+# Wrapped in an auto-refreshing fragment, like the live cards above and below, so the charts update
+# on their own instead of only when the user interacts. It re-reads the cached fetch(), so new
+# events appear automatically once that read's TTL lapses.
+@st.fragment(run_every=30)
+def _history():
+    _, hdata = mw.fetch(uid, token)
+    hdf = mw.activity_dataframe(hdata, mw.model_labels(hdata))
+    if selected is not None:
+        hdf = hdf[hdf["cat"] == selected]
+    dashboard_view.render(hdf, hdata)
+
+_history()
 
 # Recent-activity list (live) , bottom.
 mw.live_view(uid, token, only_cat=selected, part="recent")

@@ -27,11 +27,12 @@ def _auth(token):
     return {"auth": token} if token else {}
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=60)
 def fetch(uid, token):
     """Return (status_code, data) for the user's whole subtree. `data` is None on error.
-    Cached 2 min: this is the heavy read (full history + structure), so the live card doesn't use it
-    on every refresh , it uses fetch_live() instead. New history events show up within the cache TTL.
+    Cached 1 min: this is the heavy read (full history + structure), so the live card doesn't use it
+    on every refresh , it uses fetch_live() instead. The auto-refreshing history view re-calls this,
+    so new history events show up on their own within the cache TTL.
     """
     r = requests.get(f"{_db_url()}/users/{uid}.json", params=_auth(token), timeout=10)
     return r.status_code, (r.json() if r.ok else None)
