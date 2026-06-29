@@ -29,6 +29,7 @@ cats = mw.list_cats(data)                          # [(name, cat_id), ...]
 # Cat selection switcher , only shown when there's more than one collar on the account.
 selected = cats[0][0] if cats else None
 if len(cats) > 1:
+    st.divider()
     st.markdown("**Cat Selection**")
     selected = st.radio("Cat Selection", [name for name, _ in cats],
                         horizontal=True, label_visibility="collapsed")
