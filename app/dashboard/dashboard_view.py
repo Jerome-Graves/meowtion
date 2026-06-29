@@ -117,14 +117,10 @@ def render(df, data=None):
 
     # Sleep and Resting dominate the minutes, so the small habits (eat, drink) are tiny slivers.
     # Deselecting the big ones here is how you see those small events.
-    LEGEND_COLORS = {
-        "Eating": "#2ca02c",      # Legend Green
-        "Drinking": "#1f77b4",    # Legend Blue
-        "Resting": "#ff7f0e",  # Legend Orange
-        "Moving": "#9467bd",   # Legend Purple
-        "Grooming": "#e377c2"  # Legend Pink
-    }    
     acts = sorted(df["activity"].unique())
+    # One programmatic, name-agnostic colour per activity, shared by these buttons and the chart
+    # below so they always match (see meowtion_dash/charts.py).
+    colours = mw.activity_colors(acts)
     shown = []
 
 # Create columns to place the buttons side by side
@@ -142,7 +138,7 @@ def render(df, data=None):
             # Active gets a bright checkmark, turned off gets a grey circle
             if st.session_state[state_key]:
                 label_prefix = ""
-                bg_colour = LEGEND_COLORS.get(activity, "#1f77b4")
+                bg_colour = colours[activity]
                 text_colour = "#FFFFFF"
                 border_colour = bg_colour
             else:
@@ -232,7 +228,8 @@ def render(df, data=None):
         else:
             st.altair_chart(
                 mw.stacked_bar(frame, "when", "event_duration", "activity", "minutes",
-                               time_unit=time_unit, time_format=time_format, height=380, legend=False),
+                               time_unit=time_unit, time_format=time_format, height=380, legend=False,
+                               colors=colours),
                 use_container_width=True,
             )
 

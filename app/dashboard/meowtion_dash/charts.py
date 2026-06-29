@@ -5,30 +5,41 @@ import altair as alt
 
 ACCENT = "#bc7bc2"   # brand lavender
 
-# Stable, intuitive colour per activity (warm = intake, cool = rest, green = movement), so a
-# given activity is always the same colour across every chart. Unknown labels cycle a fallback.
-ACTIVITY_COLORS = {
-    "Eat": "#e8943a", "Drink": "#3d9bd6", "Resting": "#9b8bd6", "Moving": "#4caf7d",
-    "Active": "#2bb3a3", "Walk": "#5cba8a", "Play": "#e0b020", "Sleep": "#6c5cc2",
-    "Groom": "#c77bb0", "Purr": "#bc7bc2",
-}
-_FALLBACK = ["#e07a5f", "#3d9bd6", "#5cba8a", "#e0a32f", "#9b8bd6", "#c77bb0", "#6c757d", "#48bfae"]
+# Colours are assigned to activities PROGRAMMATICALLY, by sorted position in a fixed palette, so the
+# scheme is agnostic to whatever activity names the model produces. A given activity always gets the
+# same colour, and the filter buttons and the charts share this one mapping (activity_colors) so they
+# always match.
+PALETTE = [
+    "#4caf7d",  # green
+    "#3d9bd6",  # blue
+    "#e8943a",  # orange
+    "#9b8bd6",  # purple
+    "#c77bb0",  # pink
+    "#e0b020",  # amber
+    "#48bfae",  # teal
+    "#e07a5f",  # coral
+    "#6c5cc2",  # indigo
+    "#5cba8a",  # mint
+]
 
 
-def activity_scale(activities):
-    """An Altair colour scale that maps each activity name to its fixed colour."""
-    dom, rng, i = [], [], 0
-    for a in activities:
-        dom.append(a)
-        if a in ACTIVITY_COLORS:
-            rng.append(ACTIVITY_COLORS[a])
-        else:
-            rng.append(_FALLBACK[i % len(_FALLBACK)]); i += 1
-    return alt.Scale(domain=dom, range=rng)
+def activity_colors(activities):
+    """Map each activity to a palette colour by its sorted position. Name-agnostic and stable, so
+    a given activity gets the same colour regardless of which others are present. Returns
+    {activity: hex}; share it between the filter buttons and the chart so they match."""
+    ordered = sorted({str(a) for a in activities})
+    return {a: PALETTE[i % len(PALETTE)] for i, a in enumerate(ordered)}
+
+
+def activity_scale(activities=None, colors=None):
+    """An Altair colour scale for activities. Pass a precomputed `colors` map (so a chart matches the
+    buttons exactly) or an iterable of `activities` to derive one."""
+    cmap = colors if colors is not None else activity_colors(activities or [])
+    return alt.Scale(domain=list(cmap), range=list(cmap.values()))
 
 
 def stacked_bar(data, x, y, color, y_title=None, time_unit=None, time_format="%d %b",
-                legend=True, height=300):
+                legend=True, height=300, colors=None):
     """A branded bar chart split by colour into the `color` column (e.g. activity), transparent
     background.
 
@@ -52,7 +63,9 @@ def stacked_bar(data, x, y, color, y_title=None, time_unit=None, time_format="%d
         .encode(
             x=x_enc,
             y=y_enc,
-            color=alt.Color(f"{color}:N", scale=activity_scale(cats), legend=leg),
+            color=alt.Color(f"{color}:N",
+                            scale=(activity_scale(colors=colors) if colors else activity_scale(cats)),
+                            legend=leg),
             tooltip=[color, y],
         )
         .properties(height=height, background="transparent")

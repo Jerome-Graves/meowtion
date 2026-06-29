@@ -30,7 +30,7 @@ from .data import (
     filter_by_activity, filter_by_weekday, filter_by_date_range, last_n_days,
     period_options, filter_to_window, over_time, health_signals,
 )
-from .charts import bar, stacked_bar
+from .charts import bar, stacked_bar, activity_colors
 from .weather import weather_dataframe, window_weather, weather_caption
 from .live import live_view
 
@@ -39,5 +39,6 @@ __all__ = [
     "activity_dataframe", "model_labels", "list_cats", "iter_cats", "EVENT_ICON", "fmt_time", "fmt_dur",
     "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",
     "period_options", "filter_to_window", "over_time", "health_signals", "bar", "stacked_bar",
+    "activity_colors",
     "weather_dataframe", "window_weather", "weather_caption",
 ]
