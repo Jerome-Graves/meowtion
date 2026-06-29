@@ -70,3 +70,7 @@ with st.expander("🔒 How your data is used, and how we keep it safe"):
     )
 st.caption("Learn more about cat health and wellbeing at "
            "[International Cat Care](https://icatcare.org/), a UK feline-welfare charity.")
+st.caption("Trouble signing in or using the site? Please "
+           "[open an issue on GitHub](https://github.com/Jerome-Graves/meowtion/issues). "
+           "For anything private, you can reach me through my "
+           "[GitHub profile](https://github.com/Jerome-Graves).")
