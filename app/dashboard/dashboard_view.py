@@ -236,6 +236,8 @@ def render(df, data=None):
             st.info("No activity logged in this window.")
         else:
             n_days = frame["day"].nunique()
+            st.markdown("**When activities happened**")
+            st.caption("Each bar is an activity at the time of day it occurred. Scroll or drag to zoom the time axis.")
             # Scroll/drag zooms the time axis. A scale-zoom can't be capped, so offer a reset:
             # bumping this counter renames the zoom selection, which remounts the chart at the full view.
             if st.button("↺ Reset view", key="reset_timeline_zoom",
