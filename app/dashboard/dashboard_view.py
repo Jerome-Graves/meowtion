@@ -219,6 +219,8 @@ def render(df, data=None):
         # Totals first: total minutes per activity over the selected period (x = activity, y = total
         # minutes). Driven by `window`, so it tracks the date pick and the activity filters.
         st.markdown("**Time per activity**")
+        st.caption("Total minutes spent on each activity over the chosen dates. "
+                   "Use the coloured buttons above to turn activities on or off in both charts.")
         st.altair_chart(mw.activity_totals(window, colors=colours), use_container_width=True)
 
         # ONE timeline for any span: rows of days (y-axis), time of day on the x-axis (00:00-24:00),
