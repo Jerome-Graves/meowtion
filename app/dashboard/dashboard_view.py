@@ -216,6 +216,11 @@ def render(df, data=None):
     if window.empty:
         st.info("Nothing to show , pick another window or add activities.")
     else:
+        # Totals first: total minutes per activity over the selected period (x = activity, y = total
+        # minutes). Driven by `window`, so it tracks the date pick and the activity filters.
+        st.markdown("**Total time per activity**")
+        st.altair_chart(mw.activity_totals(window, colors=colours), use_container_width=True)
+
         # ONE timeline for any span: rows of days (y-axis), time of day on the x-axis (00:00-24:00),
         # each event a horizontal bar at the time of day it happened. A single day is simply one row,
         # so the single-day and multi-day views look and behave the same. Include the day BEFORE the

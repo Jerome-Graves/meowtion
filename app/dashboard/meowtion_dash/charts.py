@@ -145,6 +145,30 @@ def event_timeline(data, colors=None, height=300, zoom_key=0):
     )
 
 
+def activity_totals(data, colors=None, height=240):
+    """One bar per activity showing the TOTAL minutes spent on it across the selected period:
+    x = activity, y = total minutes, bars coloured to match the filter buttons and sorted biggest
+    first. `data` is event rows with `activity` and `event_duration` (minutes); pass `colors` to
+    share the buttons' palette."""
+    scale = activity_scale(colors=colors) if colors else activity_scale(sorted(map(str, data["activity"].unique())))
+    return (
+        alt.Chart(data)
+        .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+        .encode(
+            x=alt.X("activity:N", title=None, sort="-y",
+                    axis=alt.Axis(labelAngle=0, labelColor="#3a3a4a", labelFontWeight=600)),
+            y=alt.Y("sum(event_duration):Q", title="total minutes",
+                    axis=alt.Axis(labelColor="#6b7280", titleColor="#6b7280")),
+            color=alt.Color("activity:N", scale=scale, legend=None),
+            tooltip=[alt.Tooltip("activity:N", title="activity"),
+                     alt.Tooltip("sum(event_duration):Q", title="minutes", format=".0f")],
+        )
+        .properties(height=height, background="transparent")
+        .configure_view(fill=None, stroke=None)
+        .configure_axis(grid=False, domainColor="#e6e7ec", tickColor="#e6e7ec")
+    )
+
+
 def bar(data, x, y, y_title=None, temporal=False, time_format="%d %b"):
     """A branded Altair bar chart: lavender bars on a TRANSPARENT background, so it sits on the
     page's gradient instead of in a clashing white panel. `x`/`y` are column names.
