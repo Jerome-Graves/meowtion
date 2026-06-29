@@ -99,6 +99,7 @@ def render(df, data=None):
     # hover, so it plainly reads as a control you can click to change the date.
     st.caption("Click the box below to pick a day, or pick a start and end date for a range.")
     box_bg = "#1d1d27" if dark else "#ffffff"
+    box_text = "#e7e7ef" if dark else "#1b1b2b"
     st.html(f"""
         <style>
         div[data-testid="stDateInput"] div[data-baseweb="input"] {{
@@ -113,7 +114,7 @@ def render(df, data=None):
             border-color: #d6a9db;
             box-shadow: 0 2px 8px rgba(188,123,194,0.40);
         }}
-        div[data-testid="stDateInput"] input {{ cursor: pointer; }}
+        div[data-testid="stDateInput"] input {{ cursor: pointer; color: {box_text} !important; }}
         </style>
     """)
     date_range = st.date_input(
