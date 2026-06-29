@@ -208,9 +208,14 @@ def render(df, data=None):
                     use_container_width=True,
                 )
         else:
-            # Multiple days -> rows of days: y-axis is the day, x-axis is time of day, and each event
-            # is a horizontal bar at the time of day it happened in its day's row.
-            frame = mw.daily_segments(window)
+            # Multiple days -> rows of days: y-axis is the day, x-axis is time of day, each event a
+            # horizontal bar at the time of day it happened. Include the day BEFORE the range too, so
+            # an overnight episode that started before the range still fills the first day's early
+            # hours; then keep only the days inside the selected range.
+            ext = df[(pure_dates >= start_date - datetime.timedelta(days=1)) & (pure_dates <= end_date)]
+            ext = mw.filter_by_activity(ext, shown)
+            frame = mw.daily_segments(ext)
+            frame = frame[(frame["day"] >= start_date.isoformat()) & (frame["day"] <= end_date.isoformat())]
             if frame.empty:
                 st.info("No activity logged in this window.")
             else:
