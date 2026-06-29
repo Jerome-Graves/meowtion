@@ -37,14 +37,14 @@ if len(cats) > 1:
                                     selection_mode="single", label_visibility="collapsed")
     selected = selected or names[0]   # keep a cat selected if the chip is deselected
 
-# Current-activity card (live) , top, right under the switcher.
-mw.live_view(uid, token, only_cat=selected, part="current")
+# Current-activity card (live) , top, right under the switcher. Fast refresh (10 s).
+mw.live_view(uid, token, only_cat=selected, part="current", every=10)
 
 # Activity-history dashboard (the part teammates edit): health watch + history charts.
 # Wrapped in an auto-refreshing fragment, like the live cards above and below, so the charts update
 # on their own instead of only when the user interacts. It re-reads the cached fetch(), so new
 # events appear automatically once that read's TTL lapses.
-@st.fragment(run_every=30)
+@st.fragment(run_every=120)
 def _history():
     _, hdata = mw.fetch(uid, token)
     hdf = mw.activity_dataframe(hdata, mw.model_labels(hdata))
@@ -54,8 +54,8 @@ def _history():
 
 _history()
 
-# Recent-activity list (live) , bottom.
-mw.live_view(uid, token, only_cat=selected, part="recent")
+# Recent-activity list (live) , bottom. Slow refresh (2 min), like the history above.
+mw.live_view(uid, token, only_cat=selected, part="recent", every=120)
 
 # --- footer: data-safety disclosure + a cat-health resource ---
 st.divider()

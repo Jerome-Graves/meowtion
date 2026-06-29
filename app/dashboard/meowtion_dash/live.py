@@ -15,16 +15,18 @@ from .firebase import fetch, fetch_live
 from .data import EVENT_ICON, fmt_time, fmt_dur, model_labels, iter_cats, canonical_activity
 
 
-def live_view(uid, token, only_cat=None, part="all"):
+def live_view(uid, token, only_cat=None, part="all", every=10):
     """Render the live cards. If `only_cat` (a cat's display name) is given, show just that one.
-    Auto-refreshes every 10 s without rerunning the whole page.
+    Auto-refreshes every `every` seconds without rerunning the whole page.
 
     `part` selects which half to render so the page can place them separately:
       "current" , the live current-state card (detected activity, steps, battery);
       "recent"  , the recent-events list;
-      "all"     , both (default)."""
+      "all"     , both (default).
+    `every` is the refresh interval in seconds: the current-state card is called with a fast interval
+    (~10 s) while the heavier recent-events list uses a slower one (~2 min)."""
 
-    @st.fragment(run_every=10)
+    @st.fragment(run_every=every)
     def _show():
         status, data = fetch(uid, token)          # cached structure + labels (heavy read, ~2 min)
         if status == 401:
