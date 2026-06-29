@@ -47,6 +47,7 @@ def render(df, data=None):
     #   st.metric(label, value, delta) shows the recent level and the % change; we keep
     #   delta_color="off" because "up" isn't always good or bad , the warnings below judge.
     # ===================================================================== #
+    st.divider()
     st.subheader("🩺 Health watch")
     st.caption("How your cat's key habits compare to their normal. Big, lasting changes in eating "
                "or drinking are worth raising with your vet.")
