@@ -77,6 +77,7 @@ def render(df, data=None):
 
     st.divider()
     st.subheader("📊 Activity history")
+    st.caption("Browse your cat's logged activity over any day or date range.")
 
     # ===================================================================== #
     # STEP 2 , Pick a time window via calendar selection.

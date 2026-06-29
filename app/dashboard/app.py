@@ -31,6 +31,7 @@ selected = cats[0][0] if cats else None
 if len(cats) > 1:
     st.divider()
     st.subheader("🐱 Cat Selection")
+    st.caption("You have more than one cat. Pick which one to view, it switches every section below.")
     selected = st.radio("Cat Selection", [name for name, _ in cats],
                         horizontal=True, label_visibility="collapsed")
 

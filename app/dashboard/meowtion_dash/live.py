@@ -96,6 +96,7 @@ def live_view(uid, token, only_cat=None, part="all"):
                 if recent:
                     st.divider()
                     st.subheader("🐾 Recent activity")
+                    st.caption("The most recent events detected on the collar, newest first.")
                     for e in recent[:8]:
                         ecls = e.get("cls")
                         if e.get("ver") == 2 and isinstance(ecls, int) and 0 <= ecls < len(labels):
