@@ -12,7 +12,7 @@ import time
 import streamlit as st
 
 from .firebase import fetch, fetch_live
-from .data import EVENT_ICON, fmt_time, fmt_dur, model_labels, iter_cats
+from .data import EVENT_ICON, fmt_time, fmt_dur, model_labels, iter_cats, canonical_activity
 
 
 def live_view(uid, token, only_cat=None, part="all"):
@@ -58,7 +58,7 @@ def live_view(uid, token, only_cat=None, part="all"):
             if real:
                 cls = cur.get("cls")
                 if isinstance(cls, int) and 0 <= cls < len(labels):
-                    detected = labels[cls]
+                    detected = canonical_activity(labels[cls])   # read like the simulated labels
 
             # --- current-state card (detected activity, battery, weather) ---
             if part in ("all", "current"):
@@ -76,7 +76,7 @@ def live_view(uid, token, only_cat=None, part="all"):
                               delta="low power", delta_color="off")
                 elif real:
                     conf = cur.get("conf")
-                    ic = EVENT_ICON.get(detected, "🧠")
+                    ic = EVENT_ICON.get((detected or "").lower(), "🧠")
                     c1.metric("Detected", f"{ic} {detected}" if detected else "🧠 …",
                               delta=(f"{conf}%" if isinstance(conf, int) else None), delta_color="off")
                 else:
@@ -100,10 +100,10 @@ def live_view(uid, token, only_cat=None, part="all"):
                     for e in recent[:8]:
                         ecls = e.get("cls")
                         if e.get("ver") == 2 and isinstance(ecls, int) and 0 <= ecls < len(labels):
-                            name = labels[ecls]
+                            name = canonical_activity(labels[ecls])
                         else:
-                            name = e.get("type", "?")
-                        ic = EVENT_ICON.get(name, "•")
+                            name = canonical_activity(e.get("type", "?"))
+                        ic = EVENT_ICON.get(name.lower(), "•")
                         st.write(f"{ic} {name}  ·  {fmt_time(e.get('start', 0))}  ·  {fmt_dur(e.get('durationSec', 0))}")
                     st.divider()
 

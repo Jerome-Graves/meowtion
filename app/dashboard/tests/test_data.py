@@ -31,7 +31,7 @@ def test_fmt_dur_under_and_over_a_minute():
 def test_activity_dataframe_maps_class_index_to_label():
     data = _data_with_events({"1000": {"start": 1000, "durationSec": 120, "ver": 2, "cls": 0}})
     df = mw.activity_dataframe(data, ["eat", "drink"])
-    assert list(df["activity"]) == ["Eat"]          # labels[0], capitalised
+    assert list(df["activity"]) == ["Eating"]        # labels[0], canonical display name
     assert df["event_duration"].iloc[0] == 2.0       # 120 s -> 2 min
 
 
@@ -41,14 +41,14 @@ def test_activity_dataframe_rest_event_uses_type_not_class():
     data = _data_with_events({"2000": {"start": 2000, "durationSec": 600, "ver": 2,
                                        "cls": 254, "type": "rest"}})
     df = mw.activity_dataframe(data, ["eat", "drink"])
-    assert list(df["activity"]) == ["Rest"]
+    assert list(df["activity"]) == ["Resting"]
     assert df["event_duration"].iloc[0] == 10.0
 
 
 def test_activity_dataframe_v1_event_uses_type():
     data = _data_with_events({"3000": {"start": 3000, "durationSec": 60, "type": "groom"}})
     df = mw.activity_dataframe(data, ["eat", "drink"])
-    assert list(df["activity"]) == ["Groom"]
+    assert list(df["activity"]) == ["Grooming"]
 
 
 def test_activity_dataframe_skips_malformed_events():

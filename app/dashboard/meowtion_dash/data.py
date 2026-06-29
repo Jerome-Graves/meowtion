@@ -12,6 +12,28 @@ EVENT_ICON = {"resting": "🛋", "moving": "🐾", "eating": "🍽", "drinking":
               "sleep": "😴", "rest": "🛋", "active": "🐾", "walk": "🚶", "play": "🧶",
               "groom": "🧼", "drink": "💧", "eat": "🍽", "purr": "💜"}
 
+# Canonical display names, so real-collar model labels (Eat, Drink, Groom, ...) read exactly like the
+# simulated ones (Eating, Drinking, Grooming, ...). Keyed by the lowercased raw label; anything not
+# listed just gets capitalised, so new/unknown labels still display sensibly.
+ACTIVITY_DISPLAY = {
+    "eat": "Eating", "eating": "Eating",
+    "drink": "Drinking", "drinking": "Drinking",
+    "groom": "Grooming", "grooming": "Grooming",
+    "purr": "Purring", "purring": "Purring",
+    "rest": "Resting", "resting": "Resting",
+    "sleep": "Sleeping", "sleeping": "Sleeping",
+    "move": "Moving", "moving": "Moving",
+    "walk": "Walking", "walking": "Walking",
+    "play": "Playing", "playing": "Playing",
+}
+
+
+def canonical_activity(name):
+    """Map a raw activity label to its display name, so a real collar's labels (Eat, Drink) read the
+    same as the simulated ones (Eating, Drinking). Unknown labels are just capitalised."""
+    s = str(name).strip()
+    return ACTIVITY_DISPLAY.get(s.lower(), s.capitalize())
+
 
 def fmt_time(ms):
     """Epoch milliseconds -> 'dd Mon · HH:MM'."""
@@ -95,7 +117,7 @@ def activity_dataframe(data, labels):
                 activity = ev.get("type", "unknown")   # older / simulated event
             rows.append({
                 "cat": rec["name"],
-                "activity": str(activity).capitalize(),
+                "activity": canonical_activity(activity),
                 "event_date": when.strftime("%Y-%m-%d"),
                 "event_weekday_name": when.strftime("%A"),
                 "start_time": when.strftime("%H:%M"),
