@@ -85,8 +85,10 @@ div[data-baseweb="popover"]:has([data-baseweb="calendar"]) > div { background-co
 [data-baseweb="calendar"] *,
 [data-baseweb="calendar"] *::before,
 [data-baseweb="calendar"] *::after { box-shadow:none !important; border-color:transparent !important; outline:none !important; }
-/* selected day = filled lavender, white text */
-[data-baseweb="calendar"] [aria-selected="true"], [data-baseweb="calendar"] [aria-selected="true"] * { background-color:#bc7bc2 !important; color:#ffffff !important; }
+/* selected day = filled lavender, white text (match by aria-selected AND by aria-label, since
+   baseweb labels the chosen day "...it's selected"); fill the centre so it matches the ring. */
+[data-baseweb="calendar"] [aria-selected="true"], [data-baseweb="calendar"] [aria-selected="true"] *,
+[data-baseweb="calendar"] [aria-label*="selected" i], [data-baseweb="calendar"] [aria-label*="selected" i] * { background-color:#bc7bc2 !important; color:#ffffff !important; border-radius:50% !important; }
 /* unselectable days = clearly dimmer than the selectable (bright) ones */
 [data-baseweb="calendar"] [aria-disabled="true"], [data-baseweb="calendar"] [aria-disabled="true"] * { color:#4d4d57 !important; }
 </style>
