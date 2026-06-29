@@ -246,6 +246,21 @@ def daily_segments(df):
     return pd.DataFrame(rows, columns=cols)
 
 
+def trim_sparse_edge_days(frame, min_fraction=0.1):
+    """Drop near-empty leading/trailing days from a daily_segments frame, keeping everything between
+    them (interior days are never dropped, so no gaps appear). A boundary day is trimmed when its
+    total activity is below `min_fraction` of the busiest day's, which removes the incomplete edge
+    days a date range often clips into. Returns the frame restricted to the kept day span."""
+    if frame.empty:
+        return frame
+    mins = (frame["end"] - frame["start"]).dt.total_seconds().groupby(frame["day"]).sum()
+    if len(mins) <= 1:
+        return frame
+    keep = mins[mins >= min_fraction * mins.max()].index   # the busiest day always qualifies
+    lo, hi = keep.min(), keep.max()
+    return frame[(frame["day"] >= lo) & (frame["day"] <= hi)]
+
+
 # Health-relevant habits, most informative first. Appetite and thirst changes are classic early
 # warnings, and how much a cat grooms is one of the clearest behavioural health signals (grooming
 # less can mean pain/illness; a lot more can mean stress or skin trouble), so those three lead, then

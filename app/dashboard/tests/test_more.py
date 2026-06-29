@@ -203,3 +203,23 @@ def test_daily_segments_skips_zero_and_empty():
                       "activity": ["Eat"], "event_duration": [0.0]})
     assert mw.daily_segments(z).empty
     assert mw.daily_segments(z.iloc[0:0]).empty
+
+
+def _seg(day, mins):
+    ref = pd.Timestamp("2000-01-01")
+    return {"day": day, "start": ref, "end": ref + pd.Timedelta(minutes=mins), "activity": "Rest"}
+
+
+def test_trim_sparse_edge_days_drops_thin_first_and_last():
+    frame = pd.DataFrame([_seg("2026-06-02", 10), _seg("2026-06-03", 600), _seg("2026-06-04", 10)])
+    assert set(mw.trim_sparse_edge_days(frame)["day"]) == {"2026-06-03"}
+
+
+def test_trim_sparse_edge_days_keeps_thin_interior_day():
+    frame = pd.DataFrame([_seg("2026-06-02", 600), _seg("2026-06-03", 10), _seg("2026-06-04", 600)])
+    assert set(mw.trim_sparse_edge_days(frame)["day"]) == {"2026-06-02", "2026-06-03", "2026-06-04"}
+
+
+def test_trim_sparse_edge_days_handles_single_and_empty():
+    assert len(mw.trim_sparse_edge_days(pd.DataFrame([_seg("2026-06-02", 5)]))) == 1
+    assert mw.trim_sparse_edge_days(pd.DataFrame(columns=["day", "start", "end", "activity"])).empty

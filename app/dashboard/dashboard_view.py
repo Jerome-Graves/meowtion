@@ -216,6 +216,7 @@ def render(df, data=None):
             ext = mw.filter_by_activity(ext, shown)
             frame = mw.daily_segments(ext)
             frame = frame[(frame["day"] >= start_date.isoformat()) & (frame["day"] <= end_date.isoformat())]
+            frame = mw.trim_sparse_edge_days(frame)   # hide incomplete leading/trailing days
             if frame.empty:
                 st.info("No activity logged in this window.")
             else:
