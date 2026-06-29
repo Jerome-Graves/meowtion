@@ -75,5 +75,5 @@ st.caption("Trouble signing in or using the site? Please "
            "For anything private, you can reach us through our GitHub profiles: "
            "[Jerome](https://github.com/Jerome-Graves) and "
            "[Rose](https://github.com/auntihero).")
-st.caption("Prefer dark mode? Switch any time from the ⋮ menu (top-right) → Settings → Theme. "
-           "Your choice is remembered in this browser.")
+st.caption("Prefer dark mode? Click the ⋮ menu in the top-right corner of the page → Settings → "
+           "Theme, and pick Dark. Your choice is remembered in this browser.")
