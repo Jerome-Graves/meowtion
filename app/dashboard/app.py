@@ -11,12 +11,34 @@ Flow:
     activity history  ->  recent activity
 """
 import streamlit as st
+import streamlit.components.v1 as components
 
 import meowtion_dash as mw
 import dashboard_view
 
 mw.configure_page()        # set_page_config , must be the first Streamlit call
-mw.brand_header()          # logo + wordmark + page theme (adapts to the native light/dark theme)
+
+# Brand bar + an on-page light/dark toggle that drives Streamlit's REAL theme. Streamlit has no Python
+# API to set the theme, so we write its theme into localStorage (key stActiveTheme-<path>-v2) and
+# reload. is_dark() reads the actual active theme, so the toggle reflects it and our custom CSS/charts
+# stay in sync with the native widgets (calendar, inputs, etc.).
+_dark_now = mw.is_dark()
+_brand, _toggle = st.columns([5, 1], vertical_alignment="center")
+with _brand:
+    mw.brand_header()      # logo + wordmark + page theme (adapts to the active theme)
+with _toggle:
+    _want_dark = st.toggle("🌙 Dark", value=_dark_now, key="theme_toggle")
+if _want_dark != _dark_now:
+    _target = "Dark" if _want_dark else "Light"
+    components.html(
+        f"""<script>
+        const k = 'stActiveTheme-' + window.parent.location.pathname + '-v2';
+        window.parent.localStorage.setItem(k, JSON.stringify({{name: "{_target}"}}));
+        window.parent.location.reload();
+        </script>""",
+        height=0,
+    )
+    st.stop()
 
 # Resolve the viewer from the login cookie. Renders the signed-in header (or the demo
 # caption); if signed out it shows the sign-in gate and stops here.
@@ -75,5 +97,4 @@ st.caption("Trouble signing in or using the site? Please "
            "For anything private, you can reach us through our GitHub profiles: "
            "[Jerome](https://github.com/Jerome-Graves) and "
            "[Rose](https://github.com/auntihero).")
-st.caption("Prefer dark mode? Open the ⋮ menu (top-right) → Settings → Theme and pick Dark. "
-           "Streamlit remembers it in this browser.")
+st.caption("Use the 🌙 toggle at the top to switch light/dark. It's remembered in this browser.")
