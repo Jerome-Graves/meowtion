@@ -80,6 +80,32 @@
       return best ? best.battery : null;
     }
 
+    // ---- single source of truth: is a station hearing a collar, and how close? ----
+    // EVERY "connected" indicator derives from this (the station-card badge AND the record gate), so
+    // the two can never disagree. It fuses the live proximity report (d.dev: the in-range RSSI gate)
+    // with the relayed collar telemetry (d.cats/{id}/current, which the station writes ONLY while it
+    // hears that collar). Either being live means the collar is reachable to record right now.
+    //   status: "recording" | "inRange" | "approaching" | "near" | "away"   (present = not "away")
+    function collarPresence(d) {
+      const dev = (d && d.dev) || {};
+      let relaying = false, name = dev.nearCollar || null;
+      if (d && d.cats) Object.entries(d.cats).forEach(([id, cat]) => {
+        const cur = cat && cat.current;
+        if (cur && fresh(cur.ts)) { relaying = true; if (!name) name = id; }
+      });
+      let status;
+      if (dev.state === "recording") status = "recording";
+      else if (dev.state === "inRange") status = "inRange";
+      else if (dev.state === "approaching") status = "approaching";
+      else if (relaying) status = "near";     // heard (telemetry relaying) but proximity idle, e.g. a resting collar
+      else status = "away";
+      const LABEL = { recording: "● recording", inRange: "at the station", approaching: "settling…",
+                      near: "nearby", away: "not at the station" };
+      const CLS   = { recording: "p-rec blink", inRange: "p-on", approaching: "p-near",
+                      near: "p-on", away: "p-idle" };
+      return { status, label: LABEL[status], cls: CLS[status], present: status !== "away", name };
+    }
+
     // ---- live station status ----
     function renderStations(devices) {
       const wrap = document.getElementById("stations");
@@ -101,15 +127,11 @@
         head.append(left, onWrap);
         card.appendChild(head);
 
-        // proximity / recording state reported by the station
-        const state = dev.state || "idle";
-        const cls = state === "recording" ? "p-rec blink" : state === "inRange" ? "p-on"
-                  : state === "approaching" ? "p-near" : "p-idle";
-        const txt = state === "recording" ? "● recording" : state === "inRange" ? "in range"
-                  : state === "approaching" ? "settling…" : "idle";
-        const badge = el("span", "pill " + cls, txt);
+        // connection / proximity state , single source of truth, identical to the record gate
+        const pres = collarPresence(d);
+        const badge = el("span", "pill " + pres.cls, pres.label);
         const bWrap = el("div", "row"); bWrap.style.marginTop = ".6rem"; bWrap.appendChild(badge);
-        if (dev.nearCollar) bWrap.appendChild(el("span", "muted", dev.nearCollar));
+        if (pres.name) bWrap.appendChild(el("span", "muted", pres.name));
         card.appendChild(bWrap);
 
         const grid = el("div", "grid");
@@ -887,18 +909,33 @@
       if (!stations.length) return { ok: false, msg: "No station registered. Connect a station first." };
       const online = stations.filter(d => fresh(d.lastSeen));
       if (!online.length) return { ok: false, msg: "Station offline. Check it's powered and on Wi-Fi." };
-      // The collar is recordable when an online station is currently hearing it. Use the same signal the
-      // station card shows as connected: a freshly relayed collar (cats/{id}/current, which the station
-      // writes only while it hears that collar), OR the live proximity state. The proximity state alone
-      // was too strict , a resting collar advertises slowly and the badge dips to "idle" between adverts
-      // even while telemetry is still relaying and the card shows its battery.
-      const heard = online.some(d => {
-        const dev = d.dev || {};
-        if (dev.state && dev.state !== "idle") return true;
-        return d.cats && Object.values(d.cats).some(cat => cat && cat.current && fresh(cat.current.ts));
-      });
+      // Recordable when an online station is hearing the collar , the SAME collarPresence() the card
+      // badge uses, so the record gate and the card can never disagree.
+      const heard = online.some(d => collarPresence(d).present);
       if (!heard) return { ok: false, msg: "Collar not connected to the station. Bring the cat near the station, the collar must be heard while recording (clips can't be stored on the collar)." };
       return { ok: true, msg: "" };
+    }
+
+    // Debounce the NEGATIVE state for display so a brief blip (a resting collar between slow adverts,
+    // a capture's reconnect, the post-save window) doesn't flash "not connected" / "offline". Going
+    // ready shows instantly; going not-ready must hold for READY_DEBOUNCE_MS before the warning and the
+    // disabled buttons appear. The actual start-recording gate (startActivity) still uses the raw
+    // recordReadiness(), so we never start a session when genuinely not connected.
+    let g_notReadySince = 0, g_readyTimer = 0;
+    const READY_DEBOUNCE_MS = 5000;
+    function readinessForDisplay() {
+      const r = recordReadiness();
+      if (r.ok) { g_notReadySince = 0; if (g_readyTimer) { clearTimeout(g_readyTimer); g_readyTimer = 0; } return r; }
+      const now = Date.now();
+      if (!g_notReadySince) g_notReadySince = now;
+      const held = now - g_notReadySince;
+      if (held < READY_DEBOUNCE_MS) {
+        // still within the grace window: keep the last-good look, and schedule one re-render so the
+        // warning appears if the outage persists (device updates alone might not fire during a gap).
+        if (!g_readyTimer) g_readyTimer = setTimeout(() => { g_readyTimer = 0; renderActivityStatus(); }, READY_DEBOUNCE_MS - held + 50);
+        return { ok: true, msg: "", pending: true };
+      }
+      return r;
     }
 
     // ---- focused "phone app" record view: one big-button screen, easy to tap while following the cat ----
@@ -944,7 +981,7 @@
     }
     function renderFocus(ready) {
       if (!g_focusOpen || !g_focusEl) return;
-      ready = ready || recordReadiness();
+      ready = ready || readinessForDisplay();
       const s = g_session, recording = !!(s && s.active);
       const warn = g_focusEl.querySelector(".rec-focus-warn");
       if (!ready.ok && !recording) { warn.textContent = "⚠ " + ready.msg; warn.classList.remove("hidden"); }
@@ -986,7 +1023,7 @@
     }
 
     function renderActivityStatus() {
-      const ready = recordReadiness();
+      const ready = readinessForDisplay();
       const st = document.getElementById("act-status");
       const stop = document.getElementById("actStop");
       const wrap = document.getElementById("activityBtns");
