@@ -92,10 +92,13 @@ void app_main(void)
 
     char line[512];
     int tick = 0;
+    bool was_capturing = false;
     /* The loop ticks every ~1 s so ble_service() drains BUF_READY clips promptly: a 5 s clip
      * completes every 5 s, and with only two ping-pong buffers, a slow uploader would let both fill
      * and force the frame parser to drop audio. The Firebase-write-heavy calls (heartbeat, relay,
-     * publish, config/allow/weather polls) are gated on tick multiples so their cadence is unchanged. */
+     * publish, config/allow/weather polls) are gated on tick multiples so their cadence is unchanged
+     * , crucially they do NOT run on every pass during a capture, which would steal upload time from
+     * ble_service and drop clips. */
     while (1) {
         if (tick % 10 == 0) {
             /* Allow re-pairing from the dashboard at any time: announce ourselves, and if a new
@@ -115,6 +118,15 @@ void app_main(void)
         }
         if (tick % 60 == 0) ble_fetch_allow();                            /* refresh allow-list (~60 s) */
         if (ble_allowed_count() > 0 && tick % 900 == 0) poll_weather();   /* data only once a collar is registered */
+
+        /* The instant a capture ends, refresh presence + state ONCE, before ble_service drains the last
+         * clips (which blocks this loop for several seconds). A capture stalls the tick-gated heartbeat,
+         * so without this the dashboard's post-record "saving" phase can briefly read the station
+         * offline (lastSeen past its 35 s window) or the collar not connected. Firing on the
+         * capture->idle edge keeps lastSeen fresh entering the save, without adding writes mid-capture. */
+        bool capturing = ble_capture_active();
+        if (was_capturing && !capturing) { ble_heartbeat(); ble_publish_dev(); }
+        was_capturing = capturing;
 
         ble_service();   /* serviced every tick (~1 s) so the clip buffers never back up */
 

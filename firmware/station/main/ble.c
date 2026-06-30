@@ -104,6 +104,7 @@ static volatile bool g_heard = false;   /* set by ble_publish_dev: a collar hear
 /* audio-capture state machine (the capture functions are defined further down) */
 typedef enum { CAP_IDLE, CAP_CONNECTING, CAP_RECEIVING } cap_state_t;
 static volatile cap_state_t g_cap = CAP_IDLE;
+static int64_t g_last_capture_ms = 0;   /* stamped at each capture end; used for the post-capture grace */
 
 /* unregistered collars we currently hear , published to devices/{token}/seen so the dashboard
  * can offer to register them (collar USB serial is unreliable, so we discover over BLE instead) */
@@ -221,19 +222,29 @@ void ble_publish_dev(void)
     bool heard = (now - nm) < 15000 && rssi > -128;    /* collar heard in the last 15 s , wide enough
                                                           to ride over the advert re-acquisition gap
                                                           right after a capture disconnects */
+    /* A capture that just finished proves the collar is reachable right now , even in force/manual
+     * mode, where it can sit below the in-range RSSI threshold. Hold it "present" for a short grace
+     * window after the link drops so the dev view and the record gate don't false-alarm right after a
+     * save. g_last_capture_ms is stamped at every capture end. */
+    bool just_captured = g_last_capture_ms && (now - g_last_capture_ms) < 15000;
     const char *state = "idle";
-    if (heard && rssi >= g_rssi_threshold) {           /* stronger (less negative) = closer */
+    if ((heard && rssi >= g_rssi_threshold) || just_captured) {   /* stronger (less negative) = closer */
         if (inrange_since == 0) inrange_since = now;
-        state = ((now - inrange_since) >= g_dwell_ms) ? "inRange" : "approaching";
+        state = (just_captured || (now - inrange_since) >= g_dwell_ms) ? "inRange" : "approaching";
     } else {
         inrange_since = 0;
     }
     g_inrange = (state[0] == 'i' && state[1] == 'n');  /* "inRange" , the capture trigger */
-    g_heard = heard;                                   /* force-capture trigger (ignores range) */
+    g_heard = heard || just_captured;                  /* force-capture trigger (ignores range) */
     if (g_cap == CAP_CONNECTING || g_cap == CAP_RECEIVING) state = "recording";   /* dev view badge */
 
     char body[160];
-    if (heard)
+    /* Report whenever there's something live to show , recording, approaching, or in range. The state
+     * string already encodes that (it's "recording" while a capture is in flight even though the collar
+     * isn't advertising then, so `heard` is false mid-capture). Gating the write on `heard` here was the
+     * bug: mid-capture it took the else branch and published "idle", clobbering "recording", which made
+     * the dashboard flash "collar not connected" during the save. */
+    if (strcmp(state, "idle") != 0)
         snprintf(body, sizeof body, "{\"rssi\":%d,\"nearCollar\":\"%s\",\"state\":\"%s\",\"updatedAt\":%lld}",
                  rssi, id, state, (long long)now);
     else
@@ -395,7 +406,7 @@ void ble_relay(void)
             g_collars[i].state_start = now;
             xSemaphoreGive(g_collar_mtx);
         }
-        ESP_LOGI(TAG, "relay %s %s steps=%u batt=%d", snap.id, state_name(snap.state), (unsigned)snap.steps, snap.battery);
+        ESP_LOGI(TAG, "relay %s %s steps=%u batt=%d rssi=%d", snap.id, state_name(snap.state), (unsigned)snap.steps, snap.battery, g_near_rssi);
     }
 }
 
@@ -445,7 +456,6 @@ static const ble_uuid128_t meow_audio_uuid = BLE_UUID128_INIT(
 static uint16_t g_cap_val_handle = 0;
 static uint16_t g_cap_conn = 0xffff;       /* active capture connection handle */
 static char     g_cap_id[16];
-static int64_t  g_last_capture_ms = 0;
 static int64_t  g_cap_start_ms = 0;        /* when the current capture connected */
 static volatile int64_t g_last_frame_ms = 0; /* last frame received (stall detection) */
 
