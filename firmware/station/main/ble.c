@@ -218,7 +218,9 @@ void ble_publish_dev(void)
     char id[16]; snprintf(id, sizeof id, "%s", g_near_id);
     xSemaphoreGive(g_collar_mtx);
 
-    bool heard = (now - nm) < 5000 && rssi > -128;     /* collar heard in the last 5 s */
+    bool heard = (now - nm) < 15000 && rssi > -128;    /* collar heard in the last 15 s , wide enough
+                                                          to ride over the advert re-acquisition gap
+                                                          right after a capture disconnects */
     const char *state = "idle";
     if (heard && rssi >= g_rssi_threshold) {           /* stronger (less negative) = closer */
         if (inrange_since == 0) inrange_since = now;
@@ -667,6 +669,14 @@ static int central_gap_cb(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "collar disconnected");
         g_cap_conn = 0xffff;
+        /* We were just connected, so the collar is definitively present right now , but it stopped
+         * advertising while connected and takes a few seconds to resume. Seed the last-heard time so
+         * the dev view doesn't flash "collar not connected" during that advert re-acquisition gap
+         * right after a save. If the cat has actually left, this just delays the idle flip by the
+         * heard window, then self-corrects. */
+        xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
+        g_near_ms = now_ms();
+        xSemaphoreGive(g_collar_mtx);
         capture_cleanup(true);   /* drops the partial buffer; any full BUF_READY ones still upload */
         start_scan();
         return 0;
