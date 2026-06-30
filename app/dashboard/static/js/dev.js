@@ -887,7 +887,16 @@
       if (!stations.length) return { ok: false, msg: "No station registered. Connect a station first." };
       const online = stations.filter(d => fresh(d.lastSeen));
       if (!online.length) return { ok: false, msg: "Station offline. Check it's powered and on Wi-Fi." };
-      const heard = online.some(d => { const dev = d.dev || {}; return dev.state && dev.state !== "idle"; });
+      // The collar is recordable when an online station is currently hearing it. Use the same signal the
+      // station card shows as connected: a freshly relayed collar (cats/{id}/current, which the station
+      // writes only while it hears that collar), OR the live proximity state. The proximity state alone
+      // was too strict , a resting collar advertises slowly and the badge dips to "idle" between adverts
+      // even while telemetry is still relaying and the card shows its battery.
+      const heard = online.some(d => {
+        const dev = d.dev || {};
+        if (dev.state && dev.state !== "idle") return true;
+        return d.cats && Object.values(d.cats).some(cat => cat && cat.current && fresh(cat.current.ts));
+      });
       if (!heard) return { ok: false, msg: "Collar not connected to the station. Bring the cat near the station, the collar must be heard while recording (clips can't be stored on the collar)." };
       return { ok: true, msg: "" };
     }

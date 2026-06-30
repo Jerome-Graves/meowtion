@@ -219,9 +219,13 @@ void ble_publish_dev(void)
     char id[16]; snprintf(id, sizeof id, "%s", g_near_id);
     xSemaphoreGive(g_collar_mtx);
 
-    bool heard = (now - nm) < 15000 && rssi > -128;    /* collar heard in the last 15 s , wide enough
-                                                          to ride over the advert re-acquisition gap
-                                                          right after a capture disconnects */
+    /* Use the SAME freshness the relay uses to show the collar (COLLAR_STALE_MS). A collar in
+     * low-power rest advertises slowly, so adverts can space out well past a few seconds; a tighter
+     * window here flipped the dev view to idle ("collar not connected") while the station card still
+     * showed the collar and its battery (relayed within COLLAR_STALE_MS). Matching the two keeps the
+     * record gate and the card in agreement, and is still wide enough to ride over the advert
+     * re-acquisition gap right after a capture disconnects. */
+    bool heard = (now - nm) < COLLAR_STALE_MS && rssi > -128;
     /* A capture that just finished proves the collar is reachable right now , even in force/manual
      * mode, where it can sit below the in-range RSSI threshold. Hold it "present" for a short grace
      * window after the link drops so the dev view and the record gate don't false-alarm right after a
