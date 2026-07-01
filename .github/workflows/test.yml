@@ -9,8 +9,8 @@ jobs:
     name: Python unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install test dependencies
@@ -20,7 +20,7 @@ jobs:
           python -m pytest app/dashboard/tests app/firebase/functions/tests -v
           --cov --cov-report=xml --cov-report=term
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
           fail_ci_if_error: false      # never fail the build on a coverage-upload hiccup
@@ -31,6 +31,6 @@ jobs:
     name: Collar logic unit tests (C)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and run host C tests
         run: make -C firmware/test check
