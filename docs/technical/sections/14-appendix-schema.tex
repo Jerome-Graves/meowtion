@@ -11,7 +11,7 @@ users/<uid>/
   devices/
     <stationToken>/            type: "station"
       cats/<catId>/
-        current                { ver, cls, conf, steps, battery, ts }
+        current                { ver, cls, conf, steps, battery, ts, rssi, proximity }
         events/<startMs>        { start, durationSec, type | cls, ver }
       weather/                  { current, history }
       config/                   { modelVer, mode, captureForce, ... }
@@ -31,6 +31,12 @@ dashboard maps the index to a label through that version's \texttt{labels} list,
 correct across label-set changes. Low-power rest spans from the activity gate are logged the same way
 but carry \texttt{type:\,"rest"} instead of a model class, so the timeline accounts for the resting
 period rather than leaving a gap (\cref{sec:firmware-collar}).
+
+The \texttt{current} record is the single live-state object per cat, written by the station. The owner
+dashboard reads its class and battery; the developer console reads the \emph{same} record's
+station-measured \texttt{rssi} and \texttt{proximity} (\texttt{recording} / \texttt{inRange} /
+\texttt{approaching} / \texttt{away}). Presence and signal therefore have one source of truth rather
+than a separate node for the console to reconcile against the relay.
 
 \subsection{Cloud Storage layout}
 

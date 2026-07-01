@@ -58,7 +58,7 @@ the owning account. \Cref{tab:db} lists the main paths.
     \midrule
     \texttt{users/<uid>/devices/<token>}        & A registered station (\texttt{type:station}) with its
       relayed \texttt{cats/<catId>} subtree, or a registered collar entry \\
-    \texttt{.../cats/<catId>/current}           & The cat's live state (version, class, confidence, steps, battery) \\
+    \texttt{.../cats/<catId>/current}           & The cat's live state (version, class, confidence, steps, battery) plus the station-measured signal (\texttt{rssi}) and \texttt{proximity} , the single source for the dev console's presence view \\
     \texttt{.../cats/<catId>/events}            & Discrete activity events (carry model version + class index) \\
     \texttt{.../devices/<station>/weather}      & Current and recent local weather for the station's location \\
     \texttt{users/<uid>/models}                 & Current model version, status, and the label list \\

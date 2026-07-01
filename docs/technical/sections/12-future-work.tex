@@ -1,26 +1,33 @@
 \section{Future work}
 \label{sec:future-work}
 
-The system runs end to end on real hardware: record, label, train, deliver over the air, classify
-on-device, and display live. The following items are known and planned, roughly in priority order.
+Meowtion already runs the whole loop on real hardware: capture, label, train, deliver over the air,
+classify on the collar, and surface the result live. What follows is the roadmap from that working
+system toward its real goal (noticing a cat's health change early), ordered so the near-term items
+that finish the product come first and the research-scale ones last.
 
 \begin{description}[leftmargin=1.6em,style=nextline]
-  \item[Explicit ``neither'' class] A still or resting cat is already not forced into a behaviour: the
-        rules-based activity gate logs it as low-power rest, and short or uncertain windows report
-        unknown. The remaining refinement is to train an explicit ``neither'' class so an \emph{awake}
-        cat doing something untrained is not pushed into the nearest trained behaviour , a data and
-        modelling task, not a firmware change (\cref{sec:training-pipeline}).
-  \item[Power tuning] Tune the rules-based activity gate's motion thresholds and rest hold-off, and
-        the audio path's duty cycle, against the measured power budget (\cref{sec:evaluation}) to
-        extend collar runtime. A deeper step is true hardware wake-on-motion (an IMU interrupt waking
-        the SoC from System OFF) for the lowest rest current.
-  \item[More behaviours] Extend the captured and labelled set beyond eat/drink/purr to scratching,
-        litter-tray use, grooming, and play, exercising the label-agnostic pipeline at scale.
-  \item[Cross-cat generalisation] Multiple cats per household are already supported (each wears its own
-        collar, with a dashboard switcher and per-cat data). The open problem is \emph{model}
-        generalisation , training on one cat and performing well on another , since the accuracy
-        evaluation is currently single-cat and within-subject (\cref{sec:evaluation}).
-  \item[Firmware over-the-air] Today only models are delivered over the air; extend the mechanism to
-        full firmware updates.
-  \item[Publication] Write up the confidence-gated cascade as a short preprint and a venue paper.
+  \item[From activity to health insight] The dashboard already tracks each habit and flags a large,
+        sustained change against the cat's own baseline (\cref{sec:dashboard}). The next step is the
+        health analytics the product is really about: baselines that adapt as the cat ages, anomaly
+        detection over a multi-day trend rather than single events, and a concise, vet-shareable
+        summary when a habit drifts. This is the shortest path from an activity tracker to a genuine
+        early-warning tool, and it needs no new hardware.
+  \item[Richer, per-cat recognition] Extend the labelled set beyond eat/drink/purr to scratching,
+        litter-tray use, grooming, and play, and add a short per-cat fine-tune pass so recognition
+        sharpens for each animal's own motion and sound. Both fall straight out of the label-agnostic
+        pipeline (\cref{sec:training-pipeline}).
+  \item[Longer battery life] Add true hardware wake-on-motion (an IMU interrupt waking the SoC from
+        System OFF) and tune the activity gate's thresholds and the audio path's duty cycle against
+        the measured power budget (\cref{sec:evaluation}) for the lowest possible rest current.
+  \item[Multiple cats and shared stations] Several cats are already supported, each on its own collar
+        with per-cat data and a dashboard switcher. The open problems are \emph{model} generalisation
+        (training on one cat and performing well on another, since the evaluation is currently
+        single-cat and within-subject) and telling apart two cats that share a bowl or station.
+  \item[Full firmware over the air] Today only models are delivered wirelessly; extend the same
+        staged, CRC-checked mechanism (\cref{sec:protocols}) to complete firmware updates, so a
+        deployed collar never needs a cable.
+  \item[Field validation and publication] Move the accuracy study beyond a single cat with a larger,
+        multi-household dataset, ideally paired with vet-confirmed events to test the early-warning
+        claim directly, then write up the confidence-gated cascade as a preprint and a venue paper.
 \end{description}
