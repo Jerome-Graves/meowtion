@@ -69,42 +69,33 @@
     function fresh(ts) { return typeof ts === "number" && (Date.now() - ts) < 35000; }
     function el(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 
-    // collar battery: prefer a live value the station reports during capture (dev.collarBattery),
-    // else fall back to the freshest battery from the collars this station relays (cats/{id}/current)
-    function collarBattery(d) {
-      if (d.dev && typeof d.dev.collarBattery === "number") return d.dev.collarBattery;
-      let best = null;
-      if (d.cats) Object.values(d.cats).forEach(cat => {
-        const cur = cat && cat.current;
-        if (cur && typeof cur.battery === "number" && (!best || (cur.ts || 0) > (best.ts || 0))) best = cur;
-      });
-      return best ? best.battery : null;
-    }
-
-    // ---- single source of truth: is a station hearing a collar, and how close? ----
-    // EVERY "connected" indicator derives from this (the station-card badge AND the record gate), so
-    // the two can never disagree. It fuses the live proximity report (d.dev: the in-range RSSI gate)
-    // with the relayed collar telemetry (d.cats/{id}/current, which the station writes ONLY while it
-    // hears that collar). Either being live means the collar is reachable to record right now.
-    //   status: "recording" | "inRange" | "approaching" | "near" | "away"   (present = not "away")
+    // ---- single source of truth: is the collar AT the station, and how close? ----
+    // Presence, signal AND battery all come from ONE place: the station writes each collar's proximity
+    // + rssi straight into cats/{id}/current, so there is nothing to fuse (that fusion , a separate
+    // /dev node vs the relay , is what let the badge and the signal disagree). We pick the collar this
+    // station is most engaged with (best proximity, then freshest) and read everything about it from
+    // that single object.
+    //   status: "recording" | "inRange" | "approaching" | "away"   (present = not "away")
     function collarPresence(d) {
-      const dev = (d && d.dev) || {};
-      let relaying = false, name = dev.nearCollar || null;
+      const RANK = { recording: 3, inRange: 2, approaching: 1, away: 0 };
+      let best = null;
       if (d && d.cats) Object.entries(d.cats).forEach(([id, cat]) => {
-        const cur = cat && cat.current;
-        if (cur && fresh(cur.ts)) { relaying = true; if (!name) name = id; }
+        const cur = (cat && cat.current) || null;
+        if (!cur || !fresh(cur.ts)) return;
+        const prox = cur.proximity || "away";
+        const rank = RANK[prox] != null ? RANK[prox] : 0;
+        if (!best || rank > best.rank || (rank === best.rank && (cur.ts || 0) > (best.cur.ts || 0)))
+          best = { id, cur, prox, rank };
       });
-      let status;
-      if (dev.state === "recording") status = "recording";
-      else if (dev.state === "inRange") status = "inRange";
-      else if (dev.state === "approaching") status = "approaching";
-      else if (relaying) status = "near";     // heard (telemetry relaying) but proximity idle, e.g. a resting collar
-      else status = "away";
-      const LABEL = { recording: "● recording", inRange: "at the station", approaching: "settling…",
-                      near: "nearby", away: "not at the station" };
-      const CLS   = { recording: "p-rec blink", inRange: "p-on", approaching: "p-near",
-                      near: "p-on", away: "p-idle" };
-      return { status, label: LABEL[status], cls: CLS[status], present: status !== "away", name };
+      const LABEL = { recording: "● recording", inRange: "at the station",
+                      approaching: "settling…", away: "not at the station" };
+      const CLS   = { recording: "p-rec blink", inRange: "p-on", approaching: "p-near", away: "p-idle" };
+      // Fail safe: an unknown or missing proximity (a typo, a future enum, or a not-yet-flashed station
+      // that omits it) collapses to "away", so the badge never renders blank and the record gate never
+      // opens on a value we don't understand.
+      const status = (best && LABEL[best.prox]) ? best.prox : "away";
+      return { status, label: LABEL[status], cls: CLS[status], present: status !== "away",
+               name: best ? best.id : null, cur: best ? best.cur : null };
     }
 
     // ---- live station status ----
@@ -114,7 +105,6 @@
       if (!stations.length) { wrap.innerHTML = '<div class="empty">No stations registered yet.</div>'; return; }
       wrap.innerHTML = "";
       stations.forEach(([token, d]) => {
-        const dev = d.dev || {};                  // { rssi, nearCollar, recording, state, collarBattery } (station writes this)
         const card = el("div", "dev-card");
 
         const head = el("div", "row between");
@@ -137,11 +127,10 @@
 
         const grid = el("div", "grid");
         const stat = (k, v) => { const s = el("div", "stat"); s.appendChild(el("div", "k", k)); s.appendChild(el("div", "v", v)); return s; };
-        grid.appendChild(stat("Signal", typeof dev.rssi === "number" ? dev.rssi + " dBm" : "—"));
+        grid.appendChild(stat("Signal", pres.cur && typeof pres.cur.rssi === "number" ? pres.cur.rssi + " dBm" : "—"));
         grid.appendChild(stat("Threshold", (d.config && typeof d.config.rssiThreshold === "number") ? d.config.rssiThreshold + " dBm" : "—"));
         grid.appendChild(stat("Station power", d.power === "battery" ? ((typeof d.battery === "number" ? d.battery + "%" : "battery")) : "🔌 USB"));
-        const cb = collarBattery(d);
-        grid.appendChild(stat("Collar battery", cb != null ? cb + "%" : "—"));
+        grid.appendChild(stat("Collar battery", pres.cur && typeof pres.cur.battery === "number" ? pres.cur.battery + "%" : "—"));
         grid.appendChild(stat("Registered collars", typeof d.collars === "number" ? d.collars : "—"));
         grid.appendChild(stat("Last seen", typeof d.lastSeen === "number" ? Math.round((Date.now() - d.lastSeen) / 1000) + "s ago" : "—"));
         card.appendChild(grid);
