@@ -9,8 +9,7 @@
 
 void ble_start(void);          /* init NimBLE host + clip buffers; begin scanning for collars */
 
-void ble_relay(void);          /* relay fresh, registered collars to /cats/{id} */
-void ble_publish_dev(void);    /* live proximity status (signal/state) to /dev */
+void ble_relay(void);          /* relay fresh, registered collars to /cats/{id} (incl. proximity + rssi) */
 void ble_publish_seen(void);   /* advertise heard-but-unregistered collars to /seen */
 void ble_fetch_allow(void);    /* refresh the registered-collar allow-list (the gate) */
 void ble_fetch_config(void);   /* refresh capture toggle + range settings from /config */

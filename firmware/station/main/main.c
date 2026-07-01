@@ -8,7 +8,7 @@
  * registered to that owner (deviceTokens[token].owner == owner). Delete the token to revoke.
  *
  * On boot it loads NVS (or waits for serial provisioning), joins WiFi, syncs time, marks itself
- * online, then runs a ~1 s loop: relay registered collars, publish proximity, service audio
+ * online, then runs a ~1 s loop: relay registered collars (current + proximity), service audio
  * capture, and poll weather.
  *
  * This file owns only orchestration; each subsystem lives in its own module:
@@ -111,9 +111,8 @@ void app_main(void)
                 esp_restart();
             }
             ble_heartbeat();          /* station presence + power + registered-collar count */
-            ble_relay();              /* relays only registered collars (the gate) */
+            ble_relay();              /* relay registered collars (current + proximity/rssi, the gate) */
             ble_publish_seen();       /* advertise heard-but-unregistered collars for the dashboard */
-            ble_publish_dev();        /* live proximity status (signal/state) for the dev view */
             ble_fetch_config();       /* poll capture toggle + range (~10 s) */
         }
         if (tick % 60 == 0) ble_fetch_allow();                            /* refresh allow-list (~60 s) */
@@ -125,7 +124,7 @@ void app_main(void)
          * offline (lastSeen past its 35 s window) or the collar not connected. Firing on the
          * capture->idle edge keeps lastSeen fresh entering the save, without adding writes mid-capture. */
         bool capturing = ble_capture_active();
-        if (was_capturing && !capturing) { ble_heartbeat(); ble_publish_dev(); }
+        if (was_capturing && !capturing) { ble_heartbeat(); ble_relay(); }
         was_capturing = capturing;
 
         ble_service();   /* serviced every tick (~1 s) so the clip buffers never back up */
