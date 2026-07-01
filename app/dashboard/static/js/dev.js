@@ -9,6 +9,7 @@
     const g_demo = new URLSearchParams(location.search).has("demo");   // ?demo=1 => public read-only showcase
     let g_actions = ["eat", "drink", "resting", "moving"];   // default action set; overridden by users/<uid>/actions
     let devicesRef = null, modelsRef = null, actionsRef = null, lastDevices = {}, timer = null, lastClipsSig = "";
+    let g_seededConfig = false;   // one-shot: persist this card's range values to a station that never had them
     let clipEls = {};   // clip id -> {row}; tracks rows already drawn so renderClips only adds/removes, never rebuilds
 
     function show(which) {
@@ -1152,7 +1153,8 @@
 
     // ---- range config (written here, read by the station) ----
     function loadConfig() {
-      const first = Object.values(lastDevices).find(d => d && d.type === "station" && d.config);
+      const stations = Object.values(lastDevices).filter(d => d && d.type === "station");
+      const first = stations.find(d => d.config);
       if (first && first.config) {
         if (typeof first.config.rssiThreshold === "number") {
           document.getElementById("thr").value = first.config.rssiThreshold;
@@ -1164,6 +1166,25 @@
         g_production = first.config.mode === "production";
         renderCapBtn();
         renderActivityStatus();   // reflect leftover force-capture, if any
+      }
+      // Seed the range from THIS card for any station that has never had a threshold set, so the value
+      // shown here becomes the one the station uses , instead of it silently falling back to a hidden
+      // firmware default (which the dev cards render as "-"). One-shot per session; only writes the
+      // stations that are missing it, so it never clobbers a saved value.
+      if (!g_demo && g_uid && !g_seededConfig) {
+        const rssiThreshold = parseInt(document.getElementById("thr").value, 10);
+        const dwellMs = parseInt(document.getElementById("dwell").value, 10) || 0;
+        const updates = {};
+        Object.entries(lastDevices).forEach(([t, d]) => {
+          if (d && d.type === "station" && (!d.config || typeof d.config.rssiThreshold !== "number")) {
+            updates["users/" + g_uid + "/devices/" + t + "/config/rssiThreshold"] = rssiThreshold;
+            updates["users/" + g_uid + "/devices/" + t + "/config/dwellMs"] = dwellMs;
+          }
+        });
+        if (Object.keys(updates).length) {
+          g_seededConfig = true;
+          firebase.database().ref().update(updates).catch(() => {});
+        }
       }
     }
     async function saveConfig() {

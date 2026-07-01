@@ -232,7 +232,12 @@ void ble_publish_dev(void)
      * save. g_last_capture_ms is stamped at every capture end. */
     bool just_captured = g_last_capture_ms && (now - g_last_capture_ms) < 15000;
     const char *state = "idle";
-    if ((heard && rssi >= g_rssi_threshold) || just_captured) {   /* stronger (less negative) = closer */
+    /* just_captured only BRIDGES the brief advert re-acquisition gap right after a capture disconnects
+     * (the collar isn't advertising yet, so `heard` is momentarily false). Once the collar IS heard
+     * again, trust its live RSSI. Letting just_captured override a fresh reading latched a far collar
+     * "in range": each capture re-stamps the grace, which re-triggers capture , a stuck loop that kept
+     * the dev view showing "at the station" at signal well below threshold. */
+    if ((heard && rssi >= g_rssi_threshold) || (just_captured && !heard)) {   /* stronger (less negative) = closer */
         if (inrange_since == 0) inrange_since = now;
         state = (just_captured || (now - inrange_since) >= g_dwell_ms) ? "inRange" : "approaching";
     } else {
@@ -396,15 +401,21 @@ void ble_relay(void)
             g_collars[i].state_start = now;
             xSemaphoreGive(g_collar_mtx);
         } else if (snap.state != snap.cur_state) {        /* state changed: close the episode */
-            int dur = (int)((now - snap.state_start) / 1000);
-            /* Carry ver+cls so the dashboard can label a production episode with the model's class
-             * name (via cls) instead of the simulated state name; `type` is kept for the v1 path. */
-            snprintf(body, sizeof body,
-                     "{\"type\":\"%s\",\"start\":%lld,\"durationSec\":%d,\"ver\":%u,\"cls\":%u}",
-                     state_name(snap.cur_state), (long long)snap.state_start, dur,
-                     (unsigned)snap.ver, (unsigned)snap.cur_state);
-            snprintf(suffix, sizeof suffix, "%s/events", base);
-            dev_write(HTTP_METHOD_POST, suffix, body);
+            /* Suppress activity events while a training/capture session is engaged. During training
+             * the cat is being deliberately recorded doing labelled actions, so those windows must
+             * not land in the live activity history. We still advance the episode markers below, so
+             * no stale catch-up episode is posted once training ends. */
+            if (!g_capture_on && !g_force_capture) {
+                int dur = (int)((now - snap.state_start) / 1000);
+                /* Carry ver+cls so the dashboard can label a production episode with the model's class
+                 * name (via cls) instead of the simulated state name; `type` is kept for the v1 path. */
+                snprintf(body, sizeof body,
+                         "{\"type\":\"%s\",\"start\":%lld,\"durationSec\":%d,\"ver\":%u,\"cls\":%u}",
+                         state_name(snap.cur_state), (long long)snap.state_start, dur,
+                         (unsigned)snap.ver, (unsigned)snap.cur_state);
+                snprintf(suffix, sizeof suffix, "%s/events", base);
+                dev_write(HTTP_METHOD_POST, suffix, body);
+            }
             xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
             g_collars[i].cur_state = snap.state;
             g_collars[i].state_start = now;
