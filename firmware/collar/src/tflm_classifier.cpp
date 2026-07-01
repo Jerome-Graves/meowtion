@@ -1,25 +1,29 @@
 /*
  * TensorFlow Lite Micro inference backend for the collar's confidence-gated cascade.
  *
- * DESIGN , RUNTIME MODELS, NO MODEL COMPILED IN
- * ----------------------------------------------
+ * DESIGN , RUNTIME MODELS, ONE SHARED ARENA, NO MODEL COMPILED IN
+ * --------------------------------------------------------------
  * classifier.c declares four WEAK hooks (clf_imu_model_present / clf_audio_model_present /
  * imu_model_infer / audio_model_infer). This file provides the STRONG extern "C" definitions that
  * override them at link time, wiring the cascade to TFLite-Micro. Their signatures match the weak
  * ones EXACTLY (including C linkage) so the linker picks these.
  *
- * There is deliberately no model baked into the firmware. Instead each stage owns a "slot"
- * (ModelSlot) holding a model pointer+len, a MicroMutableOpResolver, a MicroInterpreter and a
- * static tensor arena. A slot is empty at boot:
+ * There is deliberately no model baked into the firmware. The two stages (IMU and audio) SHARE ONE
+ * tensor arena and are NEVER both resident: CascadeModels keeps only a small blob pointer+len per
+ * stage (the model bytes live in flash, read directly by the interpreter) and loads exactly one of
+ * them into the shared arena at a time. The cascade runs IMU first and consults audio only when
+ * unsure, so arming the audio stage UNLOADS the IMU model (destroys its interpreter) before it
+ * allocates, and the next IMU inference flips back , only one model's tensors are ever in RAM. This
+ * saves the collar (RAM-bound) the second arena a two-live-model design would need.
  *
  *     present() == false  ->  the weak-overriding *_model_present() returns false
  *                          ->  the cascade in classifier.c never calls the infer hook for that stage
  *                          ->  the firmware runs MODEL-FREE and clf_classify() yields CLF_UNKNOWN.
  *
  * A model is installed at runtime via model_loader.h (clf_set_imu_model / clf_set_audio_model),
- * intended for a Phase-3 OTA push. present() flips to true only after a model buffer is set AND
- * AllocateTensors() succeeds. If the arena is too small AllocateTensors() fails and present() stays
- * false , the firmware simply keeps running model-free rather than crashing.
+ * intended for a Phase-3 OTA push. present() flips to true only after a model buffer is set AND it
+ * loads into the shared arena (AllocateTensors succeeds). If it is too big AllocateTensors() fails and
+ * present() stays false , the firmware simply keeps running model-free rather than crashing.
  *
  * INPUT TRANSFORM , MUST MIRROR TRAINING
  * --------------------------------------
@@ -33,8 +37,8 @@
  * already 8 kHz µ-law-round-tripped by audio_to_model_pcm() (audio_codec.h), so the representation
  * matches training before this normalization runs.
  *
- * Op set and arena sizes are first guesses , see comments at MODEL slots / resolver below; both MUST
- * be tuned against the real exported models on hardware.
+ * Op set and arena size are first guesses , see comments at the resolver / shared arena below; both
+ * MUST be tuned against the real exported models on hardware.
  */
 
 #include <cmath>
@@ -65,15 +69,20 @@ constexpr int kAudioChannels = 1;
 constexpr int kAudioWindow   = kAudioSamples * kAudioChannels;
 
 /*
- * Tensor arenas. Static (no heap on this firmware). These are STARTING POINTS and MUST be tuned to
- * the real exported models on hardware: if a model needs more than its arena, AllocateTensors() in
- * the setter fails and that slot's present() simply stays false (firmware runs model-free).
+ * ONE shared tensor arena. The two stages never have tensors resident at the same time (the cascade
+ * runs IMU first and consults audio only when unsure), so a single arena holds exactly one model at a
+ * time , the other is unloaded first (CascadeModels::Arm). Size it to the LARGER model's need (the
+ * audio stage); the smaller IMU model fits comfortably. STARTING POINT , MUST be tuned to the real
+ * exported models on hardware: if the armed model needs more, AllocateTensors() fails and that
+ * stage's present() stays false (the firmware runs model-free rather than crashing).
  */
-constexpr size_t kImuArenaBytes   = 16 * 1024;   /* IMU model: small temporal conv net        */
-constexpr size_t kAudioArenaBytes = 48 * 1024;   /* audio model: larger 1-D conv over 8000 pts */
+constexpr size_t kSharedArenaBytes = 48 * 1024;   /* max(imu, audio); one model resident at a time */
+alignas(16) uint8_t g_arena[kSharedArenaBytes];
 
-alignas(16) uint8_t g_imu_arena[kImuArenaBytes];
-alignas(16) uint8_t g_audio_arena[kAudioArenaBytes];
+/* Which stage's model currently occupies the shared arena, and a per-stage blob handle (the model
+ * bytes live in flash; only this small pointer+len is kept until the stage is armed). */
+enum ArmedStage { ARM_NONE, ARM_IMU, ARM_AUDIO };
+struct ModelBlob { const uint8_t *buf = nullptr; size_t len = 0; bool valid = false; };
 
 /*
  * The op resolver set. These cover a typical quantized temporal/spectral conv classifier. The set
@@ -107,77 +116,98 @@ bool BuildResolver(MeowOpResolver &r)
 }
 
 /*
- * One inference stage. Empty until a model is set + tensors allocated; present_ gates everything.
- * The MicroInterpreter / resolver are stored in raw storage and placement-new'd on each load so a
- * slot can be re-armed with a new model (OTA replace) without dynamic allocation.
+ * The cascade's two model stages, sharing ONE tensor arena. Each stage keeps only a small blob
+ * pointer+len (the model lives in flash). At most one model is loaded into the shared arena at a
+ * time: Arm(stage) UNLOADS the resident model (destroys its interpreter) before constructing the
+ * requested one and calling AllocateTensors, so the two never occupy RAM together. present() means
+ * the blob validated and fits the arena; the resident model flips on demand as the cascade runs.
+ * All access is from the main thread (production inference + OTA model install), so no locking.
  */
-class ModelSlot {
+class CascadeModels {
 public:
-	ModelSlot(uint8_t *arena, size_t arena_bytes)
-	    : arena_(arena), arena_bytes_(arena_bytes) {}
+	bool SetImu(const uint8_t *buf, size_t len)   { return SetBlob(imu_, ARM_IMU, buf, len); }
+	bool SetAudio(const uint8_t *buf, size_t len) { return SetBlob(audio_, ARM_AUDIO, buf, len); }
 
-	bool present() const { return present_; }
+	bool ImuPresent() const   { return imu_.valid; }
+	bool AudioPresent() const { return audio_.valid; }
 
-	/* (Re)build the interpreter on buf/len and allocate tensors. Returns success; on any failure the
-	 * slot is left not-present and the firmware keeps running model-free. */
-	bool Load(const uint8_t *buf, size_t len)
+	/* Arm the stage (loading it into the shared arena, unloading the other), then run it. */
+	clf_result_t InferImu(const int16_t *src, int src_len, int win_len, int channels)
 	{
-		present_ = false;
-		interpreter_ = nullptr;
-		if (buf == nullptr || len == 0) {
-			return false;
-		}
+		if (!Arm(ARM_IMU)) return (clf_result_t){ CLF_UNKNOWN, 0.0f };
+		return Infer(src, src_len, win_len, channels);
+	}
+	clf_result_t InferAudio(const int16_t *src, int src_len, int win_len, int channels)
+	{
+		if (!Arm(ARM_AUDIO)) return (clf_result_t){ CLF_UNKNOWN, 0.0f };
+		return Infer(src, src_len, win_len, channels);
+	}
 
-		const tflite::Model *model = tflite::GetModel(buf);
-		if (model == nullptr || model->version() != TFLITE_SCHEMA_VERSION) {
-			return false;
-		}
-
-		/* The op set is fixed and identical across reloads, so build the resolver once (lazily) rather
-		 * than reassigning it each time (which trips a maybe-uninitialized warning in TFLM's resolver
-		 * move-assignment). */
-		if (!resolver_ready_) {
-			if (!BuildResolver(resolver_)) {
-				return false;
-			}
-			resolver_ready_ = true;
-		}
-
-		/* Destroy any prior interpreter, then placement-new a fresh one over the same storage so an
-		 * OTA model replace needs no dynamic allocation. interp_live_ tracks whether storage holds a
-		 * constructed object (it does not the first time through). */
+private:
+	/* Destroy the resident interpreter, freeing the shared arena for the next model. */
+	void Disarm()
+	{
 		if (interp_live_) {
 			reinterpret_cast<tflite::MicroInterpreter *>(&interp_storage_)->~MicroInterpreter();
 			interp_live_ = false;
 		}
-		interpreter_ = new (&interp_storage_)
-		    tflite::MicroInterpreter(model, resolver_, arena_, arena_bytes_);
-		interp_live_ = true;
+		interpreter_ = nullptr;
+		armed_ = ARM_NONE;
+	}
 
-		if (interpreter_->AllocateTensors() != kTfLiteOk) {
-			interpreter_ = nullptr;
-			return false;
+	/* Make `stage`'s model the one resident in the shared arena. No-op if already armed; otherwise
+	 * UNLOADS whatever was there (Disarm) BEFORE building the new interpreter + AllocateTensors, so
+	 * only one model's tensors are ever in RAM. Returns false (and stays disarmed) on any failure. */
+	bool Arm(ArmedStage stage)
+	{
+		ModelBlob &b = (stage == ARM_IMU) ? imu_ : audio_;
+		if (b.buf == nullptr || b.len == 0) return false;
+		if (armed_ == stage && interpreter_ != nullptr) return true;   /* already resident */
+
+		Disarm();                                                      /* unload the other model FIRST */
+
+		/* The op set is fixed and identical across models, so build the resolver once (lazily). */
+		if (!resolver_ready_) {
+			if (!BuildResolver(resolver_)) return false;
+			resolver_ready_ = true;
 		}
-		present_ = true;
+		const tflite::Model *model = tflite::GetModel(b.buf);
+		if (model == nullptr || model->version() != TFLITE_SCHEMA_VERSION) return false;
+
+		interpreter_ = new (&interp_storage_)
+		    tflite::MicroInterpreter(model, resolver_, g_arena, kSharedArenaBytes);
+		interp_live_ = true;
+		if (interpreter_->AllocateTensors() != kTfLiteOk) { Disarm(); return false; }
+		armed_ = stage;
 		return true;
 	}
 
+	/* Register a stage's model blob and validate it by loading it into the shared arena once (which
+	 * confirms the header and that it fits). It stays resident until the other stage next runs. */
+	bool SetBlob(ModelBlob &b, ArmedStage stage, const uint8_t *buf, size_t len)
+	{
+		if (armed_ == stage) Disarm();     /* drop any resident copy before replacing it */
+		b.buf = buf; b.len = len; b.valid = false;
+		if (buf == nullptr || len == 0) { b.buf = nullptr; b.len = 0; return false; }
+		b.valid = Arm(stage);              /* load once to confirm header + arena fit */
+		return b.valid;
+	}
+
 	/*
-	 * Run the model over the conceptual input window WITHOUT materializing a float copy of it. `src`
-	 * is the most-recent `src_len` int16 samples (interleaved [frame][channel], `channels` channels);
-	 * they are conceptually right-aligned into a window of `win_len` elements with (win_len - src_len)
-	 * leading ZEROS (front zero-pad), identical to what the old BuildImuWindow/BuildAudioWindow did.
+	 * Run the currently-armed model over the conceptual input window WITHOUT materializing a float
+	 * copy of it. `src` is the most-recent `src_len` int16 samples (interleaved [frame][channel],
+	 * `channels` channels); they are conceptually right-aligned into a window of `win_len` elements
+	 * with (win_len - src_len) leading ZEROS (front zero-pad).
 	 *
 	 * The normalization (per-channel mean over the FULL padded window, then divide by global max-abs
 	 * of (value - mean) over the FULL padded window + 1e-6) and the int8 quantization are computed in
 	 * three streaming passes reading from `src` directly and written straight into the input tensor.
-	 * This reproduces the OLD math (BuildWindow front-zero-pad + Normalize + quantize) exactly.
-	 * Returns a clf_result_t; UNKNOWN if not present or on any tensor mismatch.
+	 * Returns a clf_result_t; UNKNOWN if not armed or on any tensor mismatch.
 	 */
 	clf_result_t Infer(const int16_t *src, int src_len, int win_len, int channels)
 	{
 		clf_result_t out = { CLF_UNKNOWN, 0.0f };
-		if (!present_ || interpreter_ == nullptr || win_len <= 0 || channels <= 0) {
+		if (interpreter_ == nullptr || win_len <= 0 || channels <= 0) {
 			return out;
 		}
 		if (src_len < 0)        src_len = 0;
@@ -261,24 +291,21 @@ public:
 		return out;
 	}
 
-private:
-	uint8_t *arena_;
-	size_t   arena_bytes_;
-	bool     present_ = false;
+	ModelBlob  imu_, audio_;
+	ArmedStage armed_ = ARM_NONE;
 
 	MeowOpResolver resolver_;
 	bool           resolver_ready_ = false;
 	tflite::MicroInterpreter *interpreter_ = nullptr;
 
-	/* Raw, aligned storage so the interpreter can be placement-rebuilt on OTA model replace without
-	 * heap. interp_live_ says whether it currently holds a constructed object. */
+	/* Raw, aligned storage so the interpreter can be placement-rebuilt on each (re)arm without heap.
+	 * interp_live_ says whether it currently holds a constructed object. */
 	alignas(tflite::MicroInterpreter) uint8_t interp_storage_[sizeof(tflite::MicroInterpreter)];
 	bool interp_live_ = false;
 };
 
-/* The two stages. */
-ModelSlot g_imu_slot(g_imu_arena, kImuArenaBytes);
-ModelSlot g_audio_slot(g_audio_arena, kAudioArenaBytes);
+/* Both stages share one arena; only one model is ever resident (loaded/unloaded on demand). */
+CascadeModels g_models;
 
 } /* namespace */
 
@@ -286,45 +313,45 @@ ModelSlot g_audio_slot(g_audio_arena, kAudioArenaBytes);
 
 extern "C" bool clf_imu_model_present(void)
 {
-	return g_imu_slot.present();
+	return g_models.ImuPresent();
 }
 
 extern "C" bool clf_audio_model_present(void)
 {
-	return g_audio_slot.present();
+	return g_models.AudioPresent();
 }
 
 extern "C" clf_result_t imu_model_infer(const imu_features_t *feat)
 {
-	if (!g_imu_slot.present() || feat == nullptr || feat->samples == nullptr || feat->count == 0) {
+	if (!g_models.ImuPresent() || feat == nullptr || feat->samples == nullptr || feat->count == 0) {
 		return (clf_result_t){ CLF_UNKNOWN, 0.0f };
 	}
-	/* Most-recent whole frames; the slot front-zero-pads to kImuWindow and quantizes from int16. */
+	/* Most-recent whole frames; the stage front-zero-pads to kImuWindow and quantizes from int16. */
 	size_t avail = feat->count / kImuChannels;
 	size_t take  = avail < (size_t)kImuFrames ? avail : (size_t)kImuFrames;
 	const int16_t *src = feat->samples + (avail - take) * kImuChannels;
-	return g_imu_slot.Infer(src, (int)(take * kImuChannels), kImuWindow, kImuChannels);
+	return g_models.InferImu(src, (int)(take * kImuChannels), kImuWindow, kImuChannels);
 }
 
 extern "C" clf_result_t audio_model_infer(const int16_t *pcm, size_t pcm_len)
 {
-	if (!g_audio_slot.present() || pcm == nullptr || pcm_len == 0) {
+	if (!g_models.AudioPresent() || pcm == nullptr || pcm_len == 0) {
 		return (clf_result_t){ CLF_UNKNOWN, 0.0f };
 	}
-	/* Most-recent samples; the slot front-zero-pads to kAudioWindow and quantizes from int16. */
+	/* Most-recent samples; the stage front-zero-pads to kAudioWindow and quantizes from int16. */
 	size_t take = pcm_len < (size_t)kAudioSamples ? pcm_len : (size_t)kAudioSamples;
 	const int16_t *src = pcm + (pcm_len - take);
-	return g_audio_slot.Infer(src, (int)take, kAudioWindow, kAudioChannels);
+	return g_models.InferAudio(src, (int)take, kAudioWindow, kAudioChannels);
 }
 
 /* ---- Runtime model-load API (model_loader.h) --------------------------------------------------- */
 
 extern "C" bool clf_set_imu_model(const uint8_t *buf, size_t len)
 {
-	return g_imu_slot.Load(buf, len);
+	return g_models.SetImu(buf, len);
 }
 
 extern "C" bool clf_set_audio_model(const uint8_t *buf, size_t len)
 {
-	return g_audio_slot.Load(buf, len);
+	return g_models.SetAudio(buf, len);
 }

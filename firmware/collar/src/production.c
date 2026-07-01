@@ -10,14 +10,15 @@
  *      the simulated path so the step counter keeps climbing.
  *   4. r = clf_classify(&feat, pcm, pcm_len) and write the version=2 packet.
  *
- * AUDIO-CONFIRM IS DEFERRED (pcm = NULL, IMU-only): the audio cascade stage needs the model's exact
- * training representation, produced by audio_to_model_pcm() from RAW 16 kHz PCM. The mic module
- * (audio.c) only exposes audio_read_ulaw() , it decimates to 8 kHz and µ-law-encodes internally and
- * never hands back the raw 16 kHz PCM that audio_to_model_pcm() consumes. The PDM hardware is also
- * driven by streaming.c's reader thread. Driving the mic for local inference here would either
- * contend with that path or require restructuring audio.c to expose raw PCM. Correctness of the
- * audio representation matters more than having the stage, so production runs IMU-only for now;
- * the cascade already returns the IMU result unchanged when pcm is NULL.
+ * AUDIO CONFIRM (cascade stage 2): when the IMU stage returns a candidate class but is uncertain
+ * (confidence below the cascade threshold) and an audio model is present, we capture a 1 s live audio
+ * window and let the cascade's audio stage confirm/correct it (the eat-vs-drink case). audio.c
+ * already emits the model's exact training representation , decimate 16->8 kHz then µ-law , so we read
+ * that µ-law stream (audio_read_ulaw) and decode it straight back to int16. That is bit-identical to
+ * audio_to_model_pcm() and to what a training clip became, so no raw-16 kHz-PCM path is needed. A
+ * confident IMU result skips the mic entirely, so audio only costs power when it is actually needed.
+ * Production runs only when NOT in a capture stream (production_active()), so the PDM mic is free , the
+ * capture reader in streaming.c is idle , and we still bail if a stream preempts us mid-window.
  */
 #include "production.h"
 
@@ -25,6 +26,8 @@
 #include "imu.h"
 #include "ble.h"
 #include "battery.h"
+#include "audio.h"
+#include "audio_codec.h"   /* MODEL_AUDIO_RATE_HZ + ulaw_decode (via meow_protocol.h) */
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -123,6 +126,34 @@ void production_yield(void)
     g_win_fill = 0;
 }
 
+/* Capture one live 8 kHz audio window for the cascade's audio-confirm stage, in the model's exact
+ * training representation. audio.c decimates 16->8 kHz and µ-law-encodes (the same transform training
+ * clips go through), so decoding that µ-law stream back to int16 is bit-identical to
+ * audio_to_model_pcm(). Drives the PDM directly (safe: production runs only when not streaming).
+ * Returns the number of int16 samples written (<= cap), or 0 on failure / if a capture stream starts.
+ * The 16 KiB buffer is static , RAM is tight, so this MUST be re-checked on hardware with real models. */
+static int16_t g_audio_pcm[MODEL_AUDIO_RATE_HZ];
+
+static size_t capture_audio_window(int16_t *out, size_t cap)
+{
+    if (!audio_mic_ready() || audio_trigger_start() < 0) {
+        return 0;
+    }
+    audio_stream_start();                   /* settle the PDM filter once (discards a few blocks) */
+
+    uint8_t ulaw[MIC_BLOCK_BYTES / 2];      /* one 100 ms block of 8 kHz µ-law (one byte per sample) */
+    size_t got = 0;
+    while (got < cap && !ble_streaming_enabled()) {   /* stop if a capture stream preempts the mic */
+        int n = audio_read_ulaw(ulaw, sizeof ulaw);
+        if (n < 0) break;                             /* mic read error , end the window */
+        for (int i = 0; i < n && got < cap; i++) {
+            out[got++] = ulaw_decode(ulaw[i]);        /* 8-bit µ-law -> int16, the training rep */
+        }
+    }
+    audio_stream_stop();
+    return got;
+}
+
 void production_update_telemetry(void)
 {
     /* 1. Ensure the IMU is sampling. Only WE start it, and only when not in a capture stream , the
@@ -149,8 +180,17 @@ void production_update_telemetry(void)
         .axes    = IMU_AXES,
     };
 
-    /* 4. Classify. AUDIO-CONFIRM DEFERRED: pcm = NULL/0 -> IMU-only (see file header). */
+    /* 4. Classify. IMU stage first (cheap, always). If it returned a candidate class but is uncertain
+     * and an audio model is present, capture a live 8 kHz window and re-run so the cascade's audio
+     * stage can confirm/correct it. A confident IMU result (or no audio model) skips the mic. */
     clf_result_t r = clf_classify(&feat, NULL, 0);
+    if (clf_audio_model_present() && r.cls != CLF_UNKNOWN &&
+        r.confidence < clf_get_config()->conf_threshold) {
+        size_t n = capture_audio_window(g_audio_pcm, MODEL_AUDIO_RATE_HZ);
+        if (n > 0) {
+            r = clf_classify(&feat, g_audio_pcm, n);   /* IMU + audio confirm */
+        }
+    }
 
     /* Write the production telemetry packet per the contract (production.h). */
     uint8_t *mfg = ble_mfg_data();

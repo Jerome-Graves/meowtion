@@ -181,8 +181,8 @@ int main(void)
 
         /* Two clear branches. PRODUCTION (a trained IMU model is linked AND we're not in a capture
          * stream): run real on-device classification on a rolling IMU window and emit the version=2
-         * packet. Otherwise fall back to the SIMULATED state machine (version=1). The cascade also
-         * still runs at capture time in streaming.c on the IMU window paired with each audio clip. */
+         * packet. Otherwise fall back to the SIMULATED state machine (version=1). During a capture
+         * stream we do neither , streaming.c owns the IMU + mic to build training clips. */
         if (production_active()) {
             production_update_telemetry();
             /* Cascade tier 0: if the cat has been still past the hold-off, drop to low-power rest
