@@ -240,9 +240,11 @@ controls and their evidence are detailed separately (\cref{sec:security-privacy}
         Cloud Function's signal logic (per-window normalisation, windowing, WAV parsing, and the
         path-validation regexes), including property and fuzz tests that hammer the untrusted-input
         surface (the path validators and the WAV parser) with adversarial and seeded-random inputs.
-        Nine host-compiled C tests cover the on-device cascade: the
-        rules-based activity gate and the confidence-gated IMU/audio gating. The full per-test
-        inventory and results are listed in \cref{app:tests}.
+        Thirteen host-compiled C tests cover the on-device cascade (the rules-based activity gate and
+        the confidence-gated IMU/audio gating) and the $\mu$-law audio codec and model-input
+        representation, the latter swept exhaustively over the whole int16 domain and checked to match
+        the training representation. The full per-test inventory and results are listed in
+        \cref{app:tests}.
   \item \textbf{Coverage.} Line coverage of the unit-testable core is 100\,\%. The Firebase request
         handlers, model training, the dashboard UI, and the hardware-bound firmware paths are
         excluded from that figure and are covered by the on-hardware checks below.

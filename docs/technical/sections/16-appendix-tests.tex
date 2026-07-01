@@ -31,8 +31,8 @@
 This appendix is the test-case specification for the project's automated tests: one filled form per
 test, recording its scenario, inputs, expected result and status. The suites run in continuous
 integration on every push and pull request (\cref{sec:evaluation}). As of the run on 2026-07-01,
-\textbf{all 89 tests pass}: \textbf{80} Python tests (run with \texttt{pytest}) and \textbf{9}
-host-compiled C tests for the on-device cascade. Line coverage of the unit-testable core
+\textbf{all 93 tests pass}: \textbf{80} Python tests (run with \texttt{pytest}) and \textbf{13}
+host-compiled C tests for the on-device cascade and the audio codec. Line coverage of the unit-testable core
 (\tn{meowtion_dash/data.py} and the Cloud Function's \tn{main.py}) is \textbf{100\,\%}. Parametrised
 tests are recorded as a single form whose input field lists every case. ``Actual result: as expected''
 denotes the assertions held when the suite last ran.
@@ -96,6 +96,33 @@ audio-stage invocations, so every gating branch is checked.
 {IMU = (2, 0.40) below threshold; audio model absent.}
 {Call \tn{clf_classify()} for the cycle; count audio invocations.}
 {Audio stage skipped (0 calls); result class = 2.}{Pass}
+
+\subsection{Audio codec and representation tests (C, host-compiled)}
+
+From \tn{firmware/test/test_audio_codec.c}, over the header-only \texttt{G.711} µ-law codec
+(\tn{meow_protocol.h}) and the model-input transform (\tn{audio_codec.h}). The codec invariants are
+swept \emph{exhaustively} over the whole int16 domain (only 65\,536 values); the transform is fuzzed
+over seeded-random windows. Writing them caught and fixed a codec bug, pinned in ACO-02 below.
+
+\testcase{ACO-01}{Codec byte round-trip is consistent}{µ-law codec , \tn{meow_protocol.h}}{Property/fuzz (host C)}
+{None.}{All 256 µ-law bytes.}
+{For each byte \tn{b} whose \tn{ulaw_decode(b)} is non-zero, check \tn{ulaw_encode(ulaw_decode(b))} equals \tn{b}.}
+{Holds for every byte. The two zero codes \texttt{0x7F} (-0) and \texttt{0xFF} (+0) alias to \texttt{+0} on re-encode and are exempt (standard G.711).}{Pass}
+
+\testcase{ACO-02}{Codec preserves the sign of a non-zero sample}{µ-law codec , \tn{meow_protocol.h}}{Property/fuzz (host C)}
+{None.}{Every int16 of magnitude $\geq 256$ (exhaustive).}
+{Check \tn{ulaw_decode(ulaw_encode(s))} keeps the sign of \tn{s} and is non-zero.}
+{Holds for all. Writing this caught \tn{INT16_MIN} ($-32768$) encoding to near-silence , negating it as int16 overflowed back to $-32768$; fixed by taking the magnitude in a wider \tn{int}.}{Pass}
+
+\testcase{ACO-03}{Model-input transform: length and per-sample round-trip}{Audio representation , \tn{audio_codec.h}}{Property/fuzz (host C)}
+{None.}{4\,000 seeded-random 16\,kHz windows and output caps.}
+{Call \tn{audio_to_model_pcm}; check the length is \texttt{floor(in/2)} clamped to the cap and each output equals the µ-law round-trip of the pairwise-averaged pair.}
+{Holds for every window.}{Pass}
+
+\testcase{ACO-04}{Training wire representation equals inference representation}{Audio representation , \tn{audio_codec.h}}{Differential (host C)}
+{None.}{4\,000 seeded-random 16\,kHz windows.}
+{Compare \tn{audio_to_model_pcm} (inference) against the training path (decimate 16$\to$8\,kHz, \tn{ulaw_encode}, then the station's \tn{ulaw_decode}).}
+{Identical samples , the collar trains and infers on the same representation, so there is no train/inference mismatch.}{Pass}
 
 \subsection{Cloud Function tests (Python)}
 

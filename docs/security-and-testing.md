@@ -101,6 +101,11 @@ backend.
   trips low-power rest; motion resets the timer) and the confidence-gated cascade (the audio stage
   runs only when enabled, present, audio exists, and the IMU was unsure; the more-confident stage
   wins).
+- **Audio codec + representation (C)** (`firmware/test/test_audio_codec.c`) , the G.711 µ-law codec
+  swept exhaustively over all 65,536 `int16` values, plus a differential test proving the collar's
+  training wire representation and its inference representation are identical samples. Writing these
+  caught and fixed a µ-law bug: `INT16_MIN` (`-32768`) encoded to near-silence because negating it as
+  `int16` overflowed; the magnitude is now taken in a wider `int`.
 
 **Evidence:** the test suites above and the green **tests** badge.
 
