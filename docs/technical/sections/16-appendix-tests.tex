@@ -30,8 +30,8 @@
 
 This appendix is the test-case specification for the project's automated tests: one filled form per
 test, recording its scenario, inputs, expected result and status. The suites run in continuous
-integration on every push and pull request (\cref{sec:evaluation}). As of the run on 2026-06-29,
-\textbf{all 71 tests pass}: \textbf{62} Python tests (run with \texttt{pytest}) and \textbf{9}
+integration on every push and pull request (\cref{sec:evaluation}). As of the run on 2026-07-01,
+\textbf{all 89 tests pass}: \textbf{80} Python tests (run with \texttt{pytest}) and \textbf{9}
 host-compiled C tests for the on-device cascade. Line coverage of the unit-testable core
 (\tn{meowtion_dash/data.py} and the Cloud Function's \tn{main.py}) is \textbf{100\,\%}. Parametrised
 tests are recorded as a single form whose input field lists every case. ``Actual result: as expected''
@@ -166,6 +166,55 @@ inference); the \tn{test_helpers.py} path-validation forms are security tests.
 \testcase{WAV-04}{Missing data chunk rejected}{WAV parsing , \tn{main.py}}{Unit test (pytest)}
 {Firebase SDKs stubbed.}{A WAV with a \texttt{fmt} chunk but no \texttt{data} chunk.}{Call \tn{parse_wav(buf)}.}
 {Raises \tn{ValueError}.}{Pass}
+
+\subsection{Property and fuzz tests (Python)}
+
+From \tn{app/firebase/functions/tests/test_fuzz.py}, over the untrusted-input surface , the path
+validators and the WAV parser, which take fully attacker-controlled values. Each form encodes an
+\emph{invariant} and throws both targeted adversarial inputs and tens of thousands of seeded-random
+inputs at it (stdlib \tn{random}; no external fuzzing engine, so they run in ordinary CI). Writing
+them surfaced and fixed two issues, both pinned below: the id/timestamp validators accepted a trailing
+newline (Python's \texttt{\$} also matches just before a newline, so the end is now anchored with
+\tn{\Z}); and \tn{parse_wav} raised a raw \tn{struct.error} on a truncated \texttt{fmt} chunk instead
+of \tn{ValueError}.
+
+\testcase{FUZ-01}{Trailing terminators rejected by the id validator}{Path validation (security) , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{Valid ids suffixed with a trailing newline, carriage return, or NUL byte (7 cases).}
+{Match each against \tn{_SAFE_ID}.}{All rejected: the end is anchored with \tn{\Z}, not \texttt{\$}, so a trailing newline cannot ride into the Storage path.}{Pass}
+
+\testcase{FUZ-02}{Trailing terminators rejected by the timestamp validator}{Path validation (security) , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{Numeric timestamps suffixed with a trailing newline, CR, or NUL (4 cases).}
+{Match each against \tn{_SAFE_TS}.}{All rejected.}{Pass}
+
+\testcase{FUZ-03}{Accepted ids contain only the allowed charset}{Path validation (security) , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{40\,000 seeded-random strings from the allowed set plus tricky characters (newline, CR, NUL, dot, slash, backslash, space).}
+{For every string \tn{_SAFE_ID} accepts, check each character is in \texttt{[A-Za-z0-9\_-]}.}
+{No accepted string contains a disallowed character.}{Pass}
+
+\testcase{FUZ-04}{Accepted timestamps contain only digits}{Path validation (security) , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{40\,000 seeded-random strings from digits plus tricky and letter characters.}
+{For every string \tn{_SAFE_TS} accepts, check each character is a digit.}
+{No accepted string contains a non-digit.}{Pass}
+
+\testcase{FUZ-05}{Truncated fmt chunk fails cleanly}{WAV parsing , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{A WAV whose \texttt{fmt} chunk header declares a body the buffer does not contain.}
+{Call \tn{parse_wav(buf)}.}{Raises \tn{ValueError}, not a raw \tn{struct.error} (the sample-rate read is bounds-checked).}{Pass}
+
+\testcase{FUZ-06}{Parser survives arbitrary bytes}{WAV parsing , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{6\,000 seeded-random byte buffers, half prefixed with a valid RIFF/WAVE header.}
+{Call \tn{parse_wav} on each.}{Every call returns \texttt{(int16 samples, rate)} or raises \tn{ValueError} , never another exception, never a hang.}{Pass}
+
+\testcase{FUZ-07}{Parser survives adversarial chunk sizes}{WAV parsing , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{6\,000 syntactically-plausible chunk streams with adversarial sizes (zero, odd, and up to $2^{31}$).}
+{Call \tn{parse_wav} on each.}{Returns cleanly or raises \tn{ValueError} , the size arithmetic never overruns a read.}{Pass}
+
+\testcase{FUZ-08}{Normalisation stays finite and bounded under fuzz}{DSP , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{3\,000 random int16 arrays of varying shape.}
+{Call \tn{per_window_norm(x)}.}{Output is always finite (no NaN/inf) and bounded to about \texttt{[-1, 1]}.}{Pass}
+
+\testcase{FUZ-09}{Windows are always exactly one window long}{DSP , \tn{main.py}}{Property/fuzz (pytest)}
+{Firebase SDKs stubbed.}{3\,000 random \texttt{(length, win, hop)} combinations.}
+{Iterate \tn{windows(arr, win, hop)}.}{Every yielded window has exactly \tn{win} rows (short input is zero-padded, never short).}{Pass}
 
 \subsection{Dashboard data-layer tests (Python)}
 

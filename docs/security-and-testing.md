@@ -84,7 +84,7 @@ integration and on-device behaviour that cannot be unit-tested is verified on th
 backend.
 
 ### Automated unit tests
-62 Python unit tests and host-compiled C tests run on every push:
+80 Python unit tests and host-compiled C tests run on every push:
 
 - **Dashboard data layer** (`app/dashboard/tests/`) , raw-event to DataFrame conversion, model-label
   resolution, the low-power-rest (`0xFE`) event handling, activity filtering, the time-window
@@ -92,6 +92,11 @@ backend.
 - **Cloud function logic** (`app/firebase/functions/tests/`) , per-window normalisation (the exact
   representation the collar must reproduce at inference), the overlapping-window framing, the WAV
   parser, and the path-validation regexes (a security control).
+- **Property / fuzz tests** (`app/firebase/functions/tests/test_fuzz.py`) , encode the invariants of
+  the untrusted-input surface (the path validators and the WAV parser) and throw adversarial and
+  tens of thousands of seeded-random inputs at them. Writing these caught and fixed two issues: a
+  trailing newline slipping past the `^...$` path validators (now anchored with `\Z`), and `parse_wav`
+  raising a raw `struct.error` on a truncated `fmt` chunk instead of `ValueError`.
 - **On-device cascade (C)** (`firmware/test/`) , the rules-based activity gate (sustained stillness
   trips low-power rest; motion resets the timer) and the confidence-gated cascade (the audio stage
   runs only when enabled, present, audio exists, and the IMU was unsure; the more-confident stage
