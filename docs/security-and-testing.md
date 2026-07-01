@@ -84,7 +84,7 @@ integration and on-device behaviour that cannot be unit-tested is verified on th
 backend.
 
 ### Automated unit tests
-57 Python unit tests and host-compiled C tests run on every push:
+62 Python unit tests and host-compiled C tests run on every push:
 
 - **Dashboard data layer** (`app/dashboard/tests/`) , raw-event to DataFrame conversion, model-label
   resolution, the low-power-rest (`0xFE`) event handling, activity filtering, the time-window

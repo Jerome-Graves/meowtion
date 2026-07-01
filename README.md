@@ -96,7 +96,7 @@ your own Firebase project.
 1. **Hardware** (parts, prints, assembly): [`hardware/README.md`](hardware/README.md)
 2. **Backend** (create the Firebase project and deploy): [`app/firebase/README.md`](app/firebase/README.md)
 3. **Dashboard** (run or host the web app): [`app/dashboard/README.md`](app/dashboard/README.md)
-4. **Firmware** (flash the collar and station): `firmware/` (coming soon)
+4. **Firmware** (flash the collar and station): [`firmware/collar/README.md`](firmware/collar/README.md), [`firmware/station/README.md`](firmware/station/README.md)
 
 ## Tech stack
 

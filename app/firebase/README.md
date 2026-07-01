@@ -12,6 +12,7 @@ firebase/
 ├── storage.rules          Storage rules (no client writes; owner-scoped reads)
 └── functions/             Python Cloud Functions
     ├── main.py            train + upload_clip
+    ├── simulator.py       simulate + simulate_now (demo collar generator)
     └── requirements.txt
 ```
 
@@ -22,7 +23,8 @@ firebase/
 - **Realtime Database** , the live data: devices, cats, clip metadata, model status, config.
 - **Storage** , training audio/IMU clips and the trained `.tflite` models.
 - **Cloud Functions** , `train` (server-side model training) and `upload_clip` (authenticated clip
-  upload for the token-only station).
+  upload for the token-only station), plus `simulate`/`simulate_now` (the scheduled demo-collar
+  generator behind the "Purrminator" demo cat).
 
 ## One-time setup (Firebase Console)
 

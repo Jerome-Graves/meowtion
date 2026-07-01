@@ -2,7 +2,7 @@
 \label{sec:appendix-schema}
 
 A consolidated reference for the cloud data model introduced in \cref{sec:cloud-backend}: the Realtime
-Database tree, the Cloud Storage layout, and the request format of the two Cloud Functions.
+Database tree, the Cloud Storage layout, and the request format of the HTTP Cloud Functions.
 
 \subsection{Realtime Database tree}
 
@@ -51,4 +51,7 @@ models/<uid>/audio_model.tflite       trained audio model   (public-read; writte
         \texttt{Authorization: Bearer <device token>} (kept out of the URL/query string). The function
         resolves \texttt{deviceTokens/<token>/owner} and writes the file as administrator into that
         owner's Storage area. No Firebase login is involved.
+  \item[\texttt{simulate\_now}] \texttt{POST} with header \texttt{Authorization: Bearer <Firebase ID
+        token>} of a developer account; manually kicks a demo-simulator run (the simulator otherwise
+        runs on a per-minute schedule). Gated by \texttt{config/devAccounts/<uid>}.
 \end{description}

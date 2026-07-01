@@ -85,8 +85,9 @@ the trainer.
 
 \subsection{Cloud Functions}
 
-Two functions provide the only server-side logic. Both run on the function's ambient service account,
-so no service-account key is in the repository.
+Two request functions handle the owner-facing server-side logic, and the demo simulator (below) is a
+third, scheduled function. All run on the function's ambient service account, so no service-account
+key is in the repository.
 
 \begin{description}[leftmargin=1.6em,style=nextline]
   \item[\texttt{train}] Server-side model training, \texttt{POST} with a developer account's Firebase

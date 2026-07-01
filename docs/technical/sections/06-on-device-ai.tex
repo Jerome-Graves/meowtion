@@ -155,25 +155,32 @@ flashed collar before its first model arrives.
 
 \subsection{Memory budget}
 
-TensorFlow Lite Micro uses a fixed, statically allocated tensor arena per model (this firmware uses no
-heap). The arenas dominate the RAM cost of inference and are sized to the two networks. The values in
-\cref{tab:arenas} are starting budgets; each must be tuned to the real exported model, since an
-undersized arena makes \texttt{AllocateTensors()} fail and the stage report itself absent.
+TensorFlow Lite Micro uses a fixed, statically allocated tensor arena (this firmware uses no heap).
+The two stages never infer at once , the cascade runs the motion model first and consults audio only
+when unsure , so rather than reserve an arena each, they share a \emph{single} arena: the collar loads
+exactly one model into it at a time and unloads that model before arming the other, so only one
+model's tensors are ever resident. The arena is sized to the larger (audio) stage; the smaller motion
+model fits inside it. The value in \cref{tab:arenas} is a starting budget and must be tuned to the
+real exported models, since an undersized arena makes \texttt{AllocateTensors()} fail and that stage
+report itself absent.
 
 \begin{table}[ht]
   \centering
-  \caption{Tensor arenas (initial budgets).}
+  \caption{Shared tensor arena (initial budget).}
   \label{tab:arenas}
   \begin{tabularx}{\textwidth}{@{}llX@{}}
     \toprule
-    \textbf{Model} & \textbf{Arena} & \textbf{Notes} \\
+    \textbf{Arena} & \textbf{Size} & \textbf{Notes} \\
     \midrule
-    IMU (slot 0)   & 16\,KiB & Motion classifier (runs while active), a small temporal conv net \\
-    Audio (slot 1) & 48\,KiB & Larger 1-D conv over 8000 points; invoked only to confirm \\
+    Shared (one model resident) & 48\,KiB & Sized to the audio stage (1-D conv over 8000 points); the
+      motion model loads into the same arena and fits. The two flip in and out on demand, so only one
+      model's tensors occupy RAM at a time \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
-Enabling inference initially pushed RAM use to roughly 94\,\%; eliminating the float-window scratch
-buffer (quantising directly from int16) brought it back into the low 80s, leaving headroom for the BLE
-stack and the raised main stack (\cref{sec:firmware-collar}).
+Sharing one arena rather than two is a deliberate choice on the memory-bound collar: it saves the
+second arena outright. Enabling inference initially pushed RAM use to roughly 94\,\%; eliminating the
+float-window scratch buffer (quantising directly from int16) and sharing the single arena brought it
+back into the mid-80s, leaving headroom for the BLE stack and the raised main stack
+(\cref{sec:firmware-collar}).
