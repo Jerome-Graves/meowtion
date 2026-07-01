@@ -46,13 +46,23 @@ A battery collar senses on the cat and classifies behaviour on the device itself
 result over Bluetooth to a plugged-in base station, which forwards it to the cloud over WiFi. A
 hosted dashboard shows the owner their cat's activity and trends, live.
 
-```mermaid
-flowchart LR
-    cat([Cat]) --> collar["Collar<br/>XIAO nRF52840 Sense, Zephyr<br/>battery, on-device AI"]
-    collar -- BLE --> station["Station<br/>XIAO ESP32-S3, ESP-IDF<br/>mains powered, WiFi gateway"]
-    station -- "WiFi / HTTPS" --> fb[("Firebase<br/>Auth, Database, Storage, Functions")]
-    fb --> dash["Dashboard<br/>Streamlit + Firebase web"]
-    dash --> owner([Owner])
+```text
+  Cat
+   │
+   ▼
+  Collar     nRF52840 Sense · Zephyr · on-device AI · battery
+   │  BLE
+   ▼
+  Station    ESP32-S3 · ESP-IDF · Wi-Fi gateway · mains-powered
+   │  Wi-Fi / HTTPS
+   ▼
+  Firebase   Auth · Realtime Database · Cloud Storage · Functions
+   │
+   ▼
+  Dashboard  Streamlit + Firebase web
+   │
+   ▼
+  Owner
 ```
 
 The collar is Bluetooth-only, so the always-on station is its gateway to the cloud. It is
@@ -113,6 +123,24 @@ account. Devices carry only a scoped, revocable token, never the owner's passwor
 is used only for on-device classification, so raw audio is never stored or transmitted. The web
 API key is a public client identifier (safe to ship); no service-account key is in the repo. See
 [`app/firebase/README.md`](app/firebase/README.md) for the full model.
+
+## Roadmap
+
+Meowtion runs end to end today. What's next, roughly in priority order:
+
+- **From activity to health insight** — adaptive per-cat baselines, multi-day trend anomaly detection,
+  and a concise vet-shareable summary when a habit drifts. This is the core goal: notice the change
+  early, and it needs no new hardware.
+- **Richer, per-cat recognition** — more behaviours (scratching, litter-tray, grooming, play) and a
+  short per-cat fine-tune, both straight out of the label-agnostic pipeline.
+- **Longer battery life** — hardware wake-on-motion (an IMU interrupt waking the SoC from deep sleep)
+  and tuning the activity gate and audio duty cycle against the measured power budget.
+- **Multiple cats, shared stations** — model generalisation across cats, and telling apart two cats
+  that share a bowl or station.
+- **Full firmware over the air** — today only models are delivered wirelessly; extend the same
+  mechanism to complete firmware updates.
+- **Field validation and publication** — a larger, multi-household dataset (ideally with vet-confirmed
+  events) and a write-up of the confidence-gated cascade.
 
 ## License
 
