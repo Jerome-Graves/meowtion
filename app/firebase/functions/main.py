@@ -39,9 +39,10 @@ IMU_WIN, IMU_HOP = IMU_RATE, IMU_RATE // 2
 AUDIO_RATE, AUDIO_WIN, AUDIO_HOP = 8000, 8000, 4000
 
 # Storage path segments are interpolated into object names, so constrain them to safe characters to
-# prevent path traversal / injection.
-_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]+$")
-_SAFE_TS = re.compile(r"^[0-9]+$")
+# prevent path traversal / injection. Anchor the end with \Z, not $: in Python $ also matches just
+# before a trailing newline, so "abc\n" would slip past ^...$ and ride into the object path.
+_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]+\Z")
+_SAFE_TS = re.compile(r"^[0-9]+\Z")
 
 
 def ref(path):  # pragma: no cover  (thin RTDB wrapper; needs live Firebase)
@@ -88,8 +89,8 @@ def parse_wav(buf):
     while pos + 8 <= len(buf):
         cid, sz = buf[pos:pos + 4], struct.unpack_from("<I", buf, pos + 4)[0]
         body = pos + 8
-        if cid == b"fmt ":
-            rate = struct.unpack_from("<I", buf, body + 4)[0]
+        if cid == b"fmt " and body + 8 <= len(buf):   # bounds-check: a truncated fmt chunk must not
+            rate = struct.unpack_from("<I", buf, body + 4)[0]   # walk off the end (raw struct.error)
         elif cid == b"data":
             data = buf[body:body + sz]
         pos = body + sz + (sz & 1)
