@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://meowtion.streamlit.app"><img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" alt="Open in Streamlit"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml"><img src="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml/badge.svg" alt="tests"></a>
   <a href="https://github.com/Jerome-Graves/meowtion/actions/workflows/codeql.yml"><img src="https://github.com/Jerome-Graves/meowtion/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
   <a href="https://codecov.io/gh/Jerome-Graves/meowtion"><img src="https://codecov.io/gh/Jerome-Graves/meowtion/branch/main/graph/badge.svg" alt="coverage"></a>
