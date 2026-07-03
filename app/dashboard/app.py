@@ -68,8 +68,9 @@ with st.expander("🔒 How your data is used, and how we keep it safe"):
         "These insights are a helpful guide, not veterinary advice. If anything about your cat's "
         "health worries you, please speak to your vet."
     )
-st.caption("Learn more about cat health and wellbeing at "
-           "[International Cat Care](https://icatcare.org/), a UK feline-welfare charity.")
+st.caption("Learn more about cat health and wellbeing on "
+           "[the RSPCA's cat advice pages](https://www.rspca.org.uk/adviceandwelfare/pets/cats), "
+           "the UK animal-welfare charity.")
 st.caption("Trouble signing in or using the site? Please "
            "[open an issue on GitHub](https://github.com/Jerome-Graves/meowtion/issues). "
            "For anything private, you can reach us through our GitHub profiles: "
