@@ -9,6 +9,26 @@
   &nbsp;·&nbsp; <a href="#license">License</a>
 </p>
 
+<p align="center">
+  <a href="https://meowtion.streamlit.app"><img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" alt="Open in Streamlit"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml"><img src="https://github.com/Jerome-Graves/meowtion/actions/workflows/test.yml/badge.svg" alt="tests"></a>
+  <a href="https://github.com/Jerome-Graves/meowtion/actions/workflows/codeql.yml"><img src="https://github.com/Jerome-Graves/meowtion/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://codecov.io/gh/Jerome-Graves/meowtion"><img src="https://codecov.io/gh/Jerome-Graves/meowtion/branch/main/graph/badge.svg" alt="coverage"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license: MIT"></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/C-C11-A8B9CC?logo=c&logoColor=black" alt="C">
+  <img src="https://img.shields.io/badge/nRF52840-Zephyr%20%2F%20NCS-00A9CE" alt="nRF52840 / Zephyr">
+  <img src="https://img.shields.io/badge/ESP32--S3-ESP--IDF-E7352C?logo=espressif&logoColor=white" alt="ESP32-S3 / ESP-IDF">
+  <img src="https://img.shields.io/badge/Firebase-RTDB%20%C2%B7%20Functions%20%C2%B7%20Storage-FFCA28?logo=firebase&logoColor=black" alt="Firebase">
+  <a href="https://meowtion.streamlit.app"><img src="https://img.shields.io/badge/Streamlit-live%20demo-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit live demo"></a>
+</p>
+
 ---
 
 **A smart cat collar that watches your cat's health through its habits.** On-device AI tracks
@@ -30,13 +50,23 @@ A battery collar senses on the cat and classifies behaviour on the device itself
 result over Bluetooth to a plugged-in base station, which forwards it to the cloud over WiFi. A
 hosted dashboard shows the owner their cat's activity and trends, live.
 
-```mermaid
-flowchart LR
-    cat([Cat]) --> collar["Collar<br/>XIAO nRF52840 Sense, Zephyr<br/>battery, on-device AI"]
-    collar -- BLE --> station["Station<br/>XIAO ESP32-S3, ESP-IDF<br/>mains powered, WiFi gateway"]
-    station -- "WiFi / HTTPS" --> fb[("Firebase<br/>Auth, Database, Storage, Functions")]
-    fb --> dash["Dashboard<br/>Streamlit + Firebase web"]
-    dash --> owner([Owner])
+```text
+  Cat
+   │
+   ▼
+  Collar     nRF52840 Sense · Zephyr · on-device AI · battery
+   │  BLE
+   ▼
+  Station    ESP32-S3 · ESP-IDF · Wi-Fi gateway · mains-powered
+   │  Wi-Fi / HTTPS
+   ▼
+  Firebase   Auth · Realtime Database · Cloud Storage · Functions
+   │
+   ▼
+  Dashboard  Streamlit + Firebase web
+   │
+   ▼
+  Owner
 ```
 
 The collar is Bluetooth-only, so the always-on station is its gateway to the cloud. It is
@@ -80,7 +110,7 @@ your own Firebase project.
 1. **Hardware** (parts, prints, assembly): [`hardware/README.md`](hardware/README.md)
 2. **Backend** (create the Firebase project and deploy): [`app/firebase/README.md`](app/firebase/README.md)
 3. **Dashboard** (run or host the web app): [`app/dashboard/README.md`](app/dashboard/README.md)
-4. **Firmware** (flash the collar and station): `firmware/` (coming soon)
+4. **Firmware** (flash the collar and station): [`firmware/collar/README.md`](firmware/collar/README.md), [`firmware/station/README.md`](firmware/station/README.md)
 
 ## Tech stack
 
@@ -97,6 +127,24 @@ account. Devices carry only a scoped, revocable token, never the owner's passwor
 is used only for on-device classification, so raw audio is never stored or transmitted. The web
 API key is a public client identifier (safe to ship); no service-account key is in the repo. See
 [`app/firebase/README.md`](app/firebase/README.md) for the full model.
+
+## Roadmap
+
+Meowtion runs end to end today. What's next, roughly in priority order:
+
+- **From activity to health insight** — adaptive per-cat baselines, multi-day trend anomaly detection,
+  and a concise vet-shareable summary when a habit drifts. This is the core goal: notice the change
+  early, and it needs no new hardware.
+- **Richer, per-cat recognition** — more behaviours (scratching, litter-tray, grooming, play) and a
+  short per-cat fine-tune, both straight out of the label-agnostic pipeline.
+- **Longer battery life** — hardware wake-on-motion (an IMU interrupt waking the SoC from deep sleep)
+  and tuning the activity gate and audio duty cycle against the measured power budget.
+- **Multiple cats, shared stations** — model generalisation across cats, and telling apart two cats
+  that share a bowl or station.
+- **Full firmware over the air** — today only models are delivered wirelessly; extend the same
+  mechanism to complete firmware updates.
+- **Field validation and publication** — a larger, multi-household dataset (ideally with vet-confirmed
+  events) and a write-up of the confidence-gated cascade.
 
 ## License
 

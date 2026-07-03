@@ -69,7 +69,7 @@ int dev_read(const char *suffix, char *out, int out_cap)
 /* POST a raw binary body (a clip). When out != NULL, the response body is captured into it so the
  * caller can parse the Cloud Function's JSON reply (e.g. the stored clip path). */
 int http_post_bin(const char *url, const uint8_t *body, int len, const char *ctype,
-                  char *out, int out_cap)
+                  const char *auth, char *out, int out_cap)
 {
     resp_t r = { .buf = out, .len = 0, .cap = out_cap };
     if (out && out_cap) out[0] = 0;
@@ -79,6 +79,11 @@ int http_post_bin(const char *url, const uint8_t *body, int len, const char *cty
     };
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
     esp_http_client_set_header(c, "Content-Type", ctype);
+    if (auth) {
+        char hdr[80];
+        snprintf(hdr, sizeof hdr, "Bearer %s", auth);
+        esp_http_client_set_header(c, "Authorization", hdr);   /* token off the URL */
+    }
     esp_http_client_set_post_field(c, (const char *)body, len);
     esp_err_t err = esp_http_client_perform(c);
     int status = (err == ESP_OK) ? esp_http_client_get_status_code(c) : -1;

@@ -1,0 +1,46 @@
+# Dependabot version updates. Grouped + monthly to keep PR noise low.
+# Note: this enables routine VERSION updates. Dependabot ALERTS and SECURITY updates are repo
+# settings (Settings -> Code security -> Dependabot) and must be toggled there separately.
+# Not covered here: the firmware (C / Zephyr / ESP-IDF) and the CDN-pinned Firebase JS in the
+# static HTML, which Dependabot does not track.
+version: 2
+updates:
+  # Dashboard (Streamlit) Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/app/dashboard"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      dashboard-python:
+        patterns: ["*"]
+
+  # Cloud Function (Firebase) Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/app/firebase/functions"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      functions-python:
+        patterns: ["*"]
+
+  # Dev/test Python dependencies (requirements-dev.txt at the repo root)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      dev-python:
+        patterns: ["*"]
+
+  # GitHub Actions used by the CI and CodeQL workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]

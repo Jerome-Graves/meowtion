@@ -58,7 +58,7 @@ the owning account. \Cref{tab:db} lists the main paths.
     \midrule
     \texttt{users/<uid>/devices/<token>}        & A registered station (\texttt{type:station}) with its
       relayed \texttt{cats/<catId>} subtree, or a registered collar entry \\
-    \texttt{.../cats/<catId>/current}           & The cat's live state (version, class, confidence, steps, battery) \\
+    \texttt{.../cats/<catId>/current}           & The cat's live state (version, class, confidence, steps, battery) plus the station-measured signal (\texttt{rssi}) and \texttt{proximity} , the single source for the dev console's presence view \\
     \texttt{.../cats/<catId>/events}            & Discrete activity events (carry model version + class index) \\
     \texttt{.../devices/<station>/weather}      & Current and recent local weather for the station's location \\
     \texttt{users/<uid>/models}                 & Current model version, status, and the label list \\
@@ -85,8 +85,9 @@ the trainer.
 
 \subsection{Cloud Functions}
 
-Two functions provide the only server-side logic. Both run on the function's ambient service account,
-so no service-account key is in the repository.
+Two request functions handle the owner-facing server-side logic, and the demo simulator (below) is a
+third, scheduled function. All run on the function's ambient service account, so no service-account
+key is in the repository.
 
 \begin{description}[leftmargin=1.6em,style=nextline]
   \item[\texttt{train}] Server-side model training, \texttt{POST} with a developer account's Firebase
@@ -121,6 +122,7 @@ alongside the simulated activity.
 
 \subsection{Configuration trust boundary}
 
-The \texttt{config} subtree is readable by clients but not writable by them, and is maintained from the
-Firebase console. The system can thus publish facts the clients need (which account backs the demo,
-which accounts are developers) without letting a client grant itself privileges.
+The \texttt{config} subtree is never client-writable and is maintained from the Firebase console.
+Reads are scoped to just what a client needs: \texttt{config/demoOwner} is public (it backs the demo)
+and a signed-in user may read only their own \texttt{config/devAccounts/<uid>} flag, so the developer
+list cannot be enumerated and a client still cannot grant itself privileges.

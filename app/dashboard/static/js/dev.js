@@ -9,6 +9,7 @@
     const g_demo = new URLSearchParams(location.search).has("demo");   // ?demo=1 => public read-only showcase
     let g_actions = ["eat", "drink", "resting", "moving"];   // default action set; overridden by users/<uid>/actions
     let devicesRef = null, modelsRef = null, actionsRef = null, lastDevices = {}, timer = null, lastClipsSig = "";
+    let g_seededConfig = false;   // one-shot: persist this card's range values to a station that never had them
     let clipEls = {};   // clip id -> {row}; tracks rows already drawn so renderClips only adds/removes, never rebuilds
 
     function show(which) {
@@ -68,16 +69,33 @@
     function fresh(ts) { return typeof ts === "number" && (Date.now() - ts) < 35000; }
     function el(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 
-    // collar battery: prefer a live value the station reports during capture (dev.collarBattery),
-    // else fall back to the freshest battery from the collars this station relays (cats/{id}/current)
-    function collarBattery(d) {
-      if (d.dev && typeof d.dev.collarBattery === "number") return d.dev.collarBattery;
+    // ---- single source of truth: is the collar AT the station, and how close? ----
+    // Presence, signal AND battery all come from ONE place: the station writes each collar's proximity
+    // + rssi straight into cats/{id}/current, so there is nothing to fuse (that fusion , a separate
+    // /dev node vs the relay , is what let the badge and the signal disagree). We pick the collar this
+    // station is most engaged with (best proximity, then freshest) and read everything about it from
+    // that single object.
+    //   status: "recording" | "inRange" | "approaching" | "away"   (present = not "away")
+    function collarPresence(d) {
+      const RANK = { recording: 3, inRange: 2, approaching: 1, away: 0 };
       let best = null;
-      if (d.cats) Object.values(d.cats).forEach(cat => {
-        const cur = cat && cat.current;
-        if (cur && typeof cur.battery === "number" && (!best || (cur.ts || 0) > (best.ts || 0))) best = cur;
+      if (d && d.cats) Object.entries(d.cats).forEach(([id, cat]) => {
+        const cur = (cat && cat.current) || null;
+        if (!cur || !fresh(cur.ts)) return;
+        const prox = cur.proximity || "away";
+        const rank = RANK[prox] != null ? RANK[prox] : 0;
+        if (!best || rank > best.rank || (rank === best.rank && (cur.ts || 0) > (best.cur.ts || 0)))
+          best = { id, cur, prox, rank };
       });
-      return best ? best.battery : null;
+      const LABEL = { recording: "● recording", inRange: "at the station",
+                      approaching: "settling…", away: "not at the station" };
+      const CLS   = { recording: "p-rec blink", inRange: "p-on", approaching: "p-near", away: "p-idle" };
+      // Fail safe: an unknown or missing proximity (a typo, a future enum, or a not-yet-flashed station
+      // that omits it) collapses to "away", so the badge never renders blank and the record gate never
+      // opens on a value we don't understand.
+      const status = (best && LABEL[best.prox]) ? best.prox : "away";
+      return { status, label: LABEL[status], cls: CLS[status], present: status !== "away",
+               name: best ? best.id : null, cur: best ? best.cur : null };
     }
 
     // ---- live station status ----
@@ -87,7 +105,6 @@
       if (!stations.length) { wrap.innerHTML = '<div class="empty">No stations registered yet.</div>'; return; }
       wrap.innerHTML = "";
       stations.forEach(([token, d]) => {
-        const dev = d.dev || {};                  // { rssi, nearCollar, recording, state, collarBattery } (station writes this)
         const card = el("div", "dev-card");
 
         const head = el("div", "row between");
@@ -101,24 +118,19 @@
         head.append(left, onWrap);
         card.appendChild(head);
 
-        // proximity / recording state reported by the station
-        const state = dev.state || "idle";
-        const cls = state === "recording" ? "p-rec blink" : state === "inRange" ? "p-on"
-                  : state === "approaching" ? "p-near" : "p-idle";
-        const txt = state === "recording" ? "● recording" : state === "inRange" ? "in range"
-                  : state === "approaching" ? "settling…" : "idle";
-        const badge = el("span", "pill " + cls, txt);
+        // connection / proximity state , single source of truth, identical to the record gate
+        const pres = collarPresence(d);
+        const badge = el("span", "pill " + pres.cls, pres.label);
         const bWrap = el("div", "row"); bWrap.style.marginTop = ".6rem"; bWrap.appendChild(badge);
-        if (dev.nearCollar) bWrap.appendChild(el("span", "muted", dev.nearCollar));
+        if (pres.name) bWrap.appendChild(el("span", "muted", pres.name));
         card.appendChild(bWrap);
 
         const grid = el("div", "grid");
         const stat = (k, v) => { const s = el("div", "stat"); s.appendChild(el("div", "k", k)); s.appendChild(el("div", "v", v)); return s; };
-        grid.appendChild(stat("Signal", typeof dev.rssi === "number" ? dev.rssi + " dBm" : "—"));
+        grid.appendChild(stat("Signal", pres.cur && typeof pres.cur.rssi === "number" ? pres.cur.rssi + " dBm" : "—"));
         grid.appendChild(stat("Threshold", (d.config && typeof d.config.rssiThreshold === "number") ? d.config.rssiThreshold + " dBm" : "—"));
         grid.appendChild(stat("Station power", d.power === "battery" ? ((typeof d.battery === "number" ? d.battery + "%" : "battery")) : "🔌 USB"));
-        const cb = collarBattery(d);
-        grid.appendChild(stat("Collar battery", cb != null ? cb + "%" : "—"));
+        grid.appendChild(stat("Collar battery", pres.cur && typeof pres.cur.battery === "number" ? pres.cur.battery + "%" : "—"));
         grid.appendChild(stat("Registered collars", typeof d.collars === "number" ? d.collars : "—"));
         grid.appendChild(stat("Last seen", typeof d.lastSeen === "number" ? Math.round((Date.now() - d.lastSeen) / 1000) + "s ago" : "—"));
         card.appendChild(grid);
@@ -292,9 +304,10 @@
       bar.append(playBtn, tnum, saveBtn, fullBtn);
       if (hasImu) {
         const lg = el("div", "imu-legend");
-        lg.innerHTML = '<span><i style="background:#d1495b"></i>X</span>' +
-                       '<span><i style="background:#2a9d8f"></i>Y</span>' +
-                       '<span><i style="background:#5b6cc2"></i>Z</span>';
+        // Built from IMU_COLORS so the legend swatches can't drift from the waveform line colours.
+        lg.innerHTML = ["X", "Y", "Z"]
+          .map((ax, i) => `<span><i style="background:${IMU_COLORS[i]}"></i>${ax}</span>`)
+          .join("");
         bar.appendChild(lg);
       }
       container.appendChild(bar);
@@ -886,9 +899,33 @@
       if (!stations.length) return { ok: false, msg: "No station registered. Connect a station first." };
       const online = stations.filter(d => fresh(d.lastSeen));
       if (!online.length) return { ok: false, msg: "Station offline. Check it's powered and on Wi-Fi." };
-      const heard = online.some(d => { const dev = d.dev || {}; return dev.state && dev.state !== "idle"; });
+      // Recordable when an online station is hearing the collar , the SAME collarPresence() the card
+      // badge uses, so the record gate and the card can never disagree.
+      const heard = online.some(d => collarPresence(d).present);
       if (!heard) return { ok: false, msg: "Collar not connected to the station. Bring the cat near the station, the collar must be heard while recording (clips can't be stored on the collar)." };
       return { ok: true, msg: "" };
+    }
+
+    // Debounce the NEGATIVE state for display so a brief blip (a resting collar between slow adverts,
+    // a capture's reconnect, the post-save window) doesn't flash "not connected" / "offline". Going
+    // ready shows instantly; going not-ready must hold for READY_DEBOUNCE_MS before the warning and the
+    // disabled buttons appear. The actual start-recording gate (startActivity) still uses the raw
+    // recordReadiness(), so we never start a session when genuinely not connected.
+    let g_notReadySince = 0, g_readyTimer = 0;
+    const READY_DEBOUNCE_MS = 5000;
+    function readinessForDisplay() {
+      const r = recordReadiness();
+      if (r.ok) { g_notReadySince = 0; if (g_readyTimer) { clearTimeout(g_readyTimer); g_readyTimer = 0; } return r; }
+      const now = Date.now();
+      if (!g_notReadySince) g_notReadySince = now;
+      const held = now - g_notReadySince;
+      if (held < READY_DEBOUNCE_MS) {
+        // still within the grace window: keep the last-good look, and schedule one re-render so the
+        // warning appears if the outage persists (device updates alone might not fire during a gap).
+        if (!g_readyTimer) g_readyTimer = setTimeout(() => { g_readyTimer = 0; renderActivityStatus(); }, READY_DEBOUNCE_MS - held + 50);
+        return { ok: true, msg: "", pending: true };
+      }
+      return r;
     }
 
     // ---- focused "phone app" record view: one big-button screen, easy to tap while following the cat ----
@@ -934,7 +971,7 @@
     }
     function renderFocus(ready) {
       if (!g_focusOpen || !g_focusEl) return;
-      ready = ready || recordReadiness();
+      ready = ready || readinessForDisplay();
       const s = g_session, recording = !!(s && s.active);
       const warn = g_focusEl.querySelector(".rec-focus-warn");
       if (!ready.ok && !recording) { warn.textContent = "⚠ " + ready.msg; warn.classList.remove("hidden"); }
@@ -976,7 +1013,7 @@
     }
 
     function renderActivityStatus() {
-      const ready = recordReadiness();
+      const ready = readinessForDisplay();
       const st = document.getElementById("act-status");
       const stop = document.getElementById("actStop");
       const wrap = document.getElementById("activityBtns");
@@ -1105,7 +1142,8 @@
 
     // ---- range config (written here, read by the station) ----
     function loadConfig() {
-      const first = Object.values(lastDevices).find(d => d && d.type === "station" && d.config);
+      const stations = Object.values(lastDevices).filter(d => d && d.type === "station");
+      const first = stations.find(d => d.config);
       if (first && first.config) {
         if (typeof first.config.rssiThreshold === "number") {
           document.getElementById("thr").value = first.config.rssiThreshold;
@@ -1117,6 +1155,25 @@
         g_production = first.config.mode === "production";
         renderCapBtn();
         renderActivityStatus();   // reflect leftover force-capture, if any
+      }
+      // Seed the range from THIS card for any station that has never had a threshold set, so the value
+      // shown here becomes the one the station uses , instead of it silently falling back to a hidden
+      // firmware default (which the dev cards render as "-"). One-shot per session; only writes the
+      // stations that are missing it, so it never clobbers a saved value.
+      if (!g_demo && g_uid && !g_seededConfig) {
+        const rssiThreshold = parseInt(document.getElementById("thr").value, 10);
+        const dwellMs = parseInt(document.getElementById("dwell").value, 10) || 0;
+        const updates = {};
+        Object.entries(lastDevices).forEach(([t, d]) => {
+          if (d && d.type === "station" && (!d.config || typeof d.config.rssiThreshold !== "number")) {
+            updates["users/" + g_uid + "/devices/" + t + "/config/rssiThreshold"] = rssiThreshold;
+            updates["users/" + g_uid + "/devices/" + t + "/config/dwellMs"] = dwellMs;
+          }
+        });
+        if (Object.keys(updates).length) {
+          g_seededConfig = true;
+          firebase.database().ref().update(updates).catch(() => {});
+        }
       }
     }
     async function saveConfig() {

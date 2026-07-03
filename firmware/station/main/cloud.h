@@ -13,6 +13,8 @@ int http_do(esp_http_client_method_t method, const char *url, const char *body, 
 int dev_write(esp_http_client_method_t method, const char *suffix, const char *json);
 int dev_read(const char *suffix, char *out, int out_cap);
 
-/* POST a raw binary body. out/out_cap optional: when given, captures the response body. */
+/* POST a raw binary body. out/out_cap optional: when given, captures the response body.
+ * auth optional: when non-NULL, sent as an "Authorization: Bearer <auth>" header so the device
+ * token stays out of the URL/query string (which would otherwise land in server/proxy logs). */
 int http_post_bin(const char *url, const uint8_t *body, int len, const char *ctype,
-                  char *out, int out_cap);
+                  const char *auth, char *out, int out_cap);

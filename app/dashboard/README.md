@@ -45,7 +45,8 @@ app/dashboard/
     ├── firebase.py     cached Realtime Database read
     ├── data.py         activity_dataframe() + filter helpers
     ├── charts.py       branded Altair chart helper
-    └── live.py         live current-state cards
+    ├── live.py         live current-state cards
+    └── weather.py      current-conditions context for Health watch
 ```
 
 **Teammates:** edit [`dashboard_view.py`](dashboard_view.py). You are handed a clean pandas

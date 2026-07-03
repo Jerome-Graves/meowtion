@@ -13,6 +13,14 @@
 
 LOG_MODULE_REGISTER(battery, LOG_LEVEL_INF);
 
+/* Voltage divider on the XIAO: VBAT -> 1M (top) / 510k (bottom) -> AIN7. Pin mV * (R_top+R_bot)/R_bot
+ * recovers pack mV. */
+#define VBAT_DIV_TOP_K   1000
+#define VBAT_DIV_BOT_K   510
+/* 1S LiPo percent is a crude LINEAR map (not a real state-of-charge curve): 3.0 V = 0%, 4.2 V = 100%. */
+#define BATT_MV_EMPTY    3000
+#define BATT_MV_FULL     4200
+
 static const struct adc_dt_spec  vbat_adc = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0);
 static const struct gpio_dt_spec vbat_en  = GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), vbat_en_gpios);
 
@@ -42,8 +50,8 @@ uint8_t read_battery(void)
 
     int32_t mv = raw;
     adc_raw_to_millivolts_dt(&vbat_adc, &mv);   /* mV at the ADC pin */
-    int vbat = mv * (1000 + 510) / 510;         /* undo the 1M/510k divider */
-    int pct = (vbat - 3000) * 100 / 1200;
+    int vbat = mv * (VBAT_DIV_TOP_K + VBAT_DIV_BOT_K) / VBAT_DIV_BOT_K;   /* undo the 1M/510k divider */
+    int pct = (vbat - BATT_MV_EMPTY) * 100 / (BATT_MV_FULL - BATT_MV_EMPTY);  /* percent (linear) */
     last_pct = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
     return last_pct;
 }

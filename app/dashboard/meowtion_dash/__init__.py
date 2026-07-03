@@ -27,17 +27,22 @@ from .auth import require_session
 from .firebase import fetch
 from .data import (
     activity_dataframe, model_labels, list_cats, iter_cats, EVENT_ICON, fmt_time, fmt_dur,
+    canonical_activity,
     filter_by_activity, filter_by_weekday, filter_by_date_range, last_n_days,
-    period_options, filter_to_window, over_time, health_signals,
+    period_options, filter_to_window, over_time, daily_segments,
+    trim_sparse_edge_days, health_signals,
 )
-from .charts import bar, stacked_bar
+from .charts import bar, event_timeline, activity_colors, activity_totals, readable_text
 from .weather import weather_dataframe, window_weather, weather_caption
 from .live import live_view
 
 __all__ = [
     "configure_page", "brand_header", "require_session", "fetch", "live_view",
     "activity_dataframe", "model_labels", "list_cats", "iter_cats", "EVENT_ICON", "fmt_time", "fmt_dur",
+    "canonical_activity",
     "filter_by_activity", "filter_by_weekday", "filter_by_date_range", "last_n_days",
-    "period_options", "filter_to_window", "over_time", "health_signals", "bar", "stacked_bar",
+    "period_options", "filter_to_window", "over_time", "daily_segments",
+    "trim_sparse_edge_days", "health_signals",
+    "bar", "event_timeline", "activity_colors", "activity_totals", "readable_text",
     "weather_dataframe", "window_weather", "weather_caption",
 ]

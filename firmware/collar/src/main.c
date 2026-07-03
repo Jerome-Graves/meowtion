@@ -181,8 +181,8 @@ int main(void)
 
         /* Two clear branches. PRODUCTION (a trained IMU model is linked AND we're not in a capture
          * stream): run real on-device classification on a rolling IMU window and emit the version=2
-         * packet. Otherwise fall back to the SIMULATED state machine (version=1). The cascade also
-         * still runs at capture time in streaming.c on the IMU window paired with each audio clip. */
+         * packet. Otherwise fall back to the SIMULATED state machine (version=1). During a capture
+         * stream we do neither , streaming.c owns the IMU + mic to build training clips. */
         if (production_active()) {
             production_update_telemetry();
             /* Cascade tier 0: if the cat has been still past the hold-off, drop to low-power rest
@@ -205,8 +205,15 @@ int main(void)
         }
         /* Identity banner the dashboard reads over USB serial to register this collar. */
         printk("MEOW> collar id=%s\n", ble_id());
-        LOG_INF("state=%u steps=%u batt=%u stream=%d",
-                g_state, g_steps, g_battery, ble_streaming_enabled());
+        /* Log the values that are actually live this cycle: the simulated globals are only updated in
+         * the simulated branch, so logging them in production mode would print frozen numbers. */
+        if (production_active()) {
+            LOG_INF("production: peak=%umg stream=%d",
+                    production_peak_mg(), ble_streaming_enabled());
+        } else {
+            LOG_INF("sim: state=%u steps=%u batt=%u stream=%d",
+                    g_state, g_steps, g_battery, ble_streaming_enabled());
+        }
         k_sleep(K_SECONDS(2));   /* TODO: wake-on-motion deep sleep for battery life */
     }
     return 0;

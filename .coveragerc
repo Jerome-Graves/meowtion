@@ -1,0 +1,9 @@
+# Coverage is scoped to the unit-testable core logic. The rest of the codebase is Streamlit UI,
+# Firebase request handlers, and on-device C/hardware glue, which is covered by the manual /
+# on-hardware tests in TESTING.md rather than by unit tests.
+[run]
+include =
+    */meowtion_dash/data.py
+    */firebase/functions/main.py
+omit =
+    */tests/*

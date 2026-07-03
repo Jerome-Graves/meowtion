@@ -12,6 +12,28 @@ EVENT_ICON = {"resting": "🛋", "moving": "🐾", "eating": "🍽", "drinking":
               "sleep": "😴", "rest": "🛋", "active": "🐾", "walk": "🚶", "play": "🧶",
               "groom": "🧼", "drink": "💧", "eat": "🍽", "purr": "💜"}
 
+# Canonical display names, so real-collar model labels (Eat, Drink, Groom, ...) read exactly like the
+# simulated ones (Eating, Drinking, Grooming, ...). Keyed by the lowercased raw label; anything not
+# listed just gets capitalised, so new/unknown labels still display sensibly.
+ACTIVITY_DISPLAY = {
+    "eat": "Eating", "eating": "Eating",
+    "drink": "Drinking", "drinking": "Drinking",
+    "groom": "Grooming", "grooming": "Grooming",
+    "purr": "Purring", "purring": "Purring",
+    "rest": "Resting", "resting": "Resting",
+    "sleep": "Sleeping", "sleeping": "Sleeping",
+    "move": "Moving", "moving": "Moving",
+    "walk": "Walking", "walking": "Walking",
+    "play": "Playing", "playing": "Playing",
+}
+
+
+def canonical_activity(name):
+    """Map a raw activity label to its display name, so a real collar's labels (Eat, Drink) read the
+    same as the simulated ones (Eating, Drinking). Unknown labels are just capitalised."""
+    s = str(name).strip()
+    return ACTIVITY_DISPLAY.get(s.lower(), s.capitalize())
+
 
 def fmt_time(ms):
     """Epoch milliseconds -> 'dd Mon · HH:MM'."""
@@ -95,7 +117,7 @@ def activity_dataframe(data, labels):
                 activity = ev.get("type", "unknown")   # older / simulated event
             rows.append({
                 "cat": rec["name"],
-                "activity": str(activity).capitalize(),
+                "activity": canonical_activity(activity),
                 "event_date": when.strftime("%Y-%m-%d"),
                 "event_weekday_name": when.strftime("%A"),
                 "start_time": when.strftime("%H:%M"),
@@ -189,6 +211,50 @@ def over_time(df, period, value="event_duration"):
     else:
         when = pd.to_datetime(df["event_date"]).dt.normalize()                          # the date
     return df.assign(when=when).groupby(["when", "activity"])[value].sum().reset_index()
+
+
+_TOD_REF = pd.Timestamp("2000-01-01")   # shared reference date for the "time of day" axis
+
+
+def daily_segments(df):
+    """Split each event by calendar day for a rows-of-days timeline: the `day` is the y value, and
+    the event's time-of-day span is mapped onto a shared reference date so every day plots on one
+    00:00-24:00 x-axis. An event crossing midnight yields one row per day. Columns: `day`
+    (YYYY-MM-DD), `start`, `end` (time of day, on the reference date), `activity`."""
+    cols = ["day", "start", "end", "activity"]
+    rows = []
+    for _, e in df.iterrows():
+        start = pd.to_datetime(f"{e['event_date']} {e['start_time']}")
+        end = start + pd.Timedelta(minutes=float(e["event_duration"]))
+        if end <= start:                       # zero/negative duration: nothing to draw
+            continue
+        day0 = start.normalize()               # midnight of the event's (current) day
+        while day0 < end:
+            nxt = day0 + pd.Timedelta(days=1)
+            seg_start, seg_end = max(start, day0), min(end, nxt)
+            rows.append({"day": day0.strftime("%Y-%m-%d"),
+                         "start": _TOD_REF + (seg_start - day0),   # time of day on the reference date
+                         "end": _TOD_REF + (seg_end - day0),
+                         "activity": e["activity"]})
+            day0 = nxt
+    if not rows:
+        return pd.DataFrame(columns=cols)
+    return pd.DataFrame(rows, columns=cols)
+
+
+def trim_sparse_edge_days(frame, min_fraction=0.1):
+    """Drop near-empty leading/trailing days from a daily_segments frame, keeping everything between
+    them (interior days are never dropped, so no gaps appear). A boundary day is trimmed when its
+    total activity is below `min_fraction` of the busiest day's, which removes the incomplete edge
+    days a date range often clips into. Returns the frame restricted to the kept day span."""
+    if frame.empty:
+        return frame
+    mins = (frame["end"] - frame["start"]).dt.total_seconds().groupby(frame["day"]).sum()
+    if len(mins) <= 1:
+        return frame
+    keep = mins[mins >= min_fraction * mins.max()].index   # the busiest day always qualifies
+    lo, hi = keep.min(), keep.max()
+    return frame[(frame["day"] >= lo) & (frame["day"] <= hi)]
 
 
 # Health-relevant habits, most informative first. Appetite and thirst changes are classic early

@@ -142,10 +142,3 @@ the model blobs land in Cloud Storage as \texttt{models/<uid>/\allowbreak imu\_m
 stations' configuration so their version gate fires, and the label list is stored in
 \texttt{users/<uid>/models} so the dashboard can map a class index back to a name across label-set
 changes (\cref{sec:cloud-backend}).
-
-\subsection{Known limitation}
-
-A model trained on only two classes (for example, eat versus drink) cannot represent ``neither'' and
-will confidently assign one of its two labels to an idle cat. The fix is to retrain with an explicit
-idle/other class; this is a data and modelling task, not a firmware change, and is tracked in
-\cref{sec:future-work}.

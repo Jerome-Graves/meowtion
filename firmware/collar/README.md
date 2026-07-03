@@ -15,9 +15,12 @@ touches WiFi/internet, which keeps it tiny and low-power, and it always runs on 
 | `streaming.c` | the decoupled reader/sender threads that assemble + send frames |
 | `battery.c` | 1S LiPo charge via the onboard divider |
 | `imu.c` | LSM6DS3TR-C continuous sampler |
+| `activity.c` | rules-based activity gate (cascade tier 0: low-power rest / wake) |
+| `production.c` | rolling IMU window: runs inference and writes real telemetry |
 | `classifier.c` | the confidence-gated action cascade (IMU first, audio confirms when unsure) |
 | `tflm_classifier.cpp` | TensorFlow Lite Micro backend for the cascade (runtime-loaded models) |
 | `model_loader.h` | runtime model-install API (`clf_set_imu_model` / `clf_set_audio_model`) |
+| `ota.c` | OTA receive state machine: stages models to flash, defers the swap |
 | `audio_codec.h` | µ-law + the model-input audio representation |
 
 ## Telemetry packet (manufacturer AD data, 8 bytes)
@@ -56,7 +59,7 @@ time in `streaming.c` on the IMU window paired with each clip.
 ./build.ps1
 ```
 
-`build.ps1` finds the local NCS toolchain itself, runs `west build -b xiao_ble`, and copies the
+`build.ps1` finds the local NCS toolchain itself, runs `west build -b xiao_ble/nrf52840/sense`, and copies the
 UF2. The XIAO nRF52840 has **no debug COM port** for flashing , flashing is always **UF2
 drive-copy**: double-tap RESET so the board mounts as a USB drive, then re-run (the script copies
 the UF2 across). Artifact: `build/collar/zephyr/zephyr.uf2`. Verified with **NCS v3.3.1**.

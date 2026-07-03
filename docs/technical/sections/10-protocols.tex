@@ -132,6 +132,7 @@ tell an empty slot from a written one across a reboot. \Cref{fig:ota-seq} shows 
 
 Above BLE, the station speaks ordinary HTTPS to Firebase: it writes telemetry to the Realtime Database
 (RTDB) through its REST interface, authorised by its device token, and POSTs training-clip bytes to the
-\texttt{upload\_clip} Cloud Function with that same token (\cref{sec:cloud-backend}). The dashboard is
-a separate client of the same RTDB. No bespoke transport or message broker is involved; the contract at
-this tier is just the RTDB schema and the function's request format.
+\texttt{upload\_clip} Cloud Function carrying that token in an \texttt{Authorization: Bearer} header so
+it stays out of the URL and request logs (\cref{sec:cloud-backend}). The dashboard is a separate client
+of the same RTDB. No bespoke transport or message broker is involved; the contract at this tier is just
+the RTDB schema and the function's request format.

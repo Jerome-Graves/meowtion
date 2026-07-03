@@ -37,12 +37,14 @@ static inline uint8_t ulaw_encode(int16_t pcm)
 {
 	const int BIAS = 0x84, CLIP = 32635;
 	int sign = (pcm >> 8) & 0x80;
-	if (sign) pcm = (int16_t)-pcm;
-	if (pcm > CLIP) pcm = CLIP;
-	pcm += BIAS;
+	/* Take the magnitude in a WIDER int: negating -32768 as int16 overflows back to -32768, which
+	 * mis-encodes a full-scale-negative sample to near-silence. In int it negates cleanly. */
+	int mag = sign ? -(int)pcm : pcm;
+	if (mag > CLIP) mag = CLIP;
+	mag += BIAS;
 	int exponent = 7;
-	for (int mask = 0x4000; (pcm & mask) == 0 && exponent > 0; mask >>= 1) exponent--;
-	int mantissa = (pcm >> (exponent + 3)) & 0x0F;
+	for (int mask = 0x4000; (mag & mask) == 0 && exponent > 0; mask >>= 1) exponent--;
+	int mantissa = (mag >> (exponent + 3)) & 0x0F;
 	return (uint8_t)~(sign | (exponent << 4) | mantissa);
 }
 

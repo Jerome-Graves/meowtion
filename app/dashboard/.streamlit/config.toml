@@ -3,12 +3,11 @@
 [server]
 enableStaticServing = true
 
-# Brand the dashboard to match the static pages (css/base.css): white surfaces,
-# lavender accent, dark ink text. Forces light so it never falls back to the dark theme.
+# Brand accent + font only. We deliberately do NOT pin base/background/secondary/text colours:
+# fully specifying the theme makes Streamlit hide the in-app theme switcher (the ⋮ menu loses
+# "Settings"), which stops users choosing light or dark. With only the accent set, the switcher
+# stays available and defaults to light. The brand background gradient is applied via CSS in
+# theme.py (brand_header), and our charts/widgets adapt to the chosen theme via is_dark().
 [theme]
-base = "light"
 primaryColor = "#bc7bc2"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f4f4f8"
-textColor = "#1b1b2b"
 font = "sans serif"

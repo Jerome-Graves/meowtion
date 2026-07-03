@@ -27,7 +27,10 @@ public-read (so the token-only station can fetch one) but writable only by the t
 A station authenticates with a scoped, revocable per-device token rather than the owner's password, and
 a collar holds nothing at all. A lost or compromised device therefore cannot expose the owner's
 credentials, and it can be revoked simply by deleting its token from the account, with no password
-change and no effect on the owner's other devices. \Cref{fig:token} traces the token's lifecycle.
+change and no effect on the owner's other devices. The token is carried in an \texttt{Authorization}
+header rather than a URL or query string, so it stays out of request logs, and the rules let an account
+claim only an unclaimed token or one it already owns, so a known token cannot be re-pointed to another
+account. \Cref{fig:token} traces the token's lifecycle.
 
 \begin{figure}[ht]\centering
   \begin{tikzpicture}[node distance=10mm and 14mm, every node/.style={font=\footnotesize}]
@@ -62,8 +65,9 @@ against a hand-crafted client.
 The Firebase web API key shipped in the static front end is a public client identifier, not a secret;
 security is enforced by Authentication and the rules, not by hiding the key. No service-account key is
 present in the repository, and the functions run on their ambient service account. Device Wi-Fi
-credentials and firmware secrets are excluded by \texttt{.gitignore}. Everything required to understand
-and build the system is tracked; only true secrets are not.
+credentials are entered at runtime and never committed, and \texttt{.gitignore} guards against any
+local secret file. Everything required to understand and build the system is tracked; only true
+secrets are not.
 
 \subsection{Owner data rights}
 

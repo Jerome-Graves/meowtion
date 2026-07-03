@@ -48,7 +48,9 @@ static const char *state_name(uint8_t s)
 {
     if (s == COLLAR_STATE_REST) return "rest";
     if (s == 0xFF)              return "unknown";
-    return STATES[s % 6];
+    /* In range 0..5 it's a known behaviour; anything else (unexpected class byte) is shown as
+     * unknown rather than wrapped into a plausible-but-wrong label. */
+    return (s < 6) ? STATES[s] : "unknown";
 }
 
 /* registered-collar allow-list (the "2 devices" gate); populated by ble_fetch_allow() below */
@@ -74,18 +76,21 @@ typedef struct {
     uint8_t  ver;                    /* packet version: 1 = simulated, 2 = real on-device classification */
     uint8_t  state, activity, battery;
     uint16_t steps;
+    int      rssi;                   /* this collar's OWN smoothed RSSI (per-collar proximity/signal) */
     int64_t  last_ms;
     /* episode tracking (owned by the relay in the main loop) */
     bool     reported;
     uint8_t  cur_state;
     int64_t  state_start;
+    int64_t  inrange_since;          /* when this collar first met the in-range threshold (per-collar dwell) */
 } collar_t;
 
 static collar_t          g_collars[MAX_COLLARS];
 static SemaphoreHandle_t  g_collar_mtx;
 
 /* Proximity (signal strength) of the collar we currently hear, for the dev view + capture gate.
- * Updated in collar_ingest under g_collar_mtx; read by ble_publish_dev() in the main loop. */
+ * Updated in collar_ingest under g_collar_mtx; read by ble_relay() when it writes each collar's
+ * current record and sets the capture-gate globals below. */
 static int       g_near_rssi = -128;    /* smoothed RSSI of the most recent collar packet */
 static char      g_near_id[16] = "";
 static int64_t   g_near_ms = 0;
@@ -96,12 +101,14 @@ static bool      g_capture_on = false;  /* dev-view toggle: record audio clips f
 static bool      g_force_capture = false;/* dev-view override: capture whenever a collar is heard, ignore range (for purr) */
 static bool      g_production = false;   /* config "mode": production = never capture/stream/upload, just relay the collar's on-device classification */
 static uint8_t   g_own_addr_type = 0;   /* our BLE address type, for scan + connect */
-static volatile bool g_inrange = false; /* set by ble_publish_dev: collar dwell-confirmed in range */
-static volatile bool g_heard = false;   /* set by ble_publish_dev: a collar heard in the last 5 s (any distance) */
+static volatile bool g_inrange = false; /* set by ble_relay: near collar dwell-confirmed in range */
+static volatile bool g_heard = false;   /* set by ble_relay: near collar heard recently (any distance) */
 
 /* audio-capture state machine (the capture functions are defined further down) */
 typedef enum { CAP_IDLE, CAP_CONNECTING, CAP_RECEIVING } cap_state_t;
 static volatile cap_state_t g_cap = CAP_IDLE;
+static char     g_cap_id[16];           /* id of the collar the current/last capture connected to */
+static int64_t g_last_capture_ms = 0;   /* stamped at each capture end; used for the post-capture grace */
 
 /* unregistered collars we currently hear , published to devices/{token}/seen so the dashboard
  * can offer to register them (collar USB serial is unreliable, so we discover over BLE instead) */
@@ -204,40 +211,6 @@ void ble_heartbeat(void)
     dev_write(HTTP_METHOD_PATCH, "", hb);   /* station presence + power + registered-collar count */
 }
 
-/* publish live proximity status to devices/{token}/dev for the dev view: the collar's signal,
- * which collar it is, and whether it's idle / approaching / in-range (dwell-confirmed). */
-void ble_publish_dev(void)
-{
-    static int64_t inrange_since = 0;
-    int64_t now = now_ms();
-
-    xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
-    int rssi = g_near_rssi; int64_t nm = g_near_ms;
-    char id[16]; snprintf(id, sizeof id, "%s", g_near_id);
-    xSemaphoreGive(g_collar_mtx);
-
-    bool heard = (now - nm) < 5000 && rssi > -128;     /* collar heard in the last 5 s */
-    const char *state = "idle";
-    if (heard && rssi >= g_rssi_threshold) {           /* stronger (less negative) = closer */
-        if (inrange_since == 0) inrange_since = now;
-        state = ((now - inrange_since) >= g_dwell_ms) ? "inRange" : "approaching";
-    } else {
-        inrange_since = 0;
-    }
-    g_inrange = (state[0] == 'i' && state[1] == 'n');  /* "inRange" , the capture trigger */
-    g_heard = heard;                                   /* force-capture trigger (ignores range) */
-    if (g_cap == CAP_CONNECTING || g_cap == CAP_RECEIVING) state = "recording";   /* dev view badge */
-
-    char body[160];
-    if (heard)
-        snprintf(body, sizeof body, "{\"rssi\":%d,\"nearCollar\":\"%s\",\"state\":\"%s\",\"updatedAt\":%lld}",
-                 rssi, id, state, (long long)now);
-    else
-        snprintf(body, sizeof body, "{\"rssi\":null,\"nearCollar\":null,\"state\":\"idle\",\"updatedAt\":%lld}",
-                 (long long)now);
-    dev_write(HTTP_METHOD_PUT, "/dev", body);
-}
-
 /* Runs in the NimBLE host task for every matching advertisement. Keep it short: just update
  * the table; all HTTPS happens later in the main loop. p = the 6 bytes after the company id. */
 static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
@@ -276,6 +249,7 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
                 memcpy(c->addr, addr, 6);
                 snprintf(c->id, sizeof c->id, "%s", id);
                 c->used = true;
+                c->rssi = rssi;          /* seed the per-collar smoother with the first reading */
                 break;
             }
     if (c) {
@@ -287,6 +261,7 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
         c->activity = p[2];
         c->steps    = p[3] | (p[4] << 8);
         c->battery  = p[5];
+        c->rssi     = (c->rssi * 3 + rssi) / 4;   /* per-collar EMA, same smoothing as g_near_rssi */
         c->last_ms  = now;
     }
     xSemaphoreGive(g_collar_mtx);
@@ -341,30 +316,71 @@ static void ble_host_task(void *arg)
 void ble_relay(void)
 {
     int64_t now = now_ms();
+
+    /* Proximity + signal are written per collar into its `current`, so the dashboard reads presence
+     * from a SINGLE source and, with more than one collar, each cat gets its OWN reading rather than
+     * whichever advertised last. The capture gate (g_inrange/g_heard) is computed separately, every
+     * tick, in update_capture_gate() , it is NOT set here. */
+    bool recording = ble_capture_active();
+    char cap_id[16];
+    xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
+    snprintf(cap_id, sizeof cap_id, "%s", g_cap_id);
+    xSemaphoreGive(g_collar_mtx);
+
     for (int i = 0; i < MAX_COLLARS; i++) {
         collar_t snap;
         xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
         snap = g_collars[i];
         xSemaphoreGive(g_collar_mtx);
         if (!snap.used) continue;
-        if (now - snap.last_ms > COLLAR_STALE_MS) {       /* collar left / powered off */
+
+        /* "recording" attaches to the collar ACTUALLY being captured (g_cap_id), not to whichever
+         * advertised last, so a second collar can't steal the badge or get the captured one dropped. */
+        bool being_captured = recording && (strcmp(snap.id, cap_id) == 0);
+        /* Drop a collar we haven't heard from in a while , UNLESS it's the one being captured: it
+         * stops advertising while connected, so its adverts go stale, but we keep its `current` alive
+         * with "recording" so the badge does not flip to "away" mid-record. */
+        if (now - snap.last_ms > COLLAR_STALE_MS && !being_captured) {
             xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
             g_collars[i].used = false;
+            g_collars[i].inrange_since = 0;
             xSemaphoreGive(g_collar_mtx);
             ESP_LOGW(TAG, "collar %s stale, dropped", snap.id);
             continue;
         }
-        char base[24], body[224], suffix[40];
+        char base[24], body[256], suffix[40];
         snprintf(base, sizeof base, "/cats/%s", snap.id);
+
+        /* This collar's OWN proximity + signal, from its per-collar RSSI and dwell , so a multi-collar
+         * station attaches the right reading to the right cat. */
+        bool c_fresh   = (now - snap.last_ms) < COLLAR_STALE_MS && snap.rssi > -128;
+        bool c_inrange = c_fresh && snap.rssi >= g_rssi_threshold;
+        int64_t isince;
+        xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
+        if (c_inrange) { if (g_collars[i].inrange_since == 0) g_collars[i].inrange_since = now; }
+        else g_collars[i].inrange_since = 0;
+        isince = g_collars[i].inrange_since;
+        xSemaphoreGive(g_collar_mtx);
+
+        const char *prox;
+        if (being_captured)                                  prox = "recording";
+        else if (c_inrange && (now - isince) >= g_dwell_ms)  prox = "inRange";
+        else if (c_inrange)                                  prox = "approaching";
+        else                                                 prox = "away";
+
+        char rssi_field[12];
+        if (c_fresh) snprintf(rssi_field, sizeof rssi_field, "%d", snap.rssi);
+        else         snprintf(rssi_field, sizeof rssi_field, "null");
 
         /* Forward the production contract so the dashboard can tell real (ver=2) from simulated
          * (ver=1) and read the model's class index + confidence. `cls` is the raw class byte
          * (0..N-1, or 255 = UNKNOWN/low-confidence) and `conf` the 0..100 confidence; both are only
-         * meaningful when ver=2. `state` (the human-readable label) is kept for the v1 dashboard. */
+         * meaningful when ver=2. `state` (the human-readable label) is kept for the v1 dashboard.
+         * `rssi`/`proximity` make `current` the ONE place the dev view reads presence + signal from. */
         snprintf(body, sizeof body,
-                 "{\"ts\":%lld,\"state\":\"%s\",\"steps\":%u,\"battery\":%d,\"ver\":%u,\"cls\":%u,\"conf\":%u}",
+                 "{\"ts\":%lld,\"state\":\"%s\",\"steps\":%u,\"battery\":%d,\"ver\":%u,\"cls\":%u,\"conf\":%u,\"rssi\":%s,\"proximity\":\"%s\"}",
                  (long long)now, state_name(snap.state), (unsigned)snap.steps, snap.battery,
-                 (unsigned)snap.ver, (unsigned)snap.state, (unsigned)snap.activity);
+                 (unsigned)snap.ver, (unsigned)snap.state, (unsigned)snap.activity, rssi_field, prox);
         snprintf(suffix, sizeof suffix, "%s/current", base);
         dev_write(HTTP_METHOD_PUT, suffix, body);
 
@@ -377,21 +393,27 @@ void ble_relay(void)
             g_collars[i].state_start = now;
             xSemaphoreGive(g_collar_mtx);
         } else if (snap.state != snap.cur_state) {        /* state changed: close the episode */
-            int dur = (int)((now - snap.state_start) / 1000);
-            /* Carry ver+cls so the dashboard can label a production episode with the model's class
-             * name (via cls) instead of the simulated state name; `type` is kept for the v1 path. */
-            snprintf(body, sizeof body,
-                     "{\"type\":\"%s\",\"start\":%lld,\"durationSec\":%d,\"ver\":%u,\"cls\":%u}",
-                     state_name(snap.cur_state), (long long)snap.state_start, dur,
-                     (unsigned)snap.ver, (unsigned)snap.cur_state);
-            snprintf(suffix, sizeof suffix, "%s/events", base);
-            dev_write(HTTP_METHOD_POST, suffix, body);
+            /* Suppress activity events while a training/capture session is engaged. During training
+             * the cat is being deliberately recorded doing labelled actions, so those windows must
+             * not land in the live activity history. We still advance the episode markers below, so
+             * no stale catch-up episode is posted once training ends. */
+            if (!g_capture_on && !g_force_capture) {
+                int dur = (int)((now - snap.state_start) / 1000);
+                /* Carry ver+cls so the dashboard can label a production episode with the model's class
+                 * name (via cls) instead of the simulated state name; `type` is kept for the v1 path. */
+                snprintf(body, sizeof body,
+                         "{\"type\":\"%s\",\"start\":%lld,\"durationSec\":%d,\"ver\":%u,\"cls\":%u}",
+                         state_name(snap.cur_state), (long long)snap.state_start, dur,
+                         (unsigned)snap.ver, (unsigned)snap.cur_state);
+                snprintf(suffix, sizeof suffix, "%s/events", base);
+                dev_write(HTTP_METHOD_POST, suffix, body);
+            }
             xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
             g_collars[i].cur_state = snap.state;
             g_collars[i].state_start = now;
             xSemaphoreGive(g_collar_mtx);
         }
-        ESP_LOGI(TAG, "relay %s %s steps=%u batt=%d", snap.id, state_name(snap.state), (unsigned)snap.steps, snap.battery);
+        ESP_LOGI(TAG, "relay %s %s steps=%u batt=%d rssi=%d prox=%s", snap.id, state_name(snap.state), (unsigned)snap.steps, snap.battery, snap.rssi, prox);
     }
 }
 
@@ -440,8 +462,6 @@ static const ble_uuid128_t meow_audio_uuid = BLE_UUID128_INIT(
 
 static uint16_t g_cap_val_handle = 0;
 static uint16_t g_cap_conn = 0xffff;       /* active capture connection handle */
-static char     g_cap_id[16];
-static int64_t  g_last_capture_ms = 0;
 static int64_t  g_cap_start_ms = 0;        /* when the current capture connected */
 static volatile int64_t g_last_frame_ms = 0; /* last frame received (stall detection) */
 
@@ -482,18 +502,20 @@ static bool     g_fr_ulaw = false;   /* header version >= 2: audio bytes are 8-b
 static void wav_header(uint8_t *h, uint32_t pcm, uint32_t rate)
 {
     uint32_t chunk = 36 + pcm, byterate = rate * 2;
+    /* Little-endian 32-bit fields are written a byte at a time; cast each to uint8_t so the narrowing
+     * is explicit (intended: keep the low byte of each shifted value) and warning-clean. */
     memcpy(h, "RIFF", 4);
-    h[4]=chunk; h[5]=chunk>>8; h[6]=chunk>>16; h[7]=chunk>>24;
+    h[4]=(uint8_t)chunk; h[5]=(uint8_t)(chunk>>8); h[6]=(uint8_t)(chunk>>16); h[7]=(uint8_t)(chunk>>24);
     memcpy(h+8, "WAVEfmt ", 8);
     h[16]=16; h[17]=h[18]=h[19]=0;          /* fmt chunk size */
     h[20]=1; h[21]=0;                        /* PCM */
     h[22]=1; h[23]=0;                        /* mono */
-    h[24]=rate; h[25]=rate>>8; h[26]=rate>>16; h[27]=rate>>24;
-    h[28]=byterate; h[29]=byterate>>8; h[30]=byterate>>16; h[31]=byterate>>24;
+    h[24]=(uint8_t)rate; h[25]=(uint8_t)(rate>>8); h[26]=(uint8_t)(rate>>16); h[27]=(uint8_t)(rate>>24);
+    h[28]=(uint8_t)byterate; h[29]=(uint8_t)(byterate>>8); h[30]=(uint8_t)(byterate>>16); h[31]=(uint8_t)(byterate>>24);
     h[32]=2; h[33]=0;                        /* block align */
     h[34]=16; h[35]=0;                       /* bits/sample */
     memcpy(h+36, "data", 4);
-    h[40]=pcm; h[41]=pcm>>8; h[42]=pcm>>16; h[43]=pcm>>24;
+    h[40]=(uint8_t)pcm; h[41]=(uint8_t)(pcm>>8); h[42]=(uint8_t)(pcm>>16); h[43]=(uint8_t)(pcm>>24);
 }
 
 static void capture_cleanup(bool cooldown)
@@ -663,6 +685,14 @@ static int central_gap_cb(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "collar disconnected");
         g_cap_conn = 0xffff;
+        /* We were just connected, so the collar is definitively present right now , but it stopped
+         * advertising while connected and takes a few seconds to resume. Seed the last-heard time so
+         * the dev view doesn't flash "collar not connected" during that advert re-acquisition gap
+         * right after a save. If the cat has actually left, this just delays the idle flip by the
+         * heard window, then self-corrects. */
+        xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
+        g_near_ms = now_ms();
+        xSemaphoreGive(g_collar_mtx);
         capture_cleanup(true);   /* drops the partial buffer; any full BUF_READY ones still upload */
         start_scan();
         return 0;
@@ -754,9 +784,9 @@ static void do_upload(clipbuf_t *b)
 
     /* WAV first. The function validates g_token, stores the bytes and returns the storage path. */
     static char url[320], reply[256], wav_path[160];
-    snprintf(url, sizeof url, "%s?token=%s&collar=%s&ts=%lld&ext=wav",
-             UPLOAD_CLIP_URL, g_token, g_cap_id, (long long)ts);
-    int status = http_post_bin(url, b->wav, WAV_HDR + b->pcm_len, "audio/wav", reply, sizeof reply);
+    snprintf(url, sizeof url, "%s?collar=%s&ts=%lld&ext=wav",
+             UPLOAD_CLIP_URL, g_cap_id, (long long)ts);
+    int status = http_post_bin(url, b->wav, WAV_HDR + b->pcm_len, "audio/wav", g_token, reply, sizeof reply);
     bool have_wav = (status == 200) && parse_upload_path(reply, wav_path, sizeof wav_path);
     ESP_LOGI(TAG, "upload %s status=%d (%u B) path=%s",
              g_cap_id, status, (unsigned)(WAV_HDR + b->pcm_len), have_wav ? wav_path : "?");
@@ -765,9 +795,9 @@ static void do_upload(clipbuf_t *b)
     char imu_path[160];
     bool have_imu = false;
     if (b->imu_len > 0) {
-        snprintf(url, sizeof url, "%s?token=%s&collar=%s&ts=%lld&ext=imu",
-                 UPLOAD_CLIP_URL, g_token, g_cap_id, (long long)ts);
-        int imu_status = http_post_bin(url, b->imu, b->imu_len, "application/octet-stream", reply, sizeof reply);
+        snprintf(url, sizeof url, "%s?collar=%s&ts=%lld&ext=imu",
+                 UPLOAD_CLIP_URL, g_cap_id, (long long)ts);
+        int imu_status = http_post_bin(url, b->imu, b->imu_len, "application/octet-stream", g_token, reply, sizeof reply);
         have_imu = (imu_status == 200) && parse_upload_path(reply, imu_path, sizeof imu_path);
         ESP_LOGI(TAG, "imu upload status=%d (%u B) path=%s",
                  imu_status, (unsigned)b->imu_len, have_imu ? imu_path : "?");
@@ -815,12 +845,44 @@ void ble_start(void)
     nimble_port_freertos_init(ble_host_task);
 }
 
+/* Recompute the capture gate (g_inrange/g_heard) from the LIVE nearest-collar signal, every tick, so
+ * the trigger tracks real proximity instead of a value refreshed only when the relay runs. Two guards
+ * stop a collar that has walked away from re-latching the trigger: (1) it keys off the live RSSI, never
+ * a post-capture display grace; (2) a re-capture needs a FRESH advert since the last capture ended, so
+ * the strong RSSI cached from before the cat left cannot immediately re-trigger. */
+static int64_t g_gate_inrange_since = 0;
+static void update_capture_gate(void)
+{
+    int64_t now = now_ms();
+    int rssi; int64_t nm;
+    xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
+    rssi = g_near_rssi; nm = g_near_ms;
+    xSemaphoreGive(g_collar_mtx);
+
+    bool near_fresh = (now - nm) < COLLAR_STALE_MS && rssi > -128;
+    bool in_range   = near_fresh && rssi >= g_rssi_threshold;
+    bool fresh_since_capture = (g_last_capture_ms == 0) || (nm > g_last_capture_ms);
+    bool just_captured = g_last_capture_ms && (now - g_last_capture_ms) < 15000;
+
+    if (in_range) { if (g_gate_inrange_since == 0) g_gate_inrange_since = now; }
+    else g_gate_inrange_since = 0;
+    bool dwell_ok = in_range && (now - g_gate_inrange_since) >= g_dwell_ms;
+
+    /* Normal trigger: dwell-confirmed in range (just_captured skips the dwell for a quick re-acquire,
+     * but never the in-range requirement, so a far collar is never armed). Force trigger: heard at any
+     * distance. Both require a fresh post-capture advert. */
+    g_inrange = in_range && fresh_since_capture && (dwell_ok || just_captured);
+    g_heard   = near_fresh && fresh_since_capture;
+}
+
 /* Per-tick (~1 s) capture servicing. Owns the capture state machine so main.c stays out of BLE
  * internals: start a capture when triggered, tear it down the instant the trigger clears (otherwise
  * the persistent stream would upload a clip every 5 s forever , the runaway-upload bug), enforce the
  * connect/stall timeouts, and drain any completed clip buffers by uploading them. */
 void ble_service(void)
 {
+    update_capture_gate();   /* keep g_inrange/g_heard fresh from the live near-collar signal */
+
     /* Capture when the normal toggle is on AND a registered collar is in range , OR, independently,
      * when manual/force mode is on and a collar is heard at all (any distance). The latter is how
      * we grab purring, since that won't happen at the bowl. Production mode never records: ready

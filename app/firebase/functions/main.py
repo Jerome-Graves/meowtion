@@ -39,20 +39,27 @@ IMU_WIN, IMU_HOP = IMU_RATE, IMU_RATE // 2
 AUDIO_RATE, AUDIO_WIN, AUDIO_HOP = 8000, 8000, 4000
 
 # Storage path segments are interpolated into object names, so constrain them to safe characters to
-# prevent path traversal / injection.
-_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]+$")
-_SAFE_TS = re.compile(r"^[0-9]+$")
+# prevent path traversal / injection. Anchor the end with \Z, not $: in Python $ also matches just
+# before a trailing newline, so "abc\n" would slip past ^...$ and ride into the object path.
+_SAFE_ID = re.compile(r"^[A-Za-z0-9_-]+\Z")
+_SAFE_TS = re.compile(r"^[0-9]+\Z")
 
 
-def ref(path):
+def ref(path):  # pragma: no cover  (thin RTDB wrapper; needs live Firebase)
     return db.reference(path, url=DB_URL)
 
 
 # ======================== upload_clip (station, device-token auth) ========================
+MAX_CLIP_BYTES = 4 * 1024 * 1024   # reject oversized uploads; a real clip is far smaller
+
+
 @https_fn.on_request(region=REGION, memory=options.MemoryOption.MB_256, timeout_sec=120,
                      cors=options.CorsOptions(cors_origins=["*"], cors_methods=["post", "options"]))
-def upload_clip(req: https_fn.Request) -> https_fn.Response:
-    token = req.args.get("token", "")
+def upload_clip(req: https_fn.Request) -> https_fn.Response:  # pragma: no cover  (integration: Firebase/Storage; tested via deploy + manual checks; the validation regexes are unit-tested separately)
+    # Prefer the bearer token from the Authorization header; fall back to the legacy ?token= query
+    # arg so an un-updated station still works. The header keeps the token out of URLs and logs.
+    auth = req.headers.get("Authorization", "")
+    token = auth[7:].strip() if auth[:7].lower() == "bearer " else req.args.get("token", "")
     collar = req.args.get("collar", "")
     ts = req.args.get("ts", "")
     ext = req.args.get("ext", "wav")
@@ -65,6 +72,8 @@ def upload_clip(req: https_fn.Request) -> https_fn.Response:
     data = req.get_data()
     if not data:
         return https_fn.Response("empty body", status=400)
+    if len(data) > MAX_CLIP_BYTES:
+        return https_fn.Response("clip too large", status=413)
     ctype = "audio/wav" if ext == "wav" else "application/octet-stream"
     path = f"training/{owner}/{collar}/{ts}.{ext}"
     storage.bucket().blob(path).upload_from_string(data, content_type=ctype)
@@ -80,8 +89,8 @@ def parse_wav(buf):
     while pos + 8 <= len(buf):
         cid, sz = buf[pos:pos + 4], struct.unpack_from("<I", buf, pos + 4)[0]
         body = pos + 8
-        if cid == b"fmt ":
-            rate = struct.unpack_from("<I", buf, body + 4)[0]
+        if cid == b"fmt " and body + 8 <= len(buf):   # bounds-check: a truncated fmt chunk must not
+            rate = struct.unpack_from("<I", buf, body + 4)[0]   # walk off the end (raw struct.error)
         elif cid == b"data":
             data = buf[body:body + sz]
         pos = body + sz + (sz & 1)
@@ -90,7 +99,7 @@ def parse_wav(buf):
     return np.frombuffer(data, dtype="<i2").copy(), rate
 
 
-def load_clips(uid):
+def load_clips(uid):  # pragma: no cover  (integration: reads RTDB + Storage)
     bucket = storage.bucket()
     devs = ref(f"users/{uid}/devices").get() or {}
     clips = []
@@ -157,7 +166,7 @@ def build_dataset(clips, kind):
     return np.array(X, np.float32), np.array(y, np.int64)
 
 
-def train_one(name, clips):
+def train_one(name, clips):  # pragma: no cover  (TensorFlow training; not a unit test target)
     import tensorflow as tf
     from sklearn.model_selection import train_test_split
     L = tf.keras.layers
@@ -197,7 +206,7 @@ def train_one(name, clips):
 @https_fn.on_request(region=REGION, memory=options.MemoryOption.GB_4, timeout_sec=3600,
                      cpu=2, concurrency=1,
                      cors=options.CorsOptions(cors_origins=["*"], cors_methods=["post", "options"]))
-def train(req: https_fn.Request) -> https_fn.Response:
+def train(req: https_fn.Request) -> https_fn.Response:  # pragma: no cover  (integration: Firebase + TensorFlow; tested via deploy + manual checks)
     # auth: must be a signed-in dev account (same gate as the dashboard)
     authz = req.headers.get("Authorization", "")
     token = authz.split("Bearer ", 1)[1] if "Bearer " in authz else ""
@@ -251,8 +260,10 @@ def train(req: https_fn.Request) -> https_fn.Response:
 
         return https_fn.Response(json.dumps({"version": version, "labels": LABELS, "results": results}), status=200)
     except Exception as ex:
+        # Record the full error server-side (owner-only RTDB) for debugging, but return a generic
+        # message to the caller , don't leak exception/stack detail to clients (CodeQL py/stack-trace-exposure).
         ref(f"users/{uid}/models").update({"status": "error", "error": str(ex)})
-        return https_fn.Response(f"error: {ex}", status=500)
+        return https_fn.Response("internal error", status=500)
 
 
 # Simulated companion collar ("Purrminator"): a scheduled history generator + manual trigger.
