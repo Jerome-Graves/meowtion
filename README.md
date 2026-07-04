@@ -35,7 +35,13 @@
 eating, drinking, activity, rest and purring, surfacing the routine changes that can flag illness
 early (cats hide it well). It is trainable to recognise any behaviour, all on a live dashboard.
 
-![A cat wearing the Meowtion collar](hardware/images/photos/cat-wearing-collar.jpg)
+<p align="center">
+  <a href="https://youtu.be/bQQpa5zzoZ4">
+    <img src="https://img.youtube.com/vi/bQQpa5zzoZ4/maxresdefault.jpg" alt="Watch the Meowtion demo video" width="720">
+  </a>
+  <br>
+  <a href="https://youtu.be/bQQpa5zzoZ4"><b>▶ Watch the demo</b></a>
+</p>
 
 ## The problem
 
