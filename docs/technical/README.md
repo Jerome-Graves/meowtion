@@ -38,33 +38,42 @@ They are also available via the command palette (`Tasks: Run Task`).
 
 ```
 docs/technical/
-├── main.tex              master file: \input order of all sections
-├── build.ps1            XeLaTeX + Biber build (no Perl/latexmk)
-├── references.bib       bibliography
-├── README.md            this file
+├── main.tex              master file: the authoritative \input order of all sections
+├── build.ps1             XeLaTeX + Biber build (no Perl/latexmk)
+├── references.bib        bibliography
+├── README.md             this file
 ├── preamble/
-│   ├── packages.tex     package imports
-│   ├── style.tex        brand colours, headings, headers/footers, code listings
-│   └── metadata.tex     title, author, version macros
+│   ├── packages.tex      package imports
+│   ├── style.tex         brand colours, headings, headers/footers, code listings
+│   └── metadata.tex      title, author, version macros
 ├── frontmatter/
-│   └── titlepage.tex    branded cover page (transparent logo.png + typeset wordmark)
-└── sections/
-    ├── 01-introduction.tex
-    ├── 02-system-overview.tex
-    ├── 03-hardware.tex
-    ├── 04-firmware-collar.tex
-    ├── 05-firmware-station.tex
-    ├── 06-on-device-ai.tex
-    ├── 07-training-pipeline.tex
-    ├── 08-cloud-backend.tex
-    ├── 09-dashboard.tex
-    ├── 10-protocols.tex
-    ├── 11-security-privacy.tex
-    └── 12-future-work.tex
+│   ├── titlepage.tex        branded cover page (transparent logo.png + typeset wordmark)
+│   └── acknowledgements.tex  acknowledgements page
+└── sections/                         (main.tex sets the render order)
+    ├── 01-introduction.tex           motivation, approach, contributions
+    ├── 01b-requirements.tex          functional / non-functional requirements
+    ├── 02-system-overview.tex        architecture, operating modes, data flows
+    ├── 03-hardware.tex               collar + station hardware
+    ├── 04-firmware-collar.tex        Zephyr firmware on the nRF52840
+    ├── 05-firmware-station.tex       ESP-IDF firmware on the ESP32-S3
+    ├── 06-on-device-ai.tex           the confidence-gated cascade + memory budget
+    ├── 07-training-pipeline.tex      cloud training + OTA delivery
+    ├── 08-cloud-backend.tex          Firebase auth, database, storage, functions
+    ├── 09-dashboard.tex              the Streamlit owner dashboard
+    ├── 09b-ui-walkthrough.tex        screen-by-screen UI walkthrough
+    ├── 10-protocols.tex              BLE telemetry + clip/OTA wire formats
+    ├── 11-security-privacy.tex       the security + privacy model
+    ├── 11b-evaluation.tex            evaluation (projected) + test summary
+    ├── 12-future-work.tex            roadmap
+    ├── 13-appendix-bom.tex           bill of materials
+    ├── 14-appendix-schema.tex        Realtime Database + Storage schema
+    ├── 15-glossary.tex               glossary of terms (rendered up front)
+    └── 16-appendix-tests.tex         the full automated test inventory
 ```
 
-Sections are numbered so the file order matches the document order. To add a section, drop a
-new `sections/NN-name.tex` and add one `\input{sections/NN-name}` line to `main.tex`.
+Section files are numbered for ordering, but `main.tex` is the authoritative `\input` order , the
+glossary and appendices are rendered out of numeric sequence there. To add a section, drop a new
+`sections/NN-name.tex` and add one `\input{sections/NN-name}` line to `main.tex`.
 
 ## Conventions
 

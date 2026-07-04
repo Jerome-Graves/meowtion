@@ -20,16 +20,22 @@ python -m pytest app/dashboard/tests app/firebase/functions/tests
 
 ## What is covered
 
-- **`app/dashboard/tests/test_data.py`** , the dashboard data layer (`meowtion_dash/data.py`):
-  raw-event to DataFrame conversion, model-label resolution by class index, the low-power
-  **rest** event handling (class byte `0xFE` falls back to the `rest` type instead of indexing
-  the label list), activity filtering, and the over-time duration aggregation. Malformed events
-  (missing timestamp) are skipped.
-- **`app/firebase/functions/tests/test_dsp.py`** , the cloud trainer's signal helpers
-  (`main.py`): per-window normalisation (the exact representation the collar must reproduce at
-  inference, so this is a core cascade-correctness property) and the overlapping-window framing,
-  including short-input zero-padding. The Firebase SDKs are stubbed (see `conftest.py`) so the
-  helpers test in isolation.
+- **`app/dashboard/tests/`** (`test_data.py`, `test_more.py`) , the dashboard data layer
+  (`meowtion_dash/data.py`): raw-event to DataFrame conversion, model-label resolution by class
+  index, the low-power **rest** event handling (class byte `0xFE` falls back to the `rest` type
+  instead of indexing the label list), activity / date-range / weekday filtering, the time-window
+  drill-down, the per-day timeline segmenting, and the health-watch recent-vs-baseline comparison.
+  Malformed events (missing timestamp) are skipped.
+- **`app/firebase/functions/tests/`** , the cloud function's signal and input-validation logic
+  (`main.py`); the Firebase SDKs are stubbed (see `conftest.py`) so the helpers test in isolation:
+  - `test_dsp.py` , per-window normalisation (the exact representation the collar must reproduce at
+    inference, a core cascade-correctness property) and the overlapping-window framing with
+    short-input zero-padding.
+  - `test_helpers.py` , the path-segment validators (`_SAFE_ID` / `_SAFE_TS`, a security control
+    against path traversal / injection) and the WAV parser.
+  - `test_fuzz.py` , property / fuzz tests that throw adversarial and tens of thousands of
+    seeded-random inputs at the validators and the WAV parser. Writing these caught and fixed a
+    trailing-newline validation bypass and a `parse_wav` crash.
 
 ## Firmware (collar, C)
 
@@ -42,6 +48,10 @@ under `firmware/test/`:
   only when it is enabled, a model is present, audio exists for the cycle, and the IMU was unsure,
   and the more-confident stage wins. classifier.c's weak model hooks are overridden with scripted
   stubs.
+- **`test_audio_codec.c`** , the G.711 µ-law codec (`meow_protocol.h`), swept exhaustively over the
+  whole int16 domain, and the model-input representation (`audio_codec.h`), with a differential test
+  proving the collar's training-clip and inference audio representations are identical samples.
+  Writing this caught and fixed a µ-law `INT16_MIN` encoding bug.
 
 Run (needs any host C compiler, e.g. gcc/clang):
 
@@ -68,7 +78,7 @@ build and deploy steps. Each row was directly observed.
 | 4 | Wake on motion | Move the collar while resting | Wakes and resumes classification | Serial: `activity: motion , waking after Ns rest`, production resumes ✓ |
 | 5 | Rest event | Collar rests, then wakes | Station logs the span as a `rest` episode | Station serial: `relay cat_… rest` for the dormant span (steps frozen) ✓ |
 | 6 | REST mapping fix | Station running updated firmware | `0xFE` shown as `rest`, not `active` | Station relay reported `rest` after reflash (was `active` before) ✓ |
-| 7 | Collar build | `west build` (NCS v3.3.1) | Builds, UF2 produced | FLASH 57.6 %, RAM 86.6 %, `zephyr.uf2` written ✓ |
+| 7 | Collar build | `west build` (NCS v3.3.1) | Builds, UF2 produced | FLASH 57.7 %, RAM 86.1 %, `zephyr.uf2` written ✓ |
 | 8 | Station build | `idf.py build` (ESP-IDF) | Builds, image produced | `esp32_firebase_test.bin`, 22 % partition free ✓ |
 | 9 | Docs build | `build.ps1` (XeLaTeX + Biber) | Compiles, no errors | PDF produced and published ✓ |
 | 10 | Backend deploy | `firebase deploy` (rules + functions) | Released to `meowtion-app` | Rules released; `upload_clip`, `train`, `simulate(_now)` updated ✓ |
