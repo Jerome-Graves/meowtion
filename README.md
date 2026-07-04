@@ -37,7 +37,7 @@ early (cats hide it well). It is trainable to recognise any behaviour, all on a 
 
 <p align="center">
   <a href="https://youtu.be/bQQpa5zzoZ4">
-    <img src="https://img.youtube.com/vi/bQQpa5zzoZ4/maxresdefault.jpg" alt="Watch the Meowtion demo video" width="720">
+    <img src="https://img.youtube.com/vi/bQQpa5zzoZ4/maxresdefault.jpg?v=2" alt="Watch the Meowtion demo video" width="720">
   </a>
   <br>
   <a href="https://youtu.be/bQQpa5zzoZ4"><b>▶ Watch the demo</b></a>
