@@ -22,6 +22,14 @@ serviceAccount*.json
 .streamlit/secrets.toml
 # .env.example files are intentionally NOT ignored - they document required config.
 
+# ---- Local data exports / database backups (contain private clip labels; NEVER commit) ----
+# These normally live outside the repo, but ignore them here too in case an export lands inside it.
+backups/
+rtdb-*.json
+*-backup.json
+clips-export*.json
+*.bak
+
 # ---- Firebase tooling / logs ----
 .firebase/
 .runtimeconfig.json
