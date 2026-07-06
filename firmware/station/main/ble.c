@@ -144,12 +144,13 @@ bool ble_capture_active(void)
 uint8_t ble_own_addr_type(void) { return g_own_addr_type; }
 
 /* Copy the address of the collar we currently hear (the same one start_capture connects to) into
- * `out` (a ble_addr_t*). Returns false if no collar has been heard recently. */
+ * `out` (a ble_addr_t*). Returns false if no collar has been heard recently. Defense-in-depth:
+ * re-validates that the cached collar is still on the allow-list before returning its address. */
 bool ble_near_collar_addr(void *out)
 {
     bool ok = false;
     xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
-    if ((now_ms() - g_near_ms) < 5000 && g_near_rssi > -128) {
+    if ((now_ms() - g_near_ms) < 5000 && g_near_rssi > -128 && is_allowed(g_near_id)) {
         memcpy(out, &g_near_addr, sizeof(ble_addr_t));
         ok = true;
     }
@@ -220,13 +221,11 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
     snprintf(id, sizeof id, "cat_%02x%02x%02x", addr[2], addr[1], addr[0]);
     int64_t now = now_ms();
     xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
-    /* proximity: smooth the signal of whatever collar we hear (any one, so it works even before
-     * registration), for the dev view + the in-range gate */
-    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
-    snprintf(g_near_id, sizeof g_near_id, "%s", id);
-    g_near_addr = *ba;
-    g_near_ms = now;
-    if (!is_allowed(id)) {
+    /* Check registration BEFORE updating the cached address to prevent OTA target poisoning.
+     * Proximity metrics (rssi/id/timestamp) are still updated for any collar for the dev view,
+     * but g_near_addr (used by OTA) is only set for allowed devices. */
+    bool allowed = is_allowed(id);
+    if (!allowed) {
         /* heard but not registered: remember it so the dashboard can offer to register it */
         seen_t *s = NULL;
         for (int i = 0; i < MAX_SEEN; i++)
@@ -235,9 +234,18 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
             for (int i = 0; i < MAX_SEEN; i++)
                 if (!g_seen[i].used) { s = &g_seen[i]; s->used = true; snprintf(s->id, sizeof s->id, "%s", id); break; }
         if (s) s->last_ms = now;
+        /* Update proximity metrics for dev view even for unregistered collars, but NOT g_near_addr */
+        g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
+        snprintf(g_near_id, sizeof g_near_id, "%s", id);
+        g_near_ms = now;
         xSemaphoreGive(g_collar_mtx);
         return;
     }
+    /* Allowed collar: update ALL proximity state including the address (for OTA target selection) */
+    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
+    snprintf(g_near_id, sizeof g_near_id, "%s", id);
+    g_near_addr = *ba;
+    g_near_ms = now;
     collar_t *c = NULL;
     for (int i = 0; i < MAX_COLLARS; i++)
         if (g_collars[i].used && memcmp(g_collars[i].addr, addr, 6) == 0) { c = &g_collars[i]; break; }
