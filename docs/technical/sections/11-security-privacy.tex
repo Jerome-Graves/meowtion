@@ -175,6 +175,29 @@ the rest are false positives that an automated tool cannot rule out without the 
   \end{tabularx}
 \end{table}
 
+Two categories account for the entries that remain, and both are routine for a static scanner. The first
+is \textbf{false positives}, which the tool cannot clear on its own because it reasons about the shape of
+the code without the surrounding context. The Firebase web API key it flags is a public client
+identifier, not a leaked secret: security is enforced by Authentication and the database and storage
+rules, and the key is designed to ship in client code. The cross-site-scripting warning points at
+\texttt{innerHTML} assignments that are all fixed, static markup; the dashboard renders owner-supplied
+text (device and cat names, clip labels) through text nodes, never by interpolating it into HTML, so
+there is no injection sink. The Streamlit upload warning has no target: the dashboard exposes no upload
+control, and a clip reaches storage only through the authenticated \texttt{upload\_clip} function, which
+validates the path and rejects an oversized body. The two server-side request-forgery warnings are
+likewise unreachable: the request URL is a fixed constant (the project's own database host) with only the
+caller's authenticated uid interpolated, so it cannot be pointed at an attacker's host. Each of these is
+dispositioned in the tool with that justification rather than left open.
+
+The second category is the findings that were \textbf{genuinely fixed}, and those fixes are the substance
+of this section. The BLE access-control, missing-authentication and OTA-spoofing findings are closed by
+requiring an encrypted collar-to-station link; the presence-spoofing and business-logic findings by
+restricting capture to registered collars only; the token-reassignment finding by pinning a token's owner
+in the database rules; and the supply-chain findings by pinning every CI action to a commit hash and not
+persisting credentials in the workflow. The auto-generated patches the scanner proposed for the BLE
+findings were deliberately not merged: each was a one-sided change that would have dropped the working
+link, so the equivalent protection was implemented on both devices at once instead.
+
 The residual item is authenticating that encrypted local link against an active man-in-the-middle, which
 is future work; the link is already encrypted, and the boundary that matters, the cloud where the data
 actually lives, is closed by Authentication and the rules above.
