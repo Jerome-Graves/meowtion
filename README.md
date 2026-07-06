@@ -130,8 +130,10 @@ your own Firebase project.
 
 Data is private per owner: the database and storage rules scope every read and write to the owning
 account. Devices carry only a scoped, revocable token, never the owner's password. The microphone
-is used only for on-device classification, so raw audio is never stored or transmitted. The web
-API key is a public client identifier (safe to ship); no service-account key is in the repo. See
+is used only for on-device classification, so raw audio is never stored or transmitted. The
+collar-to-station Bluetooth link is encrypted (LE Secure Connections), so a nearby device cannot
+eavesdrop on it or push a model to the collar. The web API key is a public client identifier (safe to
+ship); no service-account key is in the repo. See
 [`app/firebase/README.md`](app/firebase/README.md) for the full model.
 
 ## Roadmap
@@ -151,6 +153,17 @@ Meowtion runs end to end today. What's next, roughly in priority order:
   mechanism to complete firmware updates.
 - **Field validation and publication** — a larger, multi-household dataset (ideally with vet-confirmed
   events) and a write-up of the confidence-gated cascade.
+
+## Security audit
+
+Alongside the per-owner rules above, the repository runs CodeQL and Dependabot in CI and was put through
+an independent third-party static-analysis audit ([Aikido](https://www.aikido.dev/)). Findings were
+triaged rather than merged blind: the genuine ones are fixed (the collar-to-station BLE link now requires
+LE Secure Connections encryption, the device-token rule pins its owner against reassignment, and the CI
+actions are pinned to commit SHAs), and the rest are documented false positives (the public Firebase web
+key, static-markup `innerHTML`, and backend requests bound to a fixed host plus the caller's own uid).
+The full triage, with the scan screenshots, is in the
+[technical documentation](docs/technical/) security section.
 
 ## License
 

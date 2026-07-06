@@ -63,7 +63,7 @@ docs/technical/
     ├── 09b-ui-walkthrough.tex        screen-by-screen UI walkthrough
     ├── 10-protocols.tex              BLE telemetry + clip/OTA wire formats
     ├── 11-security-privacy.tex       the security + privacy model
-    ├── 11b-evaluation.tex            evaluation (projected) + test summary
+    ├── 11b-evaluation.tex            evaluation (measured, held-out) + test summary
     ├── 12-future-work.tex            roadmap
     ├── 13-appendix-bom.tex           bill of materials
     ├── 14-appendix-schema.tex        Realtime Database + Storage schema
