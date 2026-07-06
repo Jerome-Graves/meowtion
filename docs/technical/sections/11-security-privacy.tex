@@ -69,6 +69,67 @@ credentials are entered at runtime and never committed, and \texttt{.gitignore} 
 local secret file. Everything required to understand and build the system is tracked; only true
 secrets are not.
 
+\subsection{Independent security audit}
+
+The codebase is checked automatically as well as by hand. Every push and pull request runs CodeQL
+static analysis, and dependency updates are raised automatically. In addition the repository was put
+through an independent third-party static audit (Aikido), which reads the firmware, the cloud rules and
+the application code and reasons about attacker-reachable paths. \Cref{fig:aikido} shows that audit as
+first reported.
+
+\begin{figure}[ht]\centering
+  \includegraphics[width=\textwidth]{aikido-scan.png}
+  \caption{Independent static application-security audit of the repository. Each finding was reviewed
+           against the running system and dispositioned in \cref{tab:audit-triage}.}
+  \label{fig:aikido}
+\end{figure}
+
+Each finding was triaged against the actual design rather than accepted blindly, because an
+auto-generated patch can break a working device: the base station authenticates to the backend with a
+scoped device token and no interactive login. Several of the proposed fixes, checked in review, would
+have done exactly that: requiring a Firebase login on the device write path rejects every telemetry
+write from the token-only station, and adding encryption to the collar alone drops the connection from a
+station that does not pair. The fixes were therefore reworked to keep the system running, and the BLE
+link was then encrypted properly, on both MCUs at once. \Cref{tab:audit-triage} records the disposition
+of each finding.
+
+\begin{table}[ht]
+  \centering
+  \caption{Audit findings and their disposition.}
+  \label{tab:audit-triage}
+  \begin{tabularx}{\textwidth}{@{}X l X@{}}
+    \toprule
+    \textbf{Finding} & \textbf{Sev.} & \textbf{Disposition} \\
+    \midrule
+    Realtime Database token owner could be reassigned & Med &
+      \textbf{Fixed.} The \texttt{deviceTokens} write rule now pins an existing token's owner, so a
+      registered token cannot be re-pointed at another account; creation and revocation are unaffected. \\
+    Device write path takes no interactive login & Med &
+      \textbf{By design.} The per-device token is the capability: scoped, revocable and carried in the
+      \texttt{Authorization} header (\cref{fig:token}). A login is required on the human write path;
+      requiring one on the device path would break the token-only station by design. \\
+    Public demo read exposure & Med &
+      \textbf{Reviewed.} The demo-readable subtree carries activity data only, never a device token, and
+      the demo account is write-locked at the backend, so nothing sensitive is reachable through it. \\
+    Nearby device could spoof presence to force training capture & Med &
+      \textbf{Mitigated.} Training capture runs only for a collar on the station's registration
+      allow-list ($\texttt{g\_allow}$); an unregistered advertiser cannot trigger it. \\
+    Nearby device could stream audio, write an OTA model, or spoof an OTA version over BLE & High / Med &
+      \textbf{Fixed.} The collar-to-station link now requires an encrypted connection (LE Secure
+      Connections, with a fresh key agreement per connection so no stale pairing state accumulates on a
+      battery device that reboots often). An unpaired device can no longer subscribe to the audio stream
+      or write an OTA model, so it can neither eavesdrop nor overwrite the model flash; an OTA image is in
+      any case committed only after a CRC-32 integrity check (\cref{sec:training-pipeline}). Authenticating
+      the pairing against an active man-in-the-middle, with a key provisioned over USB, is future work
+      (\cref{sec:future-work}). \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+The residual item is authenticating that encrypted local link against an active man-in-the-middle, which
+is future work; the link is already encrypted, and the boundary that matters, the cloud where the data
+actually lives, is closed by Authentication and the rules above.
+
 \subsection{Owner data rights}
 
 The account page lets an owner export everything stored about their cats and delete their account,
