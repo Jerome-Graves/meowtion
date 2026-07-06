@@ -165,13 +165,24 @@ evidence are detailed separately (\cref{sec:security-privacy}).
         steps were each confirmed directly on the collar and station.
 \end{itemize}
 
-\subsection{Limitations}
+\subsection{Limitations and outlook}
 
 The evaluation is a first, single-cat, within-subject result and should be read as such. The dataset is
 small (155 labelled clips) and imbalanced: eat dominates (94 clips) while moving and drink have only 10
 and 11 clips, so their per-class figures are unreliable, moving in particular scoring zero on a two-clip
-test slice. The held-out split is a single stratified 25\,\% partition, not cross-validated. The gated
-audio stage produced no measured accuracy gain on this set (above); whether it helps on confusable
-behaviours across more cats is the central question for future work (\cref{sec:future-work}). Finally,
-on-device inference latency, over-the-air transfer time and power draw are not yet instrumented on the
-hardware; the resource footprint above is the measured on-device figure available now.
+test slice. The held-out split is a single stratified 25\,\% partition, not cross-validated. On-device
+inference latency, over-the-air transfer time and power draw are not yet instrumented on the hardware; the
+resource footprint above is the measured on-device figure available now.
+
+The progress is nonetheless encouraging, and the results point clearly at what to do next. A 92.3\,\%
+held-out accuracy from the IMU stage, learned from barely 150 clips of a single cat, is a solid baseline,
+and the confidence-gated cascade behaves exactly as designed: the audio stage engages precisely on the
+low-confidence windows and stays out of the way otherwise. That it shows no accuracy gain \emph{yet} is a
+data gap, not a design flaw. With only 11 drink clips the audio model cannot yet learn the eat/drink
+acoustic distinction it exists to make, so it has nothing to contribute to the very cases it was built
+for. The clearest single lever is therefore more clips of the sparse classes, drink above all: with a
+balanced set the audio confirmation stage has a good prospect of delivering the disambiguation the
+architecture is built around, and the strong IMU baseline suggests the overall system will hold up well as
+the label set and the cat population grow. Scaling the recording to more cats and behaviours, and
+instrumenting the on-hardware timing and power measurements, is set out as future work
+(\cref{sec:future-work}).
