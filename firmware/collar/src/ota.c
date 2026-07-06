@@ -342,7 +342,13 @@ static void ota_disconnected(struct bt_conn *conn, uint8_t reason)
 BT_CONN_CB_DEFINE(ota_conn_cbs) = { .disconnected = ota_disconnected };
 
 /* The OTA GATT service. CONTROL = write + notify (status), DATA = write-with-response (the response
- * is the natural flow control that paces the client while flash erases/programs). */
+ * is the natural flow control that paces the client while flash erases/programs).
+ *
+ * SECURITY: Both characteristics require BT_GATT_PERM_WRITE_ENCRYPT, which mandates an encrypted
+ * link (pairing/bonding). This prevents unauthenticated BLE centrals from erasing model slots via
+ * spurious BEGIN commands. Without encryption, any nearby attacker could invalidate a slot by
+ * writing MEOW_OTA_OP_BEGIN and disconnecting, leaving the slot header erased and the model lost
+ * until a trusted station re-provisions it. */
 static struct bt_uuid_128 ota_svc_uuid  = BT_UUID_INIT_128(
 	BT_UUID_128_ENCODE(0x4d656f77, 0x0b01, 0x4175, 0x6469, 0x6f0053657600));
 static struct bt_uuid_128 ota_ctrl_uuid = BT_UUID_INIT_128(
@@ -354,11 +360,11 @@ BT_GATT_SERVICE_DEFINE(meow_ota_svc,
 	BT_GATT_PRIMARY_SERVICE(&ota_svc_uuid),
 	BT_GATT_CHARACTERISTIC(&ota_ctrl_uuid.uuid,
 			       BT_GATT_CHRC_WRITE | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_WRITE, NULL, ctrl_write, NULL),
+			       BT_GATT_PERM_WRITE_ENCRYPT, NULL, ctrl_write, NULL),
 	BT_GATT_CCC(ctrl_ccc_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 	BT_GATT_CHARACTERISTIC(&ota_data_uuid.uuid,
 			       BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE, NULL, data_write, NULL),
+			       BT_GATT_PERM_WRITE_ENCRYPT, NULL, data_write, NULL),
 );
 
 /* The CONTROL value attribute is index 2 (0 = service, 1 = char decl, 2 = char value). */
