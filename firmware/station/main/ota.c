@@ -303,7 +303,10 @@ static int ota_gap_cb(struct ble_gap_event *event, void *arg)
             notify_push(EV_CONNECTED);      /* link secured , the push task may proceed */
         } else {
             if (rc == 0) ble_store_util_delete_peer(&d.peer_id_addr);   /* clear stale bond; next push re-pairs */
-            ESP_LOGW(TAG, "OTA encryption failed (status=%d)", event->enc_change.status);
+            ESP_LOGW(TAG, "OTA encryption failed (status=%d) , terminating", event->enc_change.status);
+            /* Tear the link down now , the push task's EV_CONNECTED wait then ends via goto done with the
+             * connection already gone, rather than leaving an unencrypted link dangling to supervision timeout. */
+            ble_gap_terminate(event->enc_change.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
             notify_push(EV_CONN_FAIL);
         }
         return 0;
