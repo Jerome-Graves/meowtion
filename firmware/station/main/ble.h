@@ -25,5 +25,6 @@ int  ble_allowed_count(void);  /* number of registered collars (gate count) */
  * without reaching into ble.c internals. */
 bool ble_capture_active(void);                 /* true while a capture connection is up/connecting */
 bool ble_near_collar_addr(void *out_ble_addr); /* copy the in-range collar's addr (ble_addr_t*); false if none fresh */
+bool ble_is_collar_allowed(const void *ble_addr); /* verify a BLE address belongs to a registered collar */
 uint8_t ble_own_addr_type(void);               /* our resolved BLE address type (for connect) */
 void ble_resume_scan(void);                    /* resume the observer scan after an OTA connect (idempotent) */

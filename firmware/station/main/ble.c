@@ -157,6 +157,21 @@ bool ble_near_collar_addr(void *out)
     return ok;
 }
 
+/* Verify that a BLE address belongs to a registered collar. Used by OTA to authenticate the
+ * connected peer before accepting status notifications or persisting completion state. */
+bool ble_is_collar_allowed(const void *ble_addr)
+{
+    const ble_addr_t *ba = (const ble_addr_t *)ble_addr;
+    const uint8_t *addr = ba->val;
+    char id[16];
+    snprintf(id, sizeof id, "cat_%02x%02x%02x", addr[2], addr[1], addr[0]);
+    bool allowed = false;
+    xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
+    allowed = is_allowed(id);
+    xSemaphoreGive(g_collar_mtx);
+    return allowed;
+}
+
 void ble_fetch_allow(void)
 {
     static char resp[1024];
@@ -220,12 +235,6 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
     snprintf(id, sizeof id, "cat_%02x%02x%02x", addr[2], addr[1], addr[0]);
     int64_t now = now_ms();
     xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
-    /* proximity: smooth the signal of whatever collar we hear (any one, so it works even before
-     * registration), for the dev view + the in-range gate */
-    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
-    snprintf(g_near_id, sizeof g_near_id, "%s", id);
-    g_near_addr = *ba;
-    g_near_ms = now;
     if (!is_allowed(id)) {
         /* heard but not registered: remember it so the dashboard can offer to register it */
         seen_t *s = NULL;
@@ -238,6 +247,13 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
         xSemaphoreGive(g_collar_mtx);
         return;
     }
+    /* proximity: smooth the signal of the registered collar we hear, for the dev view + the
+     * in-range gate. Only registered collars update g_near_* to prevent attacker-controlled
+     * devices from becoming the OTA target. */
+    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
+    snprintf(g_near_id, sizeof g_near_id, "%s", id);
+    g_near_addr = *ba;
+    g_near_ms = now;
     collar_t *c = NULL;
     for (int i = 0; i < MAX_COLLARS; i++)
         if (g_collars[i].used && memcmp(g_collars[i].addr, addr, 6) == 0) { c = &g_collars[i]; break; }

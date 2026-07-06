@@ -293,11 +293,16 @@ static int ota_gap_cb(struct ble_gap_event *event, void *arg)
         notify_push(EV_DISCONN);
         return 0;
     case BLE_GAP_EVENT_NOTIFY_RX:
+        /* Only accept CONTROL notifications from the connected peer if it's a registered collar.
+         * This prevents an attacker-controlled device from spoofing OTA completion status. */
         if (event->notify_rx.attr_handle == g_ctrl_handle && event->notify_rx.om) {
-            uint8_t b;
-            if (os_mbuf_copydata(event->notify_rx.om, 0, 1, &b) == 0) {
-                g_status = b;
-                notify_push(EV_STATUS);
+            struct ble_gap_conn_desc desc;
+            if (ble_gap_conn_find(g_conn, &desc) == 0 && ble_is_collar_allowed(&desc.peer_id_addr)) {
+                uint8_t b;
+                if (os_mbuf_copydata(event->notify_rx.om, 0, 1, &b) == 0) {
+                    g_status = b;
+                    notify_push(EV_STATUS);
+                }
             }
         }
         return 0;
@@ -395,6 +400,13 @@ bool ota_run_push(uint16_t conn_handle)
         return false;
     }
 
+    /* Verify the cached address belongs to a registered collar before connecting. This prevents
+     * an attacker-controlled device from becoming the OTA target. */
+    if (!ble_is_collar_allowed(&addr)) {
+        ESP_LOGW(TAG, "push: near collar is not registered, refusing OTA");
+        return false;
+    }
+
     uint32_t cloud_ver = rtdb_model_ver();
     if (cloud_ver == 0) return false;
 
@@ -424,6 +436,15 @@ bool ota_run_push(uint16_t conn_handle)
     if (!(wait_evt(EV_CONNECTED, OTA_CONN_TIMEOUT_MS + 1000) & EV_CONNECTED)) {
         ESP_LOGW(TAG, "ota connect timeout");
         goto done;
+    }
+
+    /* Verify the connected peer's address matches a registered collar. This defense-in-depth check
+     * ensures we don't proceed with OTA even if the peer address was somehow changed after the
+     * pre-connection check above. */
+    struct ble_gap_conn_desc desc;
+    if (ble_gap_conn_find(g_conn, &desc) != 0 || !ble_is_collar_allowed(&desc.peer_id_addr)) {
+        ESP_LOGE(TAG, "connected peer is not a registered collar, aborting OTA");
+        goto disconnect;
     }
 
     /* Larger MTU (more bytes per DATA chunk) + discover the OTA service. */
