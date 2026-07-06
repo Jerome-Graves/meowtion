@@ -88,10 +88,10 @@ typedef struct {
 static collar_t          g_collars[MAX_COLLARS];
 static SemaphoreHandle_t  g_collar_mtx;
 
-/* Proximity (signal strength) of the collar we currently hear, for the dev view + capture gate.
- * Updated in collar_ingest under g_collar_mtx; read by ble_relay() when it writes each collar's
- * current record and sets the capture-gate globals below. */
-static int       g_near_rssi = -128;    /* smoothed RSSI of the most recent collar packet */
+/* Proximity (signal strength) of the registered collar we currently hear, for the dev view + capture gate.
+ * Updated in collar_ingest under g_collar_mtx only for allowed collars; read by ble_relay() when it writes
+ * each collar's current record and sets the capture-gate globals below. */
+static int       g_near_rssi = -128;    /* smoothed RSSI of the most recent registered collar packet */
 static char      g_near_id[16] = "";
 static int64_t   g_near_ms = 0;
 static ble_addr_t g_near_addr;          /* full BLE address of the collar we hear (to connect to) */
@@ -220,12 +220,6 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
     snprintf(id, sizeof id, "cat_%02x%02x%02x", addr[2], addr[1], addr[0]);
     int64_t now = now_ms();
     xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
-    /* proximity: smooth the signal of whatever collar we hear (any one, so it works even before
-     * registration), for the dev view + the in-range gate */
-    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
-    snprintf(g_near_id, sizeof g_near_id, "%s", id);
-    g_near_addr = *ba;
-    g_near_ms = now;
     if (!is_allowed(id)) {
         /* heard but not registered: remember it so the dashboard can offer to register it */
         seen_t *s = NULL;
@@ -238,6 +232,12 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
         xSemaphoreGive(g_collar_mtx);
         return;
     }
+    /* proximity: smooth the signal of the registered collar we hear, for the dev view + the in-range gate.
+     * Only update these globals for allowed collars to prevent an attacker from spoofing collar presence. */
+    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
+    snprintf(g_near_id, sizeof g_near_id, "%s", id);
+    g_near_addr = *ba;
+    g_near_ms = now;
     collar_t *c = NULL;
     for (int i = 0; i < MAX_COLLARS; i++)
         if (g_collars[i].used && memcmp(g_collars[i].addr, addr, 6) == 0) { c = &g_collars[i]; break; }
