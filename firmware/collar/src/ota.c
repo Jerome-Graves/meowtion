@@ -9,6 +9,17 @@
  *   into flash and never copies the model into RAM (RAM is already ~78% full). Survives reboot:
  *   on boot we re-scan the slots and re-load any valid model, with no station required.
  *
+ * SECURITY MODEL
+ *   The OTA GATT characteristics (CONTROL and DATA) require BT_GATT_PERM_WRITE_AUTHEN, which enforces
+ *   an authenticated + encrypted BLE link (pairing with MITM protection). The write handlers check
+ *   bt_conn_get_security() and reject any connection below BT_SECURITY_L3 (authenticated pairing).
+ *   This prevents unauthenticated nearby BLE centrals from overwriting the persistent model flash.
+ *   The collar must be paired with the station before OTA transfers can proceed. Once bonded (see
+ *   CONFIG_BT_BONDABLE in prj.conf), the pairing persists across reboots so the station doesn't need
+ *   to re-pair each time. The default "Just Works" pairing (NoInputNoOutput) is used since the collar
+ *   has no display or keypad. An attacker must be present during initial pairing to MITM; once bonded,
+ *   all subsequent OTA writes are encrypted and authenticated.
+ *
  * FLASH LAYOUT (collar-internal , the wire protocol in common/meow_ota.h knows nothing of this).
  *   models_storage is 256 KB, split into two slots, one per inference stage. Each slot is laid out
  *   [page 0 = header (4 KB reserved)][model bytes from +0x1000]. So model capacity = slot - 0x1000.
@@ -243,9 +254,22 @@ static uint8_t ota_end(void)
 static ssize_t ctrl_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			  const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
 {
-	ARG_UNUSED(conn);
 	ARG_UNUSED(attr);
 	ARG_UNUSED(flags);
+
+	/* Enforce authenticated + encrypted link for OTA writes. bt_conn_get_security() returns the
+	 * current security level: BT_SECURITY_L1 (no security), L2 (encryption only, no MITM),
+	 * L3 (encryption + MITM pairing), or L4 (LE Secure Connections). Reject anything below L3
+	 * so only a paired + authenticated central can push models. This blocks unauthenticated
+	 * nearby attackers from overwriting the persistent model flash. */
+	if (conn != NULL) {
+		bt_security_t sec = bt_conn_get_security(conn);
+		if (sec < BT_SECURITY_L3) {
+			LOG_WRN("OTA CONTROL write rejected: security level %d < L3 (authenticated)", sec);
+			return BT_GATT_ERR(BT_ATT_ERR_AUTHENTICATION);
+		}
+	}
+
 	if (offset != 0 || len < 1) {
 		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
 	}
@@ -287,9 +311,22 @@ static ssize_t ctrl_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 static ssize_t data_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			  const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
 {
-	ARG_UNUSED(conn);
 	ARG_UNUSED(attr);
 	ARG_UNUSED(flags);
+
+	/* Enforce authenticated + encrypted link for OTA writes. bt_conn_get_security() returns the
+	 * current security level: BT_SECURITY_L1 (no security), L2 (encryption only, no MITM),
+	 * L3 (encryption + MITM pairing), or L4 (LE Secure Connections). Reject anything below L3
+	 * so only a paired + authenticated central can push models. This blocks unauthenticated
+	 * nearby attackers from overwriting the persistent model flash. */
+	if (conn != NULL) {
+		bt_security_t sec = bt_conn_get_security(conn);
+		if (sec < BT_SECURITY_L3) {
+			LOG_WRN("OTA DATA write rejected: security level %d < L3 (authenticated)", sec);
+			return BT_GATT_ERR(BT_ATT_ERR_AUTHENTICATION);
+		}
+	}
+
 	if (offset != 0) {
 		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
 	}
@@ -354,11 +391,11 @@ BT_GATT_SERVICE_DEFINE(meow_ota_svc,
 	BT_GATT_PRIMARY_SERVICE(&ota_svc_uuid),
 	BT_GATT_CHARACTERISTIC(&ota_ctrl_uuid.uuid,
 			       BT_GATT_CHRC_WRITE | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_WRITE, NULL, ctrl_write, NULL),
+			       BT_GATT_PERM_WRITE_AUTHEN, NULL, ctrl_write, NULL),
 	BT_GATT_CCC(ctrl_ccc_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 	BT_GATT_CHARACTERISTIC(&ota_data_uuid.uuid,
 			       BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE, NULL, data_write, NULL),
+			       BT_GATT_PERM_WRITE_AUTHEN, NULL, data_write, NULL),
 );
 
 /* The CONTROL value attribute is index 2 (0 = service, 1 = char decl, 2 = char value). */
