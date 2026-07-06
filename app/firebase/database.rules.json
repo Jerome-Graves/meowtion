@@ -9,11 +9,11 @@
     },
     "users": {
       "$uid": {
-        ".read":  "auth != null && auth.uid === $uid || root.child('config').child('demoOwner').val() === $uid",
+        ".read":  "auth != null && (auth.uid === $uid || root.child('config').child('demoOwner').val() === $uid)",
         ".write": "auth != null && auth.uid === $uid",
         "devices": {
           "$token": {
-            ".read":  "auth.uid === $uid || root.child('config').child('demoOwner').val() === $uid || root.child('deviceTokens').child($token).child('owner').val() === $uid",
+            ".read":  "auth != null && (auth.uid === $uid || root.child('config').child('demoOwner').val() === $uid) || root.child('deviceTokens').child($token).child('owner').val() === $uid",
             ".write": "auth.uid === $uid || root.child('deviceTokens').child($token).child('owner').val() === $uid"
           }
         }

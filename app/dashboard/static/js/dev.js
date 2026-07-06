@@ -1192,8 +1192,10 @@
     }
     function msg(id, t, k) { const e = document.getElementById(id); e.textContent = t || ""; e.className = "msg" + (k ? " " + k : ""); }
 
-    // ---- read-only demo (?demo=1): load the demo owner's data without auth, every write disabled ----
+    // ---- read-only demo (?demo=1): load the demo owner's data with anonymous auth, every write disabled ----
     async function initDemo() {
+      // Sign in anonymously to satisfy the auth != null requirement in database rules
+      await firebase.auth().signInAnonymously();
       const demoUid = (await firebase.database().ref("config/demoOwner").once("value")).val();
       if (!demoUid) { document.getElementById("gateMsg").textContent = "Demo isn't configured yet."; return show("gate"); }
       g_uid = demoUid;

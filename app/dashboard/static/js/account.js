@@ -44,10 +44,13 @@
       catch (e) { msg("login-msg", friendly(e), "err"); }
     }
 
-    // View the demo: no login. Reads the public demo account's data (rules allow it) and shows
-    // everything READ-ONLY , no connect, no edit, no delete. Unlimited concurrent viewers.
+    // View the demo: anonymous auth (no signup). Reads the public demo account's data (rules allow
+    // authenticated users, including anonymous) and shows everything READ-ONLY, no connect, no edit,
+    // no delete. Unlimited concurrent viewers. Anonymous auth prevents unauthenticated token leaks.
     async function doDemo() {
       try {
+        // Sign in anonymously to satisfy the auth != null requirement in database rules
+        await firebase.auth().signInAnonymously();
         const owner = (await firebase.database().ref("config/demoOwner").once("value")).val();
         if (!owner) return msg("login-msg", "The demo isn't set up yet.", "err");
         isDemo = true;
