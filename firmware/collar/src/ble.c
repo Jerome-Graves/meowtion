@@ -61,15 +61,52 @@ static struct bt_conn *g_conn = NULL;
 static void audio_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
     ARG_UNUSED(attr);
-    g_streaming = (value == BT_GATT_CCC_NOTIFY);
-    LOG_INF("audio notifications %s", g_streaming ? "ON" : "off");
+    
+    /* Require encrypted + authenticated link before enabling streaming. Reject unauthenticated
+     * subscription attempts to prevent nearby eavesdropping on live microphone and IMU data. */
+    if (value == BT_GATT_CCC_NOTIFY) {
+        if (!g_conn) {
+            LOG_WRN("audio CCC write with no active connection, rejecting");
+            g_streaming = false;
+            return;
+        }
+        
+        struct bt_conn_info info;
+        if (bt_conn_get_info(g_conn, &info) < 0) {
+            LOG_WRN("failed to get connection info, rejecting streaming");
+            g_streaming = false;
+            return;
+        }
+        
+        /* Require at least BT_SECURITY_L2 (encryption) or higher. L2 = encrypted link,
+         * L3 = encrypted + authenticated (MITM protection), L4 = L3 + Secure Connections.
+         * Reject L1 (no security) to prevent untrusted centrals from accessing sensor data. */
+        if (info.security.level < BT_SECURITY_L2) {
+            LOG_WRN("audio streaming requires encrypted link (sec level %d < L2), rejecting",
+                    info.security.level);
+            g_streaming = false;
+            return;
+        }
+        
+        LOG_INF("audio notifications ON (sec level %d, encrypted %d)",
+                info.security.level, info.security.flags & BT_SECURITY_FLAG_ENC);
+        g_streaming = true;
+    } else {
+        g_streaming = false;
+        LOG_INF("audio notifications off");
+    }
 }
 
 BT_GATT_SERVICE_DEFINE(meow_audio_svc,
     BT_GATT_PRIMARY_SERVICE(&meow_svc_uuid),
     BT_GATT_CHARACTERISTIC(&meow_audio_uuid.uuid, BT_GATT_CHRC_NOTIFY,
                            BT_GATT_PERM_NONE, NULL, NULL, NULL),
-    BT_GATT_CCC(audio_ccc_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+    /* Require encryption + authentication on the CCC descriptor to gate subscription.
+     * BT_GATT_PERM_READ_ENCRYPT: reading CCC state requires encryption.
+     * BT_GATT_PERM_WRITE_ENCRYPT: writing CCC (subscribing) requires encryption.
+     * BT_GATT_PERM_WRITE_AUTHEN: writing CCC requires authenticated pairing (bonding).
+     * This forces the central to pair before it can enable notifications. */
+    BT_GATT_CCC(audio_ccc_changed, BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT | BT_GATT_PERM_WRITE_AUTHEN),
 );
 
 /* Fast interval for active use; slow (~1 s) for low-power rest. Both connectable + identity so the
@@ -125,6 +162,17 @@ BT_CONN_CB_DEFINE(conn_cbs) = { .connected = on_connected, .disconnected = on_di
  * buffer went out, or stops early (non-zero) if the central unsubscribed / disconnected. */
 int ble_notify_frame(const uint8_t *p, uint32_t left)
 {
+    /* Defense-in-depth: verify the connection is still encrypted before sending sensor data.
+     * This guards against a race where security is downgraded after CCC was enabled. */
+    if (g_conn) {
+        struct bt_conn_info info;
+        if (bt_conn_get_info(g_conn, &info) == 0 && info.security.level < BT_SECURITY_L2) {
+            LOG_WRN("connection security downgraded (level %d), stopping streaming", info.security.level);
+            g_streaming = false;
+            return -EACCES;
+        }
+    }
+    
     while (left > 0 && g_streaming) {
         uint16_t mtu = g_conn ? bt_gatt_get_mtu(g_conn) : 23;
         uint16_t chunk = (mtu > 3) ? (uint16_t)(mtu - 3) : 20;
