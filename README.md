@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <sub><b>HackTheKitty team reference:</b> <code>7C0I9DU5</code></sub>
+</p>
+
+<p align="center">
   <a href="https://meowtion.streamlit.app"><img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" alt="Open in Streamlit"></a>
 </p>
 
