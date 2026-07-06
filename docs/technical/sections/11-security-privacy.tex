@@ -126,6 +126,55 @@ of each finding.
   \end{tabularx}
 \end{table}
 
+A broader follow-up scan, run after the fixes above, swept the whole codebase, the dashboard scripts, the
+Streamlit app, the CI workflows and the cloud functions, rather than the firmware and rules alone
+(\cref{fig:aikido2}). It surfaced no new exploitable weakness in the running system: the genuine items
+were the access-control findings already closed above, plus two continuous-integration hardening changes;
+the rest are false positives that an automated tool cannot rule out without the surrounding context.
+\Cref{tab:audit-triage2} gives the disposition of each.
+
+\begin{figure}[ht]\centering
+  \includegraphics[width=\textwidth]{aikido-scan-2.png}
+  \caption{The broader follow-up scan across the whole repository, dispositioned in
+           \cref{tab:audit-triage2}.}
+  \label{fig:aikido2}
+\end{figure}
+
+\begin{table}[ht]
+  \centering
+  \caption{Follow-up scan findings and their disposition.}
+  \label{tab:audit-triage2}
+  \begin{tabularx}{\textwidth}{@{}X l X@{}}
+    \toprule
+    \textbf{Finding} & \textbf{Sev.} & \textbf{Disposition} \\
+    \midrule
+    Document-write / \texttt{innerHTML} XSS in the dashboard scripts & High &
+      \textbf{False positive.} The \texttt{innerHTML} assignments are static markup; no untrusted value is
+      interpolated into HTML. \\
+    Improper access control on the BLE characteristics & High &
+      \textbf{Fixed.} The collar-to-station link now requires encryption (above). \\
+    Streamlit ``upload dangerous files'' & High &
+      \textbf{False positive.} The dashboard has no file-upload control; training clips are uploaded only
+      by the authenticated \texttt{upload\_clip} function. \\
+    Third-party GitHub Actions not pinned & High &
+      \textbf{Fixed.} Every action in the CI workflows is now pinned to a full commit SHA. \\
+    Missing authentication on the OTA characteristic & Med &
+      \textbf{Fixed.} OTA writes require the encrypted link; authenticating the pairing itself (an OOB key
+      over USB) is future work (\cref{sec:future-work}). \\
+    ``Business logic bypass'' in the station BLE relay & Med &
+      \textbf{Fixed.} Capture targets only collars on the registration allow-list. \\
+    Firebase (GCP) API key in the web config & Med &
+      \textbf{False positive.} The Firebase web API key is a public client identifier, not a secret, as the
+      secret-handling note above sets out. \\
+    SSRF via user input in a backend request & Low &
+      \textbf{False positive.} The request host is the fixed Firebase URL; the only variable is the
+      caller's own authenticated uid. \\
+    Checkout persists Git credentials in CI & Low &
+      \textbf{Fixed.} Credential persistence is disabled on the checkout step. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
 The residual item is authenticating that encrypted local link against an active man-in-the-middle, which
 is future work; the link is already encrypted, and the boundary that matters, the cloud where the data
 actually lives, is closed by Authentication and the rules above.
