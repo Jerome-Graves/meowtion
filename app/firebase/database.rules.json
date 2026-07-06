@@ -22,7 +22,7 @@
     "deviceTokens": {
       "$token": {
         ".read":  "auth != null && data.child('owner').val() === auth.uid",
-        ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid) || data.child('owner').val() === auth.uid)"
+        ".write": "auth != null && ((!data.exists() && newData.child('owner').val() === auth.uid) || (data.child('owner').val() === auth.uid && newData.child('owner').val() === auth.uid))"
       }
     }
   }
