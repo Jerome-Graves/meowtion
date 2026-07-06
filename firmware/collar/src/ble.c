@@ -69,7 +69,9 @@ BT_GATT_SERVICE_DEFINE(meow_audio_svc,
     BT_GATT_PRIMARY_SERVICE(&meow_svc_uuid),
     BT_GATT_CHARACTERISTIC(&meow_audio_uuid.uuid, BT_GATT_CHRC_NOTIFY,
                            BT_GATT_PERM_NONE, NULL, NULL, NULL),
-    BT_GATT_CCC(audio_ccc_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+    /* Enabling notifications requires an ENCRYPTED link: an unpaired central cannot subscribe, so it
+     * cannot receive the audio stream. (The station pairs first, then writes this CCC , see ble.c/ota.c.) */
+    BT_GATT_CCC(audio_ccc_changed, BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT),
 );
 
 /* Fast interval for active use; slow (~1 s) for low-power rest. Both connectable + identity so the
@@ -119,7 +121,17 @@ static void on_disconnected(struct bt_conn *conn, uint8_t reason)
     /* don't restart advertising here , doing it inside the disconnect callback is unreliable.
      * The main loop re-starts it (it ensures advertising whenever we're not connected). */
 }
-BT_CONN_CB_DEFINE(conn_cbs) = { .connected = on_connected, .disconnected = on_disconnected };
+/* The station initiates pairing on connect; this reports whether an encrypted link came up.
+ * level 2 = encrypted. */
+static void on_security_changed(struct bt_conn *conn, bt_security_t level, enum bt_security_err err)
+{
+    ARG_UNUSED(conn);
+    if (err) LOG_ERR("security failed: level %d (err %d)", level, err);
+    else     LOG_INF("security changed: level %d (%s)", level,
+                     level >= BT_SECURITY_L2 ? "ENCRYPTED" : "plaintext");
+}
+BT_CONN_CB_DEFINE(conn_cbs) = { .connected = on_connected, .disconnected = on_disconnected,
+                                .security_changed = on_security_changed };
 
 /* MTU-chunked notify of an arbitrary buffer on the audio characteristic. Returns 0 when the whole
  * buffer went out, or stops early (non-zero) if the central unsubscribed / disconnected. */

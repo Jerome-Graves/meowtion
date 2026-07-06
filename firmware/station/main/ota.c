@@ -46,6 +46,7 @@
 #include "host/ble_gap.h"
 #include "host/ble_gatt.h"
 #include "host/ble_hs.h"
+#include "host/ble_store.h"
 #include "os/os_mbuf.h"
 
 static const char *TAG = "meowtion-ota";
@@ -283,11 +284,36 @@ static int ota_gap_cb(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_CONNECT:
         if (event->connect.status == 0) {
             g_conn = event->connect.conn_handle;
-            notify_push(EV_CONNECTED);
+            /* OTA chars are encryption-gated: pair first, and signal EV_CONNECTED only after ENC_CHANGE
+             * so the push task writes BEGIN/DATA/END on an encrypted link. */
+            int sec = ble_gap_security_initiate(event->connect.conn_handle);
+            if (sec != 0 && sec != BLE_HS_EALREADY) { ESP_LOGW(TAG, "security_initiate rc=%d", sec); notify_push(EV_CONN_FAIL); }
         } else {
             notify_push(EV_CONN_FAIL);
         }
         return 0;
+    case BLE_GAP_EVENT_ENC_CHANGE: {
+        struct ble_gap_conn_desc d;
+        int rc = ble_gap_conn_find(event->enc_change.conn_handle, &d);
+        if (rc == 0)
+            ESP_LOGI(TAG, "OTA ENC_CHANGE status=%d  encrypted=%d authenticated=%d bonded=%d",
+                     event->enc_change.status, d.sec_state.encrypted,
+                     d.sec_state.authenticated, d.sec_state.bonded);
+        if (event->enc_change.status == 0 && rc == 0 && d.sec_state.encrypted) {
+            notify_push(EV_CONNECTED);      /* link secured , the push task may proceed */
+        } else {
+            if (rc == 0) ble_store_util_delete_peer(&d.peer_id_addr);   /* clear stale bond; next push re-pairs */
+            ESP_LOGW(TAG, "OTA encryption failed (status=%d)", event->enc_change.status);
+            notify_push(EV_CONN_FAIL);
+        }
+        return 0;
+    }
+    case BLE_GAP_EVENT_REPEAT_PAIRING: {
+        struct ble_gap_conn_desc d;
+        if (ble_gap_conn_find(event->repeat_pairing.conn_handle, &d) == 0)
+            ble_store_util_delete_peer(&d.peer_id_addr);
+        return BLE_GAP_REPEAT_PAIRING_RETRY;
+    }
     case BLE_GAP_EVENT_DISCONNECT:
         g_conn = BLE_HS_CONN_HANDLE_NONE;
         notify_push(EV_DISCONN);

@@ -32,7 +32,11 @@
 #include "host/ble_gap.h"
 #include "host/ble_gatt.h"
 #include "host/util/util.h"
+#include "host/ble_store.h"
 #include "os/os_mbuf.h"
+
+/* Provided by NimBLE's ble_store_config component (compiled in); holds the pairing keys. */
+void ble_store_config_init(void);
 
 static const char *TAG = "meowtion-ble";
 
@@ -220,14 +224,11 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
     snprintf(id, sizeof id, "cat_%02x%02x%02x", addr[2], addr[1], addr[0]);
     int64_t now = now_ms();
     xSemaphoreTake(g_collar_mtx, portMAX_DELAY);
-    /* proximity: smooth the signal of whatever collar we hear (any one, so it works even before
-     * registration), for the dev view + the in-range gate */
-    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
-    snprintf(g_near_id, sizeof g_near_id, "%s", id);
-    g_near_addr = *ba;
-    g_near_ms = now;
     if (!is_allowed(id)) {
-        /* heard but not registered: remember it so the dashboard can offer to register it */
+        /* heard but not registered: remember it so the dashboard can offer to register it. Do NOT touch
+         * g_near_* , the "nearest collar" drives the capture target and the in-range gate, and the
+         * station must only ever connect to a REGISTERED collar. Letting an unregistered device become
+         * g_near made the station chase it (a stray BLE device, or a cloud-sim id) and stall pairing. */
         seen_t *s = NULL;
         for (int i = 0; i < MAX_SEEN; i++)
             if (g_seen[i].used && strcmp(g_seen[i].id, id) == 0) { s = &g_seen[i]; break; }
@@ -238,6 +239,12 @@ static void collar_ingest(const ble_addr_t *ba, const uint8_t *p, int8_t rssi)
         xSemaphoreGive(g_collar_mtx);
         return;
     }
+    /* registered collar: it (and only it) updates the nearest-collar proximity that feeds the dev view,
+     * the in-range capture gate, and the capture/OTA connection target. */
+    g_near_rssi = (g_near_rssi <= -128) ? rssi : (g_near_rssi * 3 + rssi) / 4;
+    snprintf(g_near_id, sizeof g_near_id, "%s", id);
+    g_near_addr = *ba;
+    g_near_ms = now;
     collar_t *c = NULL;
     for (int i = 0; i < MAX_COLLARS; i++)
         if (g_collars[i].used && memcmp(g_collars[i].addr, addr, 6) == 0) { c = &g_collars[i]; break; }
@@ -459,6 +466,10 @@ static const ble_uuid128_t meow_audio_uuid = BLE_UUID128_INIT(
 #define WAV_HDR          44
 #define CLIP_COOLDOWN_MS 0       /* no gap , capture back-to-back while in range */
 #define CLIP_RX_TIMEOUT_MS 25000                          /* give up on a clip that never completes */
+#define SECURE_TIMEOUT_MS  5000                           /* connect+pair+encrypt+subscribe finishes in
+                                                           * <1 s for a real collar; fast-fail a link that
+                                                           * won't encrypt (un-upgraded/rogue collar) so it
+                                                           * can't stall a real capture for 25 s */
 
 static uint16_t g_cap_val_handle = 0;
 static uint16_t g_cap_conn = 0xffff;       /* active capture connection handle */
@@ -659,13 +670,20 @@ static int central_gap_cb(struct ble_gap_event *event, void *arg)
             g_cap_val_handle = 0;
             g_cap_conn = event->connect.conn_handle;
             g_cap_start_ms = now_ms();
-            ESP_LOGI(TAG, "connected to collar, negotiating MTU + 2M PHY + discovering audio service");
+            ESP_LOGI(TAG, "connected to collar, securing link (MTU + 2M PHY, then pairing)");
             ble_gattc_exchange_mtu(event->connect.conn_handle, on_mtu, NULL);   /* 23 -> ~247 bytes */
             /* Move to 2M PHY: halves airtime per packet so more fit per connection event, giving the
              * ~17 KB/s audio stream clear headroom (1M sat right at the edge and dropped frames). */
             ble_gap_set_prefered_le_phy(event->connect.conn_handle,
                                         BLE_GAP_LE_PHY_2M_MASK, BLE_GAP_LE_PHY_2M_MASK, 0);
-            ble_gattc_disc_svc_by_uuid(event->connect.conn_handle, &meow_svc_uuid.u, on_svc_disc, NULL);
+            /* The audio characteristic is now encryption-gated, so discover + subscribe only AFTER the
+             * link is encrypted (in ENC_CHANGE). Initiate pairing/encryption here; if it can't even
+             * start, abort , an unencrypted subscribe would be rejected by the collar. */
+            int sec = ble_gap_security_initiate(event->connect.conn_handle);
+            if (sec != 0 && sec != BLE_HS_EALREADY) {
+                ESP_LOGW(TAG, "security_initiate rc=%d , aborting capture", sec);
+                ble_gap_terminate(event->connect.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+            }
         } else {
             ESP_LOGW(TAG, "collar connect failed (%d)", event->connect.status);
             capture_cleanup(true);
@@ -696,6 +714,36 @@ static int central_gap_cb(struct ble_gap_event *event, void *arg)
         capture_cleanup(true);   /* drops the partial buffer; any full BUF_READY ones still upload */
         start_scan();
         return 0;
+    case BLE_GAP_EVENT_ENC_CHANGE: {
+        /* encrypted=1 means the audio stream is now confidential; authenticated=1 (after OOB, step 2b)
+         * means MITM-protected too. Discovery/subscribe was deferred to here so the CCCD write lands on
+         * an encrypted link. */
+        struct ble_gap_conn_desc d;
+        int rc = ble_gap_conn_find(event->enc_change.conn_handle, &d);
+        if (rc == 0)
+            ESP_LOGI(TAG, "ENC_CHANGE status=%d  encrypted=%d authenticated=%d bonded=%d keysz=%d",
+                     event->enc_change.status, d.sec_state.encrypted, d.sec_state.authenticated,
+                     d.sec_state.bonded, d.sec_state.key_size);
+        if (event->enc_change.status == 0 && rc == 0 && d.sec_state.encrypted) {
+            ESP_LOGI(TAG, "link encrypted , discovering audio service");
+            ble_gattc_disc_svc_by_uuid(event->enc_change.conn_handle, &meow_svc_uuid.u, on_svc_disc, NULL);
+        } else {
+            /* Encryption failed , most likely a stale bond after a collar reboot (RAM-only keys). Drop our
+             * stored keys so the next connection re-pairs cleanly, and abort this capture (retries next cycle). */
+            if (rc == 0) ble_store_util_delete_peer(&d.peer_id_addr);
+            ESP_LOGW(TAG, "encryption failed (status=%d) , cleared bond, aborting capture", event->enc_change.status);
+            ble_gap_terminate(event->enc_change.conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+        }
+        return 0;
+    }
+    case BLE_GAP_EVENT_REPEAT_PAIRING: {
+        /* We already hold keys for this peer (RAM store). Drop them and re-pair so a reconnect in the
+         * same session doesn't fail. (Persistent bonds land with the NVS store in step 2.) */
+        struct ble_gap_conn_desc d;
+        if (ble_gap_conn_find(event->repeat_pairing.conn_handle, &d) == 0)
+            ble_store_util_delete_peer(&d.peer_id_addr);
+        return BLE_GAP_REPEAT_PAIRING_RETRY;
+    }
     default:
         return 0;
     }
@@ -842,6 +890,14 @@ void ble_start(void)
     esp_err_t e = nimble_port_init();
     if (e != ESP_OK) { ESP_LOGE(TAG, "nimble_port_init failed (%d) , collar relay disabled", e); return; }
     ble_hs_cfg.sync_cb = ble_on_sync;
+    /* BLE security: bring up an encrypted LE Secure Connections link on every collar connection.
+     * NON-BONDING on purpose: a battery collar reboots often (sleep, dead cell), so a stored bond would
+     * go stale and pairing would then be rejected until both sides re-sync. Pairing fresh each connection
+     * (a sub-second ECDH) stores no key, so there is no state that can go stale. */
+    ble_hs_cfg.sm_bonding        = 0;               /* encrypt per-connection; store no bond */
+    ble_hs_cfg.sm_sc             = 1;               /* LE Secure Connections (ECDH P-256) */
+    ble_hs_cfg.sm_io_cap         = BLE_HS_IO_NO_INPUT_OUTPUT;
+    ble_store_config_init();                        /* key store present for the SM, even without bonding */
     nimble_port_freertos_init(ble_host_task);
 }
 
@@ -901,10 +957,11 @@ void ble_service(void)
             if (g_cb[i].state == BUF_READY) g_cb[i].state = BUF_FREE;
         ble_gap_terminate(g_cap_conn, BLE_ERR_REM_USER_CONN_TERM);
     }
-    /* connecting timeout: abort if BLE connect never establishes */
+    /* connecting/securing timeout: abort fast if the link doesn't connect, pair and encrypt promptly, so a
+     * collar that won't pair (un-upgraded or rogue) can't hold the radio for 25 s and starve real captures. */
     if (g_cap == CAP_CONNECTING && g_cap_conn != 0xffff &&
-        (now_ms() - g_cap_start_ms) > CLIP_RX_TIMEOUT_MS) {
-        ESP_LOGW(TAG, "BLE connect timeout, aborting");
+        (now_ms() - g_cap_start_ms) > SECURE_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "secure-connect timeout (no encrypted link in %d ms), aborting", SECURE_TIMEOUT_MS);
         ble_gap_terminate(g_cap_conn, BLE_ERR_REM_USER_CONN_TERM);
     }
     /* frame stall: connected and streaming but no frame for too long — reconnect */

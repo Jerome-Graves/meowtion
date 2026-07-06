@@ -352,13 +352,15 @@ static struct bt_uuid_128 ota_data_uuid = BT_UUID_INIT_128(
 
 BT_GATT_SERVICE_DEFINE(meow_ota_svc,
 	BT_GATT_PRIMARY_SERVICE(&ota_svc_uuid),
+	/* OTA writes require an ENCRYPTED link: an unpaired central cannot push BEGIN/DATA/END, so it
+	 * cannot overwrite the model flash or spoof a version. The station pairs before any OTA write. */
 	BT_GATT_CHARACTERISTIC(&ota_ctrl_uuid.uuid,
 			       BT_GATT_CHRC_WRITE | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_WRITE, NULL, ctrl_write, NULL),
-	BT_GATT_CCC(ctrl_ccc_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+			       BT_GATT_PERM_WRITE_ENCRYPT, NULL, ctrl_write, NULL),
+	BT_GATT_CCC(ctrl_ccc_changed, BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT),
 	BT_GATT_CHARACTERISTIC(&ota_data_uuid.uuid,
 			       BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE, NULL, data_write, NULL),
+			       BT_GATT_PERM_WRITE_ENCRYPT, NULL, data_write, NULL),
 );
 
 /* The CONTROL value attribute is index 2 (0 = service, 1 = char decl, 2 = char value). */
