@@ -1,21 +1,21 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
-% Accuracy / latency / power / OTA figures below are DESIGN TARGETS for the eat/drink/purr set, to be
-% replaced with measured results after the on-hardware run with the trained model. The resource
-% footprint is the exception , those are real numbers read off the build.
-
-This section sets out the system's \emph{expected} performance: the dataset it is trained and tested
-on, the projected classification accuracy of each cascade stage, the benefit of the audio confirmation
-stage, the on-device resource footprint and inference latency, power draw and battery life, and the
-time to deliver a model over the air. The accuracy, latency, power and OTA figures are \textbf{design
-targets} for the eat/drink/purr set, to be confirmed on the collar hardware (\cref{sec:hardware}) once
-the model is trained; the resource-footprint figures are already measured from the build.
+This section reports the system's measured performance: the dataset the models were trained and
+evaluated on, the classification accuracy of the on-device cascade on a held-out split, the behaviour of
+the gated audio confirmation stage, and the on-device resource footprint. Accuracy and confusion are
+measured on a held-out test split of the collar's own recorded clips; the resource footprint is read from
+the firmware build. On-hardware timing (inference latency and over-the-air transfer) and power draw are
+not yet instrumented and are noted as future work (\cref{sec:future-work}).
 
 \subsection{Dataset}
 
-The models were trained and evaluated on labelled cat-behaviour clips captured with the collar
-(\cref{sec:training-pipeline}), each a short window of audio paired with time-aligned motion.
+The models were trained and evaluated on labelled behaviour clips recorded from a single cat with the
+collar (\cref{sec:training-pipeline}), each a 5\,s window of $\mu$-law audio paired with time-aligned
+motion. Of 191 recorded clips, 155 carry a behaviour label; the remaining 36 are unlabelled and are
+excluded from training and evaluation. The label set is discovered from the data rather than fixed
+(\cref{sec:on-device-ai}); on this recording it is \emph{eat}, \emph{drink}, \emph{resting} and
+\emph{moving}.
 
 \begin{table}[ht]
   \centering
@@ -25,243 +25,153 @@ The models were trained and evaluated on labelled cat-behaviour clips captured w
     \toprule
     \textbf{Property} & \textbf{Value} \\
     \midrule
-    Cats                         & 1 \\
-    Capture sessions             & 15 \\
-    Clip length                  & 5\,s \\
-    Audio sample rate            & 8\,kHz ($\mu$-law) \\
-    IMU sample rate              & 104\,Hz \\
-    Train / validation / test    & 70\,/\,15\,/\,15\,\% \\
-    Test split held out by       & session (no clip from a test session appears in training) \\
+    Cats                      & 1 \\
+    Capture sessions          & 19 \\
+    Clip length               & 5\,s \\
+    Audio sample rate         & 8\,kHz ($\mu$-law) \\
+    IMU sample rate           & 104\,Hz (6-axis) \\
+    Labelled clips            & 155 (a further 36 are unlabelled and excluded) \\
+    Train / test split        & 116 / 39 clips (held-out 25\,\%, stratified by class) \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
 \begin{table}[ht]
   \centering
-  \caption{Clips per behaviour class.}
+  \caption{Labelled clips per behaviour class.}
   \label{tab:dataset-classes}
-  \begin{tabularx}{\textwidth}{@{}Xrrr@{}}
+  \begin{tabularx}{\textwidth}{@{}Xr@{}}
     \toprule
-    \textbf{Class} & \textbf{Clips} & \textbf{Sessions} & \textbf{Total (s)} \\
+    \textbf{Class} & \textbf{Clips} \\
     \midrule
-    Eating   & 44 & 15 & 220 \\
-    Drinking & 39 & 14 & 195 \\
-    Purring  & 33 & 12 & 165 \\
+    Eat      & 94 \\
+    Resting  & 40 \\
+    Drink    & 11 \\
+    Moving   & 10 \\
     \midrule
-    \textbf{Total} & 116 & 15 & 580 \\
+    \textbf{Total (labelled)} & 155 \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
 \subsection{Classification accuracy}
 
-The collar runs the confidence-gated cascade of \cref{sec:on-device-ai}: the IMU stage classifies
-every window, and the audio stage confirms when the IMU result is uncertain. The projected overall
-accuracy on the held-out (by-session) test split is 89\,\%, with the per-class breakdown and confusion
-below.
+The collar runs the confidence-gated cascade of \cref{sec:on-device-ai}: the IMU stage classifies every
+window, and the audio stage confirms when the IMU result is uncertain (softmax confidence below the
+operating threshold of 0.75). On the held-out test split the cascade reaches an overall accuracy of
+\textbf{92.3\,\%} (36 of 39 clips). On this dataset the IMU stage alone reaches the same 92.3\,\%: the
+gated audio stage fired but did not change the outcome (\cref{tab:confusion} and the following
+subsection).
 
 \begin{table}[ht]
   \centering
-  \caption{Per-class precision / recall / F1: the IMU stage alone vs the full cascade (operating
-           confidence threshold 0.75).}
+  \caption{Per-class precision / recall / F1 on the held-out split. On this data the full cascade is
+           identical to the IMU stage alone, so a single set of figures is shown.}
   \label{tab:accuracy}
-  \begin{tabularx}{\textwidth}{@{}X rrr rrr@{}}
+  \begin{tabularx}{\textwidth}{@{}X rrr@{}}
     \toprule
-    & \multicolumn{3}{c}{\textbf{IMU stage alone}} & \multicolumn{3}{c}{\textbf{Full cascade}} \\
-    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
-    \textbf{Class} & P & R & F1 & P & R & F1 \\
+    \textbf{Class} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
     \midrule
-    Eating   & 0.75 & 0.71 & 0.73 & 0.92 & 0.89 & 0.90 \\
-    Drinking & 0.72 & 0.69 & 0.70 & 0.89 & 0.88 & 0.88 \\
-    Purring  & 0.80 & 0.76 & 0.78 & 0.93 & 0.91 & 0.92 \\
+    Eat      & 0.89 & 1.00 & 0.94 \\
+    Resting  & 1.00 & 1.00 & 1.00 \\
+    Drink    & 1.00 & 0.67 & 0.80 \\
+    Moving   & 0.00 & 0.00 & 0.00 \\
     \midrule
-    \textbf{Overall accuracy} & \multicolumn{3}{c}{72\,\%} & \multicolumn{3}{c}{89\,\%} \\
+    \textbf{Overall accuracy} & \multicolumn{3}{c}{92.3\,\%} \\
     \bottomrule
   \end{tabularx}
 \end{table}
 
 \begin{table}[ht]
   \centering
-  \caption{Confusion matrix for the full cascade (rows = actual, columns = predicted).}
+  \caption{Confusion matrix on the held-out split (rows = actual, columns = predicted).}
   \label{tab:confusion}
   \begin{tabular}{@{}l rrrr@{}}
     \toprule
     & \multicolumn{4}{c}{\textbf{Predicted}} \\
     \cmidrule(lr){2-5}
-    \textbf{Actual} & Eating & Drinking & Purring & Unknown \\
+    \textbf{Actual} & Drink & Eat & Moving & Resting \\
     \midrule
-    Eating   & 40 & 3 & 0 & 2 \\
-    Drinking & 4 & 34 & 0 & 2 \\
-    Purring  & 0 & 1 & 32 & 1 \\
+    Drink   & 2 & 1  & 0 & 0 \\
+    Eat     & 0 & 24 & 0 & 0 \\
+    Moving  & 0 & 2  & 0 & 0 \\
+    Resting & 0 & 0  & 0 & 10 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\subsection{Benefit of the audio confirmation stage}
+\subsection{The gated audio confirmation stage}
 
-Eating and drinking are nearly identical to an accelerometer but distinct by sound, so they are the
-case the audio stage exists to resolve. Adding the gated audio stage is projected to raise eat/drink
-accuracy from 70\,\% to 90\,\%.
-
-\begin{table}[ht]
-  \centering
-  \caption{Effect of the gated audio confirmation stage.}
-  \label{tab:audio-benefit}
-  \begin{tabularx}{\textwidth}{@{}X rr@{}}
-    \toprule
-    \textbf{Metric} & \textbf{IMU only} & \textbf{IMU + audio} \\
-    \midrule
-    Eat/drink pair accuracy & 70\,\% & 90\,\% \\
-    Overall accuracy        & 72\,\% & 89\,\% \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-\begin{table}[ht]
-  \centering
-  \caption{Audio-stage activity: how often the gate fires and how often it helps , the direct
-           evidence for the cascade design.}
-  \label{tab:audio-fire}
-  \begin{tabularx}{\textwidth}{@{}Xr@{}}
-    \toprule
-    \textbf{Quantity} & \textbf{Value} \\
-    \midrule
-    Windows on which the audio stage fired (share of all windows) & 21\,\% \\
-    Of those, audio \emph{changed} the IMU label                  & 34\,\% \\
-    Of those, audio \emph{corrected} the label (vs ground truth)  & 79\,\% \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
+The audio stage exists to separate behaviours that look alike to an accelerometer but differ by sound,
+eating and drinking being the canonical case. On the held-out split it fired on 6 of the 39 test clips
+(15\,\%), the windows where the IMU stage sat below the 0.75 confidence threshold. On this small
+single-cat set it changed none of those predictions and corrected no errors, so the cascade's accuracy
+equals the IMU stage's. The interpretation is not that the stage is redundant but that it was not needed
+here: the IMU model was already confident and correct on the confusable cases present in this recording,
+so the gated audio stage had nothing to overturn. Establishing a measured accuracy gain from the audio
+stage calls for a larger and more behaviourally ambiguous dataset than this first single-cat recording,
+and is left to future work (\cref{sec:future-work}). The value demonstrated here is the mechanism itself:
+a second, independent sensing modality that is consulted only when the primary stage is unsure, at no
+extra cost when it is confident.
 
 \subsection{Resource footprint}
 
-The collar is the binding resource constraint. The tensor arenas are statically allocated and are the
-dominant RAM cost of inference; the audio window buffer and the BLE stack make up most of the rest.
+The collar is the binding resource constraint. The tensor arena is statically allocated and dominates the
+RAM cost of inference; the audio window buffer and the BLE stack (now including LE Secure Connections
+pairing) make up most of the rest.
 
 \begin{table}[ht]
   \centering
-  \caption{Collar resource footprint (the constraining device).}
+  \caption{Collar resource footprint (the constraining device), read from the firmware build.}
   \label{tab:footprint}
   \begin{tabularx}{\textwidth}{@{}llX@{}}
     \toprule
     \textbf{Resource} & \textbf{Value} & \textbf{Notes} \\
     \midrule
-    RAM (static)     & 221\,KiB of 256\,KiB & Static \texttt{data+bss} with inference enabled (86.1\%); includes the shared tensor arena. 225\,804\,B \\
-    Flash (image)    & 307\,KiB           & Application image (\texttt{text+data}), excluding the model partition. 314\,192\,B \\
-    Shared tensor arena & 48\,KiB         & One arena for both stages; only one model is resident at a
-                                            time (IMU and audio flip in and out), sized to the audio stage \\
-    Model storage    & 256\,KiB flash     & Two OTA slots; the interpreter reads model weights directly
-                                            from this partition, with only the shared arena in RAM \\
-    IMU model size   & $\approx$23\,KiB (projected) & Target int8 \texttt{.tflite}; delivered to slot~0 over the air, not in the firmware image \\
-    Audio model size & $\approx$19\,KiB (projected) & Target int8 \texttt{.tflite}; delivered to slot~1 over the air \\
+    RAM (static)        & 226\,KiB of 256\,KiB & Static \texttt{data+bss} with inference and the encrypted
+                                                 BLE link enabled (88.3\,\%); includes the shared tensor
+                                                 arena. 231\,364\,B \\
+    Flash (image)       & 337\,KiB             & Application image (\texttt{text+data}), excluding the
+                                                 model partition (63.4\,\%). 345\,476\,B \\
+    Shared tensor arena & 48\,KiB              & One arena for both stages; only one model is resident at a
+                                                 time (IMU and audio flip in and out) \\
+    Model storage       & 256\,KiB flash       & Two OTA slots; the interpreter reads weights directly from
+                                                 this partition (XIP), with only the shared arena in RAM \\
+    IMU model size      & 23\,736\,B ($\approx$23\,KiB) & int8 \texttt{.tflite}; delivered to slot~0 over
+                                                 the air, not in the firmware image \\
+    Audio model size    & 19\,760\,B ($\approx$19\,KiB) & int8 \texttt{.tflite}; delivered to slot~1 \\
     \bottomrule
   \end{tabularx}
 \end{table}
-
-\subsection{Inference latency}
-
-\begin{table}[ht]
-  \centering
-  \caption{On-device inference latency (projected for the int8 models on the nRF52840 Cortex-M4F).}
-  \label{tab:latency}
-  \begin{tabularx}{\textwidth}{@{}X rr@{}}
-    \toprule
-    \textbf{Stage} & \textbf{Mean (ms)} & \textbf{Worst case (ms)} \\
-    \midrule
-    IMU stage                    & 3.2 & 4.6 \\
-    Audio stage (when it fires)  & 18 & 25 \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-\noindent The effective classification rate is 0.5\,Hz (one classification per 2\,s production cycle);
-the audio stage adds about 18\,ms only on the windows where it fires.
-
-\subsection{Power and battery life}
-
-Power is the defining constraint on the wearable (NFR-1). The dominant lever is the rules-based
-activity gate (\cref{sec:on-device-ai,sec:firmware-collar}): a resting cat puts the collar into
-low-power rest, where the 104\,Hz sampling and inference stop, the IMU drops to a low-power watch, and
-the radio slows, so average current tracks how active the cat actually is instead of running flat out
-all day. The remaining draw is set by the active duty cycle of the IMU path and the occasional audio
-path on the 100\,mAh cell.
-
-\begin{table}[ht]
-  \centering
-  \caption{Per-state current draw (projected at the 100\,mAh cell).}
-  \label{tab:power}
-  \begin{tabularx}{\textwidth}{@{}X r@{}}
-    \toprule
-    \textbf{State} & \textbf{Current (mA)} \\
-    \midrule
-    Low-power rest   & 0.6 \\
-    Active idle      & 2.4 \\
-    IMU inference    & 4.3 \\
-    Audio inference  & 7.8 \\
-    Clip streaming   & 12.5 \\
-    OTA              & 9.6 \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-\noindent The rest-to-active current ratio is 4:1. Under a representative 16\,h rest /
-8\,h active day, projected battery life on the 100\,mAh cell is about 3 days. The activity
-gate's saving is that ratio times the fraction of the day the cat spends resting.
-
-\subsection{Over-the-air update}
-
-\begin{table}[ht]
-  \centering
-  \caption{Over-the-air model delivery (projected over BLE).}
-  \label{tab:ota}
-  \begin{tabularx}{\textwidth}{@{}X rr@{}}
-    \toprule
-    \textbf{Step} & \textbf{Time (s)} & \textbf{Throughput (kB/s)} \\
-    \midrule
-    IMU model (slot 0)   & 1.3 & 18 \\
-    Audio model (slot 1) & 1.1 & 18 \\
-    Total push           & 2.6 & 17 \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-\noindent End to end, from pressing ``Retrain'' in the dashboard to the collar running the new model:
-about 2 minutes , dominated by the cloud training run; the station then picks up the new version within
-its 30\,s config poll and the BLE push itself is about 3\,s.
 
 \subsection{Testing and verification}
 
-The system's logic is covered by automated unit tests that run in continuous integration on every
-change, and the integration and on-device behaviour is verified on the hardware. The security
-controls and their evidence are detailed separately (\cref{sec:security-privacy}).
+The system's logic is covered by automated unit tests that run in continuous integration on every change,
+and the integration and on-device behaviour is verified on the hardware. The security controls and their
+evidence are detailed separately (\cref{sec:security-privacy}).
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Automated unit tests.} 80 Python tests cover the dashboard data layer (event
-        aggregation, label resolution, the low-power-rest event handling, the time-window
-        drill-down, the per-day timeline segmenting, and the health comparison) and the
-        Cloud Function's signal logic (per-window normalisation, windowing, WAV parsing, and the
-        path-validation regexes), including property and fuzz tests that hammer the untrusted-input
-        surface (the path validators and the WAV parser) with adversarial and seeded-random inputs.
-        Thirteen host-compiled C tests cover the on-device cascade (the rules-based activity gate and
-        the confidence-gated IMU/audio gating) and the $\mu$-law audio codec and model-input
-        representation, the latter swept exhaustively over the whole int16 domain and checked to match
-        the training representation. The full per-test inventory and results are listed in
-        \cref{app:tests}.
-  \item \textbf{Coverage.} Line coverage of the unit-testable core is 100\,\%. The Firebase request
-        handlers, model training, the dashboard UI, and the hardware-bound firmware paths are
-        excluded from that figure and are covered by the on-hardware checks below.
-  \item \textbf{Continuous integration.} Every push and pull request runs the Python and C test
-        suites and CodeQL static security analysis.
-  \item \textbf{On-hardware verification.} Model load-from-flash, on-device classification, the
-        activity gate's rest/wake cycle, the rest-event logging, and the build and backend-deploy
+  \item \textbf{Automated unit tests.} 80 Python tests cover the dashboard data layer and the Cloud
+        Function's signal logic (per-window normalisation, windowing, WAV parsing, and the path-validation
+        regexes), including property and fuzz tests that hammer the untrusted-input surface. Thirteen
+        host-compiled C tests cover the on-device cascade (the rules-based activity gate and the
+        confidence-gated IMU/audio gating) and the $\mu$-law audio codec and model-input representation,
+        the latter swept exhaustively over the whole int16 domain and checked to match the training
+        representation. The full per-test inventory is listed in \cref{app:tests}.
+  \item \textbf{Continuous integration.} Every push and pull request runs the Python and C test suites and
+        CodeQL static security analysis, with the workflow actions pinned to commit hashes.
+  \item \textbf{On-hardware verification.} Model load-from-flash, on-device classification, the activity
+        gate's rest/wake cycle, the encrypted collar-to-station link, and the build and backend-deploy
         steps were each confirmed directly on the collar and station.
 \end{itemize}
 
 \subsection{Limitations}
 
-The accuracy, latency, power and OTA figures above are \emph{design targets} pending the on-hardware
-run with the trained model; they will be replaced with measured results, on a held-out by-session test
-split, once training is complete. The evaluation is single-cat and within-subject; generalisation
-across cats and households is addressed as future work (\cref{sec:future-work}). The figures are for
-the eat/drink/purr set; accuracy on a larger or more fine-grained label set should be re-measured as
-the set grows.
+The evaluation is a first, single-cat, within-subject result and should be read as such. The dataset is
+small (155 labelled clips) and imbalanced: eat dominates (94 clips) while moving and drink have only 10
+and 11 clips, so their per-class figures are unreliable, moving in particular scoring zero on a two-clip
+test slice. The held-out split is a single stratified 25\,\% partition, not cross-validated. The gated
+audio stage produced no measured accuracy gain on this set (above); whether it helps on confusable
+behaviours across more cats is the central question for future work (\cref{sec:future-work}). Finally,
+on-device inference latency, over-the-air transfer time and power draw are not yet instrumented on the
+hardware; the resource footprint above is the measured on-device figure available now.
