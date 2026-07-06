@@ -203,6 +203,112 @@ def train_one(name, clips):  # pragma: no cover  (TensorFlow training; not a uni
             "in_scale": float(scale), "in_zp": int(zp)}
 
 
+# --- Held-out evaluation for the technical writeup. Trains fresh float models on a clip-level
+# hold-out split and reports the CASCADE's real behaviour (IMU alone vs IMU+audio-confirm): overall
+# accuracy, the confusion matrix, per-class precision/recall/F1, and how often the audio stage fires,
+# changes the label and corrects it. Separate from the deployment path above so a metrics failure
+# never blocks model delivery. ---
+def _make_model(kind, input_shape, n_classes):  # pragma: no cover
+    import tensorflow as tf
+    L = tf.keras.layers
+    if kind == "imu":
+        m = tf.keras.Sequential([L.Input(input_shape),
+            L.Conv1D(16, 5, padding="same", activation="relu"), L.MaxPool1D(2),
+            L.Conv1D(32, 5, padding="same", activation="relu"), L.MaxPool1D(2),
+            L.Conv1D(64, 3, padding="same", activation="relu"), L.GlobalAveragePooling1D(),
+            L.Dense(32, activation="relu"), L.Dropout(0.3), L.Dense(n_classes, activation="softmax")])
+    else:
+        m = tf.keras.Sequential([L.Input(input_shape),
+            L.Conv1D(8, 9, strides=4, padding="same", activation="relu"),
+            L.Conv1D(16, 9, strides=4, padding="same", activation="relu"),
+            L.Conv1D(32, 5, strides=2, padding="same", activation="relu"),
+            L.Conv1D(32, 3, strides=2, padding="same", activation="relu"),
+            L.GlobalAveragePooling1D(), L.Dense(32, activation="relu"), L.Dropout(0.3),
+            L.Dense(n_classes, activation="softmax")])
+    m.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+    return m
+
+
+def _clip_windows(clip, kind):  # pragma: no cover
+    if kind == "imu":
+        src = clip["imu"]
+        if src.shape[0] == 0:
+            return None
+        win, hop, shape = IMU_WIN, IMU_HOP, (IMU_WIN, IMU_AXES)
+    else:
+        src = clip["audio"].reshape(-1, 1)
+        if len(src) == 0:
+            return None
+        win, hop, shape = AUDIO_WIN, AUDIO_HOP, (AUDIO_WIN, 1)
+    ws = [per_window_norm(w).reshape(shape) for w in windows(src, win, hop)]
+    return np.array(ws, np.float32) if ws else None
+
+
+def _full_eval(clips, threshold=0.75):  # pragma: no cover  (TensorFlow; integration only)
+    from collections import Counter
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
+    labels = LABELS
+    n = len(labels)
+    idx = {l: i for i, l in enumerate(labels)}
+    usable = [c for c in clips if c.get("label") in idx and c["imu"].shape[0] > 0 and len(c["audio"]) > 0]
+    if len(usable) < 12:
+        return None
+    y = [idx[c["label"]] for c in usable]
+    try:
+        tr, te = train_test_split(list(range(len(usable))), test_size=0.25, stratify=y, random_state=0)
+    except ValueError:
+        tr, te = train_test_split(list(range(len(usable))), test_size=0.25, random_state=0)
+    train_clips = [usable[i] for i in tr]
+    test_clips = [usable[i] for i in te]
+    models = {}
+    for kind in ("imu", "audio"):
+        X, Y = build_dataset(train_clips, kind)
+        if len(X) < 10 or len(np.unique(Y)) < 2:
+            return None
+        shape = (IMU_WIN, IMU_AXES) if kind == "imu" else (AUDIO_WIN, 1)
+        mdl = _make_model(kind, shape, n)
+        mdl.fit(X, Y, epochs=40, batch_size=32, verbose=0)
+        models[kind] = mdl
+    true, imu_pred, cas_pred = [], [], []
+    fired = changed = corrected = 0
+    for c in test_clips:
+        t = idx[c["label"]]
+        true.append(t)
+        iw, aw = _clip_windows(c, "imu"), _clip_windows(c, "audio")
+        ip = models["imu"].predict(iw, verbose=0).mean(0) if iw is not None else np.ones(n) / n
+        ipred, iconf = int(ip.argmax()), float(ip.max())
+        imu_pred.append(ipred)
+        if iconf >= threshold or aw is None:
+            cas_pred.append(ipred)
+        else:
+            fired += 1
+            apred = int(models["audio"].predict(aw, verbose=0).mean(0).argmax())
+            cas_pred.append(apred)
+            if apred != ipred:
+                changed += 1
+            if apred == t and ipred != t:
+                corrected += 1
+    true, imu_pred, cas_pred = np.array(true), np.array(imu_pred), np.array(cas_pred)
+    cm = confusion_matrix(true, cas_pred, labels=list(range(n))).tolist()
+    p, r, f, _ = precision_recall_fscore_support(true, cas_pred, labels=list(range(n)), zero_division=0)
+    pi, ri, fi, _ = precision_recall_fscore_support(true, imu_pred, labels=list(range(n)), zero_division=0)
+    per_class = {labels[i]: {
+        "imu": {"p": round(float(pi[i]), 3), "r": round(float(ri[i]), 3), "f1": round(float(fi[i]), 3)},
+        "cascade": {"p": round(float(p[i]), 3), "r": round(float(r[i]), 3), "f1": round(float(f[i]), 3)}}
+        for i in range(n)}
+    return {
+        "labels": labels, "threshold": threshold,
+        "clips_by_label": dict(Counter(c["label"] for c in usable)),
+        "n_train_clips": len(train_clips), "n_test_clips": len(test_clips),
+        "imu_acc": round(float((imu_pred == true).mean()), 3),
+        "cascade_acc": round(float((cas_pred == true).mean()), 3),
+        "confusion": cm, "per_class": per_class,
+        "audio_fired": fired, "audio_changed": changed, "audio_corrected": corrected,
+        "audio_fired_frac": round(fired / len(test_clips), 3),
+    }
+
+
 @https_fn.on_request(region=REGION, memory=options.MemoryOption.GB_4, timeout_sec=3600,
                      cpu=2, concurrency=1,
                      cors=options.CorsOptions(cors_origins=["*"], cors_methods=["post", "options"]))
@@ -257,6 +363,14 @@ def train(req: https_fn.Request) -> https_fn.Response:  # pragma: no cover  (int
         for tok, dev in (ref(f"users/{uid}/devices").get() or {}).items():
             if isinstance(dev, dict) and dev.get("type") == "station":
                 ref(f"users/{uid}/devices/{tok}/config/modelVer").set(version)
+
+        # Held-out cascade evaluation for the technical writeup (best-effort: never fails the train).
+        try:
+            ev = _full_eval(clips)
+            if ev:
+                ref(f"users/{uid}/models/eval").set(ev)
+        except Exception as ev_ex:  # noqa: BLE001
+            ref(f"users/{uid}/models/evalError").set(str(ev_ex)[:500])
 
         return https_fn.Response(json.dumps({"version": version, "labels": LABELS, "results": results}), status=200)
     except Exception as ex:

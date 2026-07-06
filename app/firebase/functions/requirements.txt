@@ -1,6 +1,6 @@
 # Meowtion Cloud Functions: server-side model training + authenticated clip upload.
 firebase-functions>=0.6.0
 firebase-admin>=7.4.0
-numpy>=2.5.0
+numpy>=2.0,<2.5           # cap: numpy 2.5 needs Python 3.12, but the Functions runtime is 3.11
 tensorflow-cpu>=2.21.0     # cpu-only build, smaller image, fine for these tiny models
 scikit-learn>=1.9.0
