@@ -79,12 +79,6 @@ overwrite the model flash; an over-the-air image is in any case committed only a
 check (\cref{sec:training-pipeline}). Authenticating the pairing against an active man-in-the-middle, with
 a key provisioned over USB, is future work (\cref{sec:future-work}).
 
-\subsection{Static analysis}
-
-Every push and pull request runs CodeQL static analysis (GitHub code scanning), with findings surfaced in
-the repository's security tab; dependency updates are raised automatically, and the CI workflow actions
-are pinned to commit hashes and do not persist credentials in the checkout.
-
 \subsection{Owner data rights}
 
 The account page lets an owner export everything stored about their cats and delete their account,

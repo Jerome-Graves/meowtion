@@ -158,8 +158,7 @@ evidence are detailed separately (\cref{sec:security-privacy}).
         confidence-gated IMU/audio gating) and the $\mu$-law audio codec and model-input representation,
         the latter swept exhaustively over the whole int16 domain and checked to match the training
         representation. The full per-test inventory is listed in \cref{app:tests}.
-  \item \textbf{Continuous integration.} Every push and pull request runs the Python and C test suites and
-        CodeQL static security analysis, with the workflow actions pinned to commit hashes.
+  \item \textbf{Continuous integration.} Every push and pull request runs the Python and C test suites.
   \item \textbf{On-hardware verification.} Model load-from-flash, on-device classification, the activity
         gate's rest/wake cycle, the encrypted collar-to-station link, and the build and backend-deploy
         steps were each confirmed directly on the collar and station.
