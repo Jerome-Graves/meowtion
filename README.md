@@ -10,10 +10,6 @@
 </p>
 
 <p align="center">
-  <sub><b>HackTheKitty team reference:</b> <code>7C0I9DU5</code></sub>
-</p>
-
-<p align="center">
   <a href="https://meowtion.streamlit.app"><img src="https://static.streamlit.io/badges/streamlit_badge_black_white.svg" alt="Open in Streamlit"></a>
 </p>
 
@@ -38,14 +34,6 @@
 **A smart cat collar that watches your cat's health through its habits.** On-device AI tracks
 eating, drinking, activity, rest and purring, surfacing the routine changes that can flag illness
 early (cats hide it well). It is trainable to recognise any behaviour, all on a live dashboard.
-
-<p align="center">
-  <a href="https://youtu.be/bQQpa5zzoZ4">
-    <img src="https://img.youtube.com/vi/bQQpa5zzoZ4/maxresdefault.jpg?v=2" alt="Watch the Meowtion demo video" width="720">
-  </a>
-  <br>
-  <a href="https://youtu.be/bQQpa5zzoZ4"><b>▶ Watch the demo</b></a>
-</p>
 
 ## The problem
 
@@ -157,17 +145,6 @@ Meowtion runs end to end today. What's next, roughly in priority order:
   mechanism to complete firmware updates.
 - **Field validation and publication** — a larger, multi-household dataset (ideally with vet-confirmed
   events) and a write-up of the confidence-gated cascade.
-
-## Security audit
-
-Alongside the per-owner rules above, the repository runs CodeQL and Dependabot in CI and was put through
-an independent third-party static-analysis audit ([Aikido](https://www.aikido.dev/)). Findings were
-triaged rather than merged blind: the genuine ones are fixed (the collar-to-station BLE link now requires
-LE Secure Connections encryption, the device-token rule pins its owner against reassignment, and the CI
-actions are pinned to commit SHAs), and the rest are documented false positives (the public Firebase web
-key, static-markup `innerHTML`, and backend requests bound to a fixed host plus the caller's own uid).
-The full triage, with the scan screenshots, is in the
-[technical documentation](docs/technical/) security section.
 
 ## License
 

@@ -69,138 +69,21 @@ credentials are entered at runtime and never committed, and \texttt{.gitignore} 
 local secret file. Everything required to understand and build the system is tracked; only true
 secrets are not.
 
-\subsection{Independent security audit}
+\subsection{Link encryption}
 
-The codebase is checked automatically as well as by hand. Every push and pull request runs CodeQL
-static analysis, and dependency updates are raised automatically. In addition the repository was put
-through an independent third-party static audit (Aikido), which reads the firmware, the cloud rules and
-the application code and reasons about attacker-reachable paths. \Cref{fig:aikido} shows that audit as
-first reported.
+The collar-to-station Bluetooth link is encrypted. Both the audio stream and the over-the-air model
+transfer require an encrypted connection (LE Secure Connections), established fresh on each connection so
+a battery collar that reboots carries no stale pairing state. A nearby device that has not paired cannot
+subscribe to the audio stream or write a model to the collar, so it can neither eavesdrop on the link nor
+overwrite the model flash; an over-the-air image is in any case committed only after a CRC-32 integrity
+check (\cref{sec:training-pipeline}). Authenticating the pairing against an active man-in-the-middle, with
+a key provisioned over USB, is future work (\cref{sec:future-work}).
 
-\begin{figure}[ht]\centering
-  \includegraphics[width=\textwidth]{aikido-scan.png}
-  \caption{Independent static application-security audit of the repository. Each finding was reviewed
-           against the running system and dispositioned in \cref{tab:audit-triage}.}
-  \label{fig:aikido}
-\end{figure}
+\subsection{Static analysis}
 
-Each finding was triaged against the actual design rather than accepted blindly, because an
-auto-generated patch can break a working device: the base station authenticates to the backend with a
-scoped device token and no interactive login. Several of the proposed fixes, checked in review, would
-have done exactly that: requiring a Firebase login on the device write path rejects every telemetry
-write from the token-only station, and adding encryption to the collar alone drops the connection from a
-station that does not pair. The fixes were therefore reworked to keep the system running, and the BLE
-link was then encrypted properly, on both MCUs at once. \Cref{tab:audit-triage} records the disposition
-of each finding.
-
-\begin{table}[ht]
-  \centering
-  \caption{Audit findings and their disposition.}
-  \label{tab:audit-triage}
-  \begin{tabularx}{\textwidth}{@{}X l X@{}}
-    \toprule
-    \textbf{Finding} & \textbf{Sev.} & \textbf{Disposition} \\
-    \midrule
-    Realtime Database token owner could be reassigned & Med &
-      \textbf{Fixed.} The \texttt{deviceTokens} write rule now pins an existing token's owner, so a
-      registered token cannot be re-pointed at another account; creation and revocation are unaffected. \\
-    Device write path takes no interactive login & Med &
-      \textbf{By design.} The per-device token is the capability: scoped, revocable and carried in the
-      \texttt{Authorization} header (\cref{fig:token}). A login is required on the human write path;
-      requiring one on the device path would break the token-only station by design. \\
-    Public demo read exposure & Med &
-      \textbf{Reviewed.} The demo-readable subtree carries activity data only, never a device token, and
-      the demo account is write-locked at the backend, so nothing sensitive is reachable through it. \\
-    Nearby device could spoof presence to force training capture & Med &
-      \textbf{Mitigated.} Training capture runs only for a collar on the station's registration
-      allow-list ($\texttt{g\_allow}$); an unregistered advertiser cannot trigger it. \\
-    Nearby device could stream audio, write an OTA model, or spoof an OTA version over BLE & High / Med &
-      \textbf{Fixed.} The collar-to-station link now requires an encrypted connection (LE Secure
-      Connections, with a fresh key agreement per connection so no stale pairing state accumulates on a
-      battery device that reboots often). An unpaired device can no longer subscribe to the audio stream
-      or write an OTA model, so it can neither eavesdrop nor overwrite the model flash; an OTA image is in
-      any case committed only after a CRC-32 integrity check (\cref{sec:training-pipeline}). Authenticating
-      the pairing against an active man-in-the-middle, with a key provisioned over USB, is future work
-      (\cref{sec:future-work}). \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-A broader follow-up scan, run after the fixes above, swept the whole codebase, the dashboard scripts, the
-Streamlit app, the CI workflows and the cloud functions, rather than the firmware and rules alone
-(\cref{fig:aikido2}). It surfaced no new exploitable weakness in the running system: the genuine items
-were the access-control findings already closed above, plus two continuous-integration hardening changes;
-the rest are false positives that an automated tool cannot rule out without the surrounding context.
-\Cref{tab:audit-triage2} gives the disposition of each.
-
-\begin{figure}[ht]\centering
-  \includegraphics[width=\textwidth]{aikido-scan-2.png}
-  \caption{The broader follow-up scan across the whole repository, dispositioned in
-           \cref{tab:audit-triage2}.}
-  \label{fig:aikido2}
-\end{figure}
-
-\begin{table}[ht]
-  \centering
-  \caption{Follow-up scan findings and their disposition.}
-  \label{tab:audit-triage2}
-  \begin{tabularx}{\textwidth}{@{}X l X@{}}
-    \toprule
-    \textbf{Finding} & \textbf{Sev.} & \textbf{Disposition} \\
-    \midrule
-    Document-write / \texttt{innerHTML} XSS in the dashboard scripts & High &
-      \textbf{False positive.} The \texttt{innerHTML} assignments are static markup; no untrusted value is
-      interpolated into HTML. \\
-    Improper access control on the BLE characteristics & High &
-      \textbf{Fixed.} The collar-to-station link now requires encryption (above). \\
-    Streamlit ``upload dangerous files'' & High &
-      \textbf{False positive.} The dashboard has no file-upload control; training clips are uploaded only
-      by the authenticated \texttt{upload\_clip} function. \\
-    Third-party GitHub Actions not pinned & High &
-      \textbf{Fixed.} Every action in the CI workflows is now pinned to a full commit SHA. \\
-    Missing authentication on the OTA characteristic & Med &
-      \textbf{Fixed.} OTA writes require the encrypted link; authenticating the pairing itself (an OOB key
-      over USB) is future work (\cref{sec:future-work}). \\
-    ``Business logic bypass'' in the station BLE relay & Med &
-      \textbf{Fixed.} Capture targets only collars on the registration allow-list. \\
-    Firebase (GCP) API key in the web config & Med &
-      \textbf{False positive.} The Firebase web API key is a public client identifier, not a secret, as the
-      secret-handling note above sets out. \\
-    SSRF via user input in a backend request & Low &
-      \textbf{False positive.} The request host is the fixed Firebase URL; the only variable is the
-      caller's own authenticated uid. \\
-    Checkout persists Git credentials in CI & Low &
-      \textbf{Fixed.} Credential persistence is disabled on the checkout step. \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-Two categories account for the entries that remain, and both are routine for a static scanner. The first
-is \textbf{false positives}, which the tool cannot clear on its own because it reasons about the shape of
-the code without the surrounding context. The Firebase web API key it flags is a public client
-identifier, not a leaked secret: security is enforced by Authentication and the database and storage
-rules, and the key is designed to ship in client code. The cross-site-scripting warning points at
-\texttt{innerHTML} assignments that are all fixed, static markup; the dashboard renders owner-supplied
-text (device and cat names, clip labels) through text nodes, never by interpolating it into HTML, so
-there is no injection sink. The Streamlit upload warning has no target: the dashboard exposes no upload
-control, and a clip reaches storage only through the authenticated \texttt{upload\_clip} function, which
-validates the path and rejects an oversized body. The two server-side request-forgery warnings are
-likewise unreachable: the request URL is a fixed constant (the project's own database host) with only the
-caller's authenticated uid interpolated, so it cannot be pointed at an attacker's host. Each of these is
-dispositioned in the tool with that justification rather than left open.
-
-The second category is the findings that were \textbf{genuinely fixed}, and those fixes are the substance
-of this section. The BLE access-control, missing-authentication and OTA-spoofing findings are closed by
-requiring an encrypted collar-to-station link; the presence-spoofing and business-logic findings by
-restricting capture to registered collars only; the token-reassignment finding by pinning a token's owner
-in the database rules; and the supply-chain findings by pinning every CI action to a commit hash and not
-persisting credentials in the workflow. The auto-generated patches the scanner proposed for the BLE
-findings were deliberately not merged: each was a one-sided change that would have dropped the working
-link, so the equivalent protection was implemented on both devices at once instead.
-
-The residual item is authenticating that encrypted local link against an active man-in-the-middle, which
-is future work; the link is already encrypted, and the boundary that matters, the cloud where the data
-actually lives, is closed by Authentication and the rules above.
+Every push and pull request runs CodeQL static analysis (GitHub code scanning), with findings surfaced in
+the repository's security tab; dependency updates are raised automatically, and the CI workflow actions
+are pinned to commit hashes and do not persist credentials in the checkout.
 
 \subsection{Owner data rights}
 

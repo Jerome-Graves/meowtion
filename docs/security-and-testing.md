@@ -71,8 +71,7 @@ web API key.
 
 ### Automated security scanning
 CodeQL static analysis (GitHub code scanning) runs on every push and pull request; findings surface
-in the repository's Security tab. A second-pass scan with Aikido is scheduled for the final phase and
-its results will be appended here.
+in the repository's Security tab.
 **Evidence:** `.github/workflows/codeql.yml` and the **CodeQL** badge.
 
 ---
